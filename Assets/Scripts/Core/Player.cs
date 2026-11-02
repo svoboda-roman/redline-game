@@ -36,6 +36,11 @@ namespace Redline.Core
         /// <summary>Increments for every strike so each enemy is hit at most once per strike.</summary>
         public int StrikeId;
 
+        /// <summary>Kills in the current chain (0 when no chain is running).</summary>
+        public int Chain;
+        /// <summary>Time left for the next kill to extend the chain.</summary>
+        public float ChainTimer;
+
         public bool Attacking => AttackTimer > 0f;
     }
 }

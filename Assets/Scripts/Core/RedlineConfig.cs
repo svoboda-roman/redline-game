@@ -34,16 +34,18 @@ namespace Redline.Core
         public float inputBufferTime = 0.12f;
 
         // --- Wall jump ---
-        public float wallJumpSpeedX = 10f;
+        /// <summary>Minimum horizontal launch speed of a wall jump (the wall-impact speed is used when higher).</summary>
+        public float wallJumpSpeedX = 8f;
         public float wallJumpSpeedY = 14f;
-        public float wallJumpKick = 1.5f;
+        public float wallJumpKick = 2f;
         public float wallJumpLockTime = 0.15f;
         public float wallSlideMaxFall = 6f;
         /// <summary>How long the speed you hit a wall with is remembered for the wall jump.</summary>
         public float wallImpactMemory = 0.25f;
 
         // --- Slide ---
-        public float slideBoost = 3.5f;
+        /// <summary>Speed added by a slide. Run + slide must stay below tier3Speed: tier 3 is earned.</summary>
+        public float slideBoost = 1.5f;
         public float slideDuration = 0.45f;
         public float slideMinSpeed = 5f;
         public float slideCooldown = 0.4f;
@@ -73,6 +75,12 @@ namespace Redline.Core
         public float attackActiveTime = 0.15f;
         public float attackCooldown = 0.25f;
         public float killMomentumRefund = 2.5f;
+        /// <summary>Seconds after a kill in which the next kill extends the chain.</summary>
+        public float chainWindow = 1.5f;
+        /// <summary>Extra refund per chain step beyond the first kill.</summary>
+        public float chainBonusPerKill = 0.75f;
+        /// <summary>Cap on the extra chain refund.</summary>
+        public float chainMaxBonus = 3f;
         public float clangBounceSpeed = 7f;
         /// <summary>How far the strike box reaches behind the player's centre (tiles).</summary>
         public float strikeBackReach = 0.2f;
@@ -107,6 +115,31 @@ namespace Redline.Core
         /// <summary>Brutes take this fraction of knockback (they are heavy).</summary>
         public float bruteKnockbackScale = 0.35f;
         public float enemyStunTime = 0.35f;
+        /// <summary>Charging brutes: how far away (tiles, same level) the player triggers a charge.</summary>
+        public float bruteChargeRange = 9f;
+        public float bruteWindupTime = 0.5f;
+        public float bruteChargeSpeed = 11f;
+        public float bruteChargeTime = 1f;
+        public float bruteRecoverTime = 0.6f;
+        /// <summary>How long a brute stays dazed (armor down) after charging into a wall.</summary>
+        public float bruteCrashTime = 1.5f;
+        public float bruteChargeCooldown = 2f;
+        /// <summary>First wave (1-based) whose brutes charge.</summary>
+        public int bruteChargeFromWave = 4;
+        // --- Drone ---
+        public float droneSize = 0.8f;
+        public float droneHp = 1f;
+        public int droneContactDamage = 1;
+        public float droneSpeed = 3f;
+        /// <summary>Hover height of the drone's underside above the player's feet (out of jump-strike reach).</summary>
+        public float droneHoverHeight = 5f;
+        public float droneWindupTime = 0.45f;
+        public float droneDiveSpeed = 12f;
+        public float droneDiveTime = 0.8f;
+        /// <summary>Hover time before a drone may dive (also after each dive).</summary>
+        public float droneDiveCooldown = 1.5f;
+        /// <summary>A drone starts its dive when this close (tiles, horizontally) to its hover point, with line of sight.</summary>
+        public float droneDiveTriggerX = 1.2f;
         public float enemyFriction = 20f;
         /// <summary>Horizontal gap between enemies that share a spawn point (tiles).</summary>
         public float spawnSpacing = 0.8f;
@@ -120,6 +153,8 @@ namespace Redline.Core
         public int[] waveGrunts = { 3, 5, 6, 6, 8 };
         /// <summary>Brutes in each wave. Same length as waveGrunts.</summary>
         public int[] waveBrutes = { 0, 1, 1, 2, 3 };
+        /// <summary>Drones in each wave. Same length as waveGrunts.</summary>
+        public int[] waveDrones = { 0, 0, 2, 2, 3 };
 
         /// <summary>Number of waves in a run.</summary>
         public int WaveCount => waveGrunts == null ? 0 : waveGrunts.Length;
@@ -144,6 +179,7 @@ namespace Redline.Core
             Positive(nameof(attackCooldown), attackCooldown);
             Positive(nameof(inputBufferTime), inputBufferTime);
             Positive(nameof(spawnSpacing), spawnSpacing);
+            Positive(nameof(chainWindow), chainWindow);
             if (spikeSpeedKeep < 0f || spikeSpeedKeep > 1f) errors.Add("spikeSpeedKeep must be 0-1");
             Positive(nameof(gruntHp), gruntHp);
             Positive(nameof(bruteHp), bruteHp);
@@ -160,10 +196,16 @@ namespace Redline.Core
             if (waveGrunts == null || waveGrunts.Length == 0) errors.Add("waveGrunts needs at least one wave");
             if (waveBrutes == null || waveGrunts == null || waveBrutes.Length != waveGrunts.Length)
                 errors.Add("waveBrutes must have the same length as waveGrunts");
+            else if (waveDrones == null || waveDrones.Length != waveGrunts.Length)
+                errors.Add("waveDrones must have the same length as waveGrunts");
             else
                 for (int i = 0; i < waveGrunts.Length; i++)
-                    if (waveGrunts[i] < 0 || waveBrutes[i] < 0 || waveGrunts[i] + waveBrutes[i] == 0)
+                    if (waveGrunts[i] < 0 || waveBrutes[i] < 0 || waveDrones[i] < 0
+                        || waveGrunts[i] + waveBrutes[i] + waveDrones[i] == 0)
                         errors.Add($"wave {i + 1} must have a non-negative, non-zero enemy count");
+            Positive(nameof(droneSize), droneSize);
+            Positive(nameof(droneHp), droneHp);
+            Positive(nameof(bruteChargeTime), bruteChargeTime);
             return errors;
         }
     }

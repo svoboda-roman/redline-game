@@ -160,16 +160,22 @@ namespace Redline.Tests
         [Test]
         public void LargestWave_SpawnsInsideArena01WithoutTerrainOverlap()
         {
-            int grunts = 0, brutes = 0;
+            int grunts = 0, brutes = 0, drones = 0;
             foreach (int g in _cfg.waveGrunts) grunts = System.Math.Max(grunts, g);
             foreach (int b in _cfg.waveBrutes) brutes = System.Math.Max(brutes, b);
-            var cfg = new RedlineConfig { waveGrunts = new[] { grunts }, waveBrutes = new[] { brutes } };
+            foreach (int d in _cfg.waveDrones) drones = System.Math.Max(drones, d);
+            var cfg = new RedlineConfig
+            {
+                waveGrunts = new[] { grunts },
+                waveBrutes = new[] { brutes },
+                waveDrones = new[] { drones }
+            };
             var map = TileMap.Parse(ReadResource("Arena01.txt"));
             var sim = new RedlineSim(cfg, map);
 
             Run(sim, Hold(0f), cfg.firstWaveDelay + Dt);
 
-            Assert.AreEqual(grunts + brutes, sim.Enemies.Count);
+            Assert.AreEqual(grunts + brutes + drones, sim.Enemies.Count);
             foreach (var e in sim.Enemies)
             {
                 Assert.IsFalse(map.OverlapsSolid(e.MinX, e.Y, e.MaxX, e.MaxY), $"{e.Kind} at ({e.X}, {e.Y}) is inside terrain");

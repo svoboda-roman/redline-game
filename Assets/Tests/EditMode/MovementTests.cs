@@ -92,7 +92,7 @@ namespace Redline.Tests
         }
 
         [Test]
-        public void Slide_AtRunSpeed_BoostsToTier3AndLowersHitbox()
+        public void Slide_AtRunSpeed_BoostsAndLowersHitbox()
         {
             Run(_sim, Hold(1f), 1f);
             var input = Hold(1f);
@@ -102,7 +102,7 @@ namespace Redline.Tests
             Assert.IsTrue(_sim.Player.Sliding);
             Assert.That(_sim.Player.Vx, Is.EqualTo(_cfg.runSpeed + _cfg.slideBoost).Within(0.001f));
             Assert.AreEqual(_cfg.slideHeight, _sim.Player.Height);
-            Assert.AreEqual(3, _sim.PlayerTier);
+            Assert.AreEqual(2, _sim.PlayerTier, "a slide alone does not earn tier 3");
 
             Run(_sim, Hold(1f), _cfg.slideDuration + 0.1f);
 

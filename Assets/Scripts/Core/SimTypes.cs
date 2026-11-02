@@ -66,7 +66,13 @@ namespace Redline.Core
         PlayerHurt,
         WaveStart,
         Victory,
-        GameOver
+        GameOver,
+        /// <summary>A brute starts telegraphing a charge.</summary>
+        BruteWindup,
+        /// <summary>A charging brute hit a wall and is dazed.</summary>
+        BruteCrash,
+        /// <summary>A drone starts telegraphing a dive.</summary>
+        DroneWindup
     }
 
     /// <summary>A feedback event emitted during one simulation step.</summary>
