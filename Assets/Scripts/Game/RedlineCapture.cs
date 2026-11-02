@@ -63,6 +63,8 @@ namespace Redline.Game
             p.Y = sim.Map.Height * 0.55f;
             p.Vy = 4f;
             p.Vx = sim.Config.tier3Speed + 2f;
+            p.Chain = 4;                       // show the chain badge
+            p.ChainTimer = sim.Config.chainWindow;
             p.RefreshContacts(sim.Map);
             yield return new WaitForSecondsRealtime(0.12f);
             yield return Shot("hud-tier3.png");

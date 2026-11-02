@@ -25,4 +25,10 @@ the first capture fired before wave 1 spawned (tour now waits for the fight).
 - Controls hint moved from the bottom (it covered the player in wave 1) to the top centre between the panels.
 - Wave banner now refreshes when restarting during a wave break (it kept the old wave number).
 
+**HUD restyle (2026-11-02)**, recaptured: neon panels (speed panel border takes the tier colour), zoned speed meter with a
+live speed readout, tier badge + pulsing "BREAKS ARMOR" at tier 3, HP pips that flash when lost and pulse at low HP, a
+centred CHAIN badge with a draining timer, a wave panel with progress dots and a foes count, a pop-in letter-spaced
+banner with underline and a pre-wave countdown, and a highlighted controls hint. Font: Source Code Pro (SIL OFL 1.1,
+licence bundled in `Assets/Resources/Fonts/`). Camera headroom raised to 5.6 tiles so no panel covers the arena.
+
 **Sign-off**: pending — lead review of the look (review mode `solo`: the developer signs off).

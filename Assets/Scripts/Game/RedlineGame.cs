@@ -15,7 +15,7 @@ namespace Redline.Game
     public sealed class RedlineGame : MonoBehaviour
     {
         /// <summary>World tiles kept free above the arena for the HUD panels.</summary>
-        private const float HudHeadroom = 4.8f;
+        private const float HudHeadroom = 5.6f;
         private static readonly Color Background = new Color(0.01f, 0.01f, 0.04f);
         private static readonly Color GruntDebris = new Color(1f, 0.55f, 0.15f);
         private static readonly Color BruteDebris = new Color(1f, 0.2f, 0.28f);
