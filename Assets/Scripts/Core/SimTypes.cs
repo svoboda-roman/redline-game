@@ -72,7 +72,31 @@ namespace Redline.Core
         /// <summary>A charging brute hit a wall and is dazed.</summary>
         BruteCrash,
         /// <summary>A drone starts telegraphing a dive.</summary>
-        DroneWindup
+        DroneWindup,
+        /// <summary>An orb dropped (Detail = (int)OrbKind; Position = its centre).</summary>
+        OrbSpawn,
+        /// <summary>The player picked up an orb (Detail = (int)OrbKind).</summary>
+        OrbPickup,
+        /// <summary>An orb ran out of time and vanished (Detail = (int)OrbKind).</summary>
+        OrbExpire,
+        /// <summary>A shooter starts telegraphing a shot (Position = the shooter's centre).</summary>
+        ShooterWindup,
+        /// <summary>A shooter fired (Position = where the projectile starts).</summary>
+        Shoot,
+        /// <summary>A sword strike reflected a projectile (Position = the projectile).</summary>
+        ProjectileReflect,
+        /// <summary>A projectile ended: hit a wall, a target or ran out of time (Position = where).</summary>
+        ProjectileHit,
+        /// <summary>A shield stopped a strike or a reflected projectile (sent with Clang for strikes).</summary>
+        ShieldBlock,
+        /// <summary>A kamikaze stopped and lit its fuse (the telegraph before it explodes).</summary>
+        KamikazeFuse,
+        /// <summary>A kamikaze exploded (Position = blast centre; radius kamikazeBlastRadius).</summary>
+        Explode,
+        /// <summary>A summoner starts its cast (the telegraph before a drone appears).</summary>
+        SummonerCast,
+        /// <summary>A summoner summoned a drone (Position = the new drone's centre).</summary>
+        Summon
     }
 
     /// <summary>A feedback event emitted during one simulation step.</summary>
@@ -82,12 +106,22 @@ namespace Redline.Core
         public readonly Vec2 Position;
         /// <summary>Player speed tier when the event happened (1-3).</summary>
         public readonly int Tier;
+        /// <summary>
+        /// Event-specific payload: (int)<see cref="OrbKind"/> for orb events, (int)<see cref="EnemyKind"/>
+        /// of the dead enemy for Kill, 0 otherwise.
+        /// </summary>
+        public readonly int Detail;
 
-        public SimEvent(SimEventType type, Vec2 position, int tier)
+        public SimEvent(SimEventType type, Vec2 position, int tier) : this(type, position, tier, 0)
+        {
+        }
+
+        public SimEvent(SimEventType type, Vec2 position, int tier, int detail)
         {
             Type = type;
             Position = position;
             Tier = tier;
+            Detail = detail;
         }
     }
 }

@@ -67,7 +67,12 @@ namespace Redline.Tests
         private void HopWalls(RedlineSim sim, ref InputFrame input)
         {
             var p = sim.Player;
-            if (!p.Grounded || input.MoveX == 0f || p.WallDir != MathF.Sign(input.MoveX)) return;
+            if (!p.Grounded || input.MoveX == 0f) return;
+            int dir = MathF.Sign(input.MoveX);
+            bool spikes = false;
+            for (float look = 0.6f; look <= 1.8f; look += 0.4f)
+                if (sim.Map.Get((int)MathF.Floor(p.X + dir * look), (int)MathF.Floor(p.Y + 0.01f)) == Tile.Spike) spikes = true;
+            if (p.WallDir != dir && !spikes) return;
             input.JumpPressed = true;
             input.JumpHeld = true;
             _jumpHold = 20;

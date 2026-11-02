@@ -209,5 +209,25 @@ namespace Redline.Tests
             Assert.IsFalse(sim.Player.Hooked);
             Assert.AreEqual(0f, sim.Player.HookCooldownTimer);
         }
+
+        [Test]
+        public void Hook_FiredWhileRunningTowardTheAnchor_IsTautAtOnce()
+        {
+            // Regression: the rope stayed slack (~0.5 s from the floor) while the player moved toward
+            // the anchor, so the hook felt delayed.
+            var sim = new RedlineSim(_cfg, Box(40, 20, ceilingRow: 9));
+            Teleport(sim, 3f, 1f);
+            sim.Player.Vx = _cfg.runSpeed;
+            sim.Step(new InputFrame { MoveX = 1f, HookPressed = true, HookHeld = true }, Dt);
+            Assert.IsTrue(sim.Player.Hooked);
+
+            Run(sim, new InputFrame { MoveX = 1f, HookHeld = true }, 2 * Dt);
+
+            var p = sim.Player;
+            Assert.IsFalse(p.Grounded, "the hook lifted the player off the floor at once");
+            Assert.Greater(p.Vy, 0f, "pulled up toward the anchor");
+            float distance = (p.Center - p.HookAnchor).Length;
+            Assert.LessOrEqual(distance, p.HookLength + 0.05f, "rope never longer than its length");
+        }
     }
 }

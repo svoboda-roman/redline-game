@@ -69,6 +69,33 @@ namespace Redline.Tests
         }
 
         [Test]
+        public void Grunt_LeashedAbovePlayer_TakesTheOtherLedgeDown()
+        {
+            // Regression (Loop01 high lane): the near ledge was beyond the leash, so the grunt turned
+            // for the other ledge, left the "above the player" band after a step and turned back,
+            // pacing forever. Platform x 4..24 at y=5; post 10.5: left edge in leash, right edge not.
+            var map = TileMap.Parse(
+                "########################################\n" +
+                "#......................................#\n" +
+                "#......................................#\n" +
+                "#......................................#\n" +
+                "#...#####################..............#\n" +
+                "#......................................#\n" +
+                "#......................................#\n" +
+                "#......................................#\n" +
+                "#....P................................S#\n" +
+                "########################################\n");
+            var sim = new RedlineSim(NoWaves(), map);
+            var grunt = sim.SpawnEnemy(EnemyKind.Grunt, new Vec2(10.5f, 6f));
+            Teleport(sim, 18f, 1f);
+            sim.Player.InvulnTimer = 99f;
+
+            Run(sim, Hold(0f), 12f); // ~3 s right to the leash, ~5.5 s back left to the far edge
+
+            Assert.Less(grunt.Y, 2f, "grunt reached the floor");
+        }
+
+        [Test]
         public void Contact_DamagesPlayer_GrantsInvulnerability_AndKnocksBack()
         {
             var p = _sim.Player;

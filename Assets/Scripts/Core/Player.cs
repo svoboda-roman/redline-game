@@ -29,6 +29,13 @@ namespace Redline.Core
         public Vec2 HookAnchor;
         public float HookLength;
         public float HookCooldownTimer;
+        /// <summary>Seconds on the current rope (a release only flings after a real swing).</summary>
+        public float HookTime;
+
+        /// <summary>Time left on the speed orb buff (0 when inactive). Read by the HUD.</summary>
+        public float SpeedBuffTimer;
+        /// <summary>Time left on the hook orb buff: no hook cooldown, extra range (0 when inactive). Read by the HUD.</summary>
+        public float HookBuffTimer;
 
         /// <summary>Remaining active time of the current strike (0 when not striking).</summary>
         public float AttackTimer;

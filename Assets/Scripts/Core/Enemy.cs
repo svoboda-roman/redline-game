@@ -8,7 +8,34 @@ namespace Redline.Core
         /// <summary>Slow, heavy, armored below a minimum player tier; may charge.</summary>
         Brute,
         /// <summary>Flying; hovers out of ground reach and dives at the player.</summary>
-        Drone
+        Drone,
+        /// <summary>Holds its post and fires telegraphed projectiles; a sword strike reflects them.</summary>
+        Shooter,
+        /// <summary>Walker with a shield on its <see cref="Enemy.ShieldDir"/> side; open from behind and above.</summary>
+        Shield,
+        /// <summary>Rushes the player, stops on a short fuse, then explodes (hurts the player and enemies).</summary>
+        Kamikaze,
+        /// <summary>Flees the player and summons drones (capped) until killed.</summary>
+        Summoner
+    }
+
+    /// <summary>
+    /// What a shooter, kamikaze or summoner is doing (brutes use <see cref="BruteMode"/>, drones
+    /// <see cref="DroneMode"/>). Transitions: shooter Idle -> Windup -> Idle (shot fired);
+    /// kamikaze Idle -> Rush -> Fuse -> explode; summoner Idle -> Cast -> Idle (drone summoned).
+    /// A hit during a shooter's Windup or a summoner's Cast cancels it back to Idle.
+    /// </summary>
+    public enum EnemyAct
+    {
+        Idle,
+        /// <summary>Shooter: telegraph before a shot (stands still).</summary>
+        Windup,
+        /// <summary>Kamikaze: running at the player.</summary>
+        Rush,
+        /// <summary>Kamikaze: stopped next to the player, about to explode.</summary>
+        Fuse,
+        /// <summary>Summoner: telegraph before a drone appears (stands still).</summary>
+        Cast
     }
 
     /// <summary>What a charging brute is doing.</summary>
@@ -53,6 +80,11 @@ namespace Redline.Core
         public int LastStrikeId = -1;
         /// <summary>Last walking direction (+1 right, -1 left); used to walk off ledges above the player.</summary>
         public int Facing = 1;
+        /// <summary>
+        /// Walkers above the player whose near ledge is beyond the leash: committed to walking to the
+        /// far ledge (in <see cref="Facing"/>) and dropping off it, until it leaves its post level.
+        /// </summary>
+        public bool Detour;
 
         /// <summary>Brutes only: whether this brute charges (set per wave).</summary>
         public bool Charges;
@@ -68,6 +100,15 @@ namespace Redline.Core
         public int ChargeDir;
         /// <summary>Drones only: unit direction of the current dive.</summary>
         public Vec2 DiveDir;
+
+        /// <summary>Shooter, kamikaze and summoner: current action (timed by <see cref="ModeTimer"/>).</summary>
+        public EnemyAct Act;
+        /// <summary>Shield bearers: the side (+1 right, -1 left) the shield covers. Follows <see cref="Facing"/> after shieldTurnTime.</summary>
+        public int ShieldDir = 1;
+        /// <summary>Shield bearers: how long <see cref="Facing"/> has differed from <see cref="ShieldDir"/>.</summary>
+        public float TurnTimer;
+        /// <summary>Drones summoned by a summoner: that summoner (null otherwise).</summary>
+        public Enemy Owner;
 
         /// <summary>Where this enemy stands guard; it returns here when the player leaves.</summary>
         public Vec2 Post;
@@ -105,6 +146,39 @@ namespace Redline.Core
                     ContactDamage = cfg.bruteContactDamage;
                     Speed = cfg.bruteSpeed;
                     JumpSpeed = cfg.bruteJumpSpeed;
+                    break;
+                case EnemyKind.Shooter:
+                    Width = cfg.shooterWidth;
+                    Height = cfg.shooterHeight;
+                    MaxHp = cfg.shooterHp;
+                    ContactDamage = cfg.shooterContactDamage;
+                    Speed = cfg.shooterSpeed;
+                    JumpSpeed = cfg.shooterJumpSpeed;
+                    break;
+                case EnemyKind.Shield:
+                    Width = cfg.shieldWidth;
+                    Height = cfg.shieldHeight;
+                    MaxHp = cfg.shieldHp;
+                    ContactDamage = cfg.shieldContactDamage;
+                    Speed = cfg.shieldSpeed;
+                    JumpSpeed = cfg.shieldJumpSpeed;
+                    break;
+                case EnemyKind.Kamikaze:
+                    Width = cfg.kamikazeWidth;
+                    Height = cfg.kamikazeHeight;
+                    MaxHp = cfg.kamikazeHp;
+                    ContactDamage = cfg.kamikazeContactDamage;
+                    Speed = cfg.kamikazeSpeed;
+                    JumpSpeed = cfg.kamikazeJumpSpeed;
+                    break;
+                case EnemyKind.Summoner:
+                    Width = cfg.summonerWidth;
+                    Height = cfg.summonerHeight;
+                    MaxHp = cfg.summonerHp;
+                    ContactDamage = cfg.summonerContactDamage;
+                    Speed = cfg.summonerSpeed;
+                    JumpSpeed = cfg.summonerJumpSpeed;
+                    ModeTimer = cfg.summonerCastInterval;
                     break;
                 default:
                     Width = cfg.droneSize;
