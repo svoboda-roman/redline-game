@@ -22,3 +22,4 @@
 | 005 | Arena with hazards and spawn points | Integration | Ready | N/A |
 | 006 | Wave flow, HP, game over, victory | Logic | Ready | N/A |
 | 007 | HUD and end screens | UI | Ready | N/A |
+| 008 | Visual polish — neon look and combat feedback | Visual/Feel | Ready | N/A |

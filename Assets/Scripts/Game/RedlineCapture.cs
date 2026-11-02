@@ -67,6 +67,16 @@ namespace Redline.Game
             yield return new WaitForSecondsRealtime(0.12f);
             yield return Shot("hud-tier3.png");
 
+            // 3b. Kill feedback: sparks, debris and flash where the brute stands.
+            foreach (var e in sim.Enemies)
+                if (e.Alive && e.Kind == EnemyKind.Brute)
+                {
+                    _game.PreviewKillEffects(new Vector2(e.Center.X, e.Center.Y), true);
+                    break;
+                }
+            yield return new WaitForSecondsRealtime(0.06f);
+            yield return Shot("fx-kill.png");
+
             // 4. Game over.
             sim.Player.Hp = 0;
             yield return new WaitForSecondsRealtime(0.5f);
