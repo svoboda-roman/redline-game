@@ -19,6 +19,8 @@ namespace Redline.Game
         private static readonly Color Background = new Color(0.01f, 0.01f, 0.04f);
         private static readonly Color GruntDebris = new Color(1f, 0.55f, 0.15f);
         private static readonly Color BruteDebris = new Color(1f, 0.2f, 0.28f);
+        private static readonly Color DroneDebris = new Color(0.78f, 0.45f, 1f);
+        private static readonly Color WindupColor = new Color(1f, 0.85f, 0.4f);
         private static readonly Color HurtColor = new Color(1f, 0.25f, 0.4f);
         private static readonly Color ClangColor = new Color(0.7f, 0.8f, 1f);
 
@@ -223,6 +225,8 @@ namespace Redline.Game
                     case SimEventType.HookAttach: _effects.Sparks(at, color, 8, 5f); break;
                     case SimEventType.WaveStart: _effects.Flash(0.08f); break;
                     case SimEventType.Victory: _effects.Flash(0.25f); break;
+                    case SimEventType.BruteWindup: _effects.Sparks(at, WindupColor, 6, 3f); break;
+                    case SimEventType.BruteCrash: OnBruteCrash(at); break;
                 }
             }
         }
@@ -235,12 +239,22 @@ namespace Redline.Game
 
         private void OnKill(Vector2 at, Color color, int tier)
         {
-            bool brute = KilledKindAt(at) == EnemyKind.Brute;
+            var kind = KilledKindAt(at);
+            bool brute = kind == EnemyKind.Brute;
+            var debris = brute ? BruteDebris : kind == EnemyKind.Drone ? DroneDebris : GruntDebris;
             _effects.Sparks(at, color, 10 + 6 * tier, 8f + 4f * tier);
-            _effects.Debris(at, brute ? BruteDebris : GruntDebris, brute ? 16 : 9, 7f + 2f * tier);
+            _effects.Debris(at, debris, brute ? 16 : 9, 7f + 2f * tier);
             _shake = Mathf.Max(_shake, 0.08f * tier + (brute ? 0.2f : 0f));
             _hitStop = Mathf.Max(_hitStop, 0.02f * tier + (brute ? 0.05f : 0f));
             if (tier == 3) _effects.Flash(brute ? 0.22f : 0.1f);
+        }
+
+        private void OnBruteCrash(Vector2 at)
+        {
+            _effects.Sparks(at, WindupColor, 18, 9f);
+            _effects.Dust(new Vector2(at.x, at.y - 1f), 8, 0f);
+            _shake = Mathf.Max(_shake, 0.35f);
+            _hitStop = Mathf.Max(_hitStop, 0.06f);
         }
 
         private void OnClang(Vector2 at)

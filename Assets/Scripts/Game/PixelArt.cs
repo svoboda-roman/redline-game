@@ -21,6 +21,7 @@ namespace Redline.Game
         private static Sprite _playerSlide;
         private static Sprite _grunt;
         private static Sprite _brute;
+        private static Sprite _drone;
         private static Sprite _tile;
         private static Sprite _slash;
         private static Sprite _glow;
@@ -30,7 +31,7 @@ namespace Redline.Game
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetStatics()
         {
-            _player = _playerSlide = _grunt = _brute = _tile = _slash = _glow = _gradient = null;
+            _player = _playerSlide = _grunt = _brute = _drone = _tile = _slash = _glow = _gradient = null;
         }
 
         /// <summary>Standing runner, facing right (visor on the right).</summary>
@@ -107,6 +108,19 @@ namespace Redline.Game
             ".MMWW...WWMM.",
             ".MMMM...MMMM.",
             "............."
+        }));
+
+        /// <summary>Flying drone: wings, a single dark eye band, two dangling claws.</summary>
+        public static Sprite Drone => _drone != null ? _drone : (_drone = FromPattern("RedlineDrone", new[]
+        {
+            "W........W",
+            ".WW....WW.",
+            "..WWWWWW..",
+            ".WWKKKKWW.",
+            "WWWKWWKWWW",
+            ".WWWWWWWW.",
+            "..W....W..",
+            "..M....M.."
         }));
 
         /// <summary>Bevelled terrain block: bright top-left edge, dark bottom-right edge.</summary>

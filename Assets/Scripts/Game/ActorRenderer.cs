@@ -22,6 +22,8 @@ namespace Redline.Game
         private static readonly Color BruteArmored = new Color(0.55f, 0.65f, 0.82f);
         private static readonly Color BruteBreakable = new Color(1f, 0.2f, 0.28f);
         private static readonly Color RopeCore = new Color(0.9f, 0.97f, 1f);
+        private static readonly Color DroneColor = new Color(0.78f, 0.45f, 1f);
+        private static readonly Color WindupColor = new Color(1f, 0.85f, 0.4f);
 
         private readonly Transform _root;
         private readonly SpriteRenderer _player;
@@ -174,29 +176,60 @@ namespace Redline.Game
         private void SyncEnemy(Enemy e, Vector2 feet, int tier, int index)
         {
             var view = _enemies[index];
-            bool grunt = e.Kind == EnemyKind.Grunt;
-            bool breakable = CombatRules.CanDamage(tier, e.MinTier);
-            view.sprite = grunt ? PixelArt.Grunt : PixelArt.Brute;
+            bool brute = e.Kind == EnemyKind.Brute;
+            bool breakable = brute && CombatRules.CanDamage(tier, e.ArmorTier);
+            view.sprite = e.Kind == EnemyKind.Grunt ? PixelArt.Grunt : brute ? PixelArt.Brute : PixelArt.Drone;
             view.flipX = e.Facing < 0;
 
-            Color c = grunt ? GruntColor : (breakable ? BruteBreakable : BruteArmored);
-            if (e.SinceHit < 0.08f) c = Color.white;
+            var c = EnemyColor(e, breakable);
             view.color = c;
 
-            float bob = grunt && e.Grounded ? Mathf.Abs(Mathf.Sin(_time * 12f + index)) * 0.08f : 0f;
+            float bob = e.Kind == EnemyKind.Grunt && e.Grounded ? Mathf.Abs(Mathf.Sin(_time * 12f + index)) * 0.08f : 0f;
             float pop = e.SinceHit < 0.12f ? 1.15f : 1f;
             float k = e.Height / view.sprite.bounds.size.y * pop;
             var t = view.transform;
             t.localScale = new Vector3(k * (1f + bob), k * (1f - bob), 1f);
-            t.localPosition = new Vector3(feet.x, feet.y + e.Height * pop * (1f - bob) * 0.5f, 0f);
+            var offset = EnemyOffset(e, index);
+            t.localPosition = new Vector3(feet.x + offset.x, feet.y + e.Height * pop * (1f - bob) * 0.5f + offset.y, 0f);
+            // A crashed brute wobbles, dazed.
+            t.localRotation = brute && e.Mode == BruteMode.Crashed
+                ? Quaternion.Euler(0f, 0f, Mathf.Sin(_time * 9f) * 10f)
+                : Quaternion.identity;
 
             var glow = _enemyGlows[index];
             var gc = c;
-            gc.a = grunt ? 0.12f : breakable ? 0.3f + 0.15f * Mathf.Sin(_time * 14f) : 0.1f;
+            gc.a = breakable ? 0.3f + 0.15f * Mathf.Sin(_time * 14f) : brute ? 0.1f : 0.14f;
             glow.color = gc;
-            float gs = e.Height * (breakable && !grunt ? 2.4f : 1.8f);
+            float gs = e.Height * (breakable ? 2.4f : 1.8f);
             glow.transform.localPosition = t.localPosition;
             glow.transform.localScale = new Vector3(gs, gs, 1f);
+        }
+
+        /// <summary>Base colour per kind and state, with flashes for hits and telegraphs.</summary>
+        private Color EnemyColor(Enemy e, bool breakable)
+        {
+            if (e.SinceHit < 0.08f) return Color.white;
+            bool blink = Mathf.Repeat(_time * 18f, 2f) < 1f;
+            switch (e.Kind)
+            {
+                case EnemyKind.Grunt:
+                    return GruntColor;
+                case EnemyKind.Drone:
+                    return e.DroneState == DroneMode.Windup && blink ? Color.white : DroneColor;
+                default:
+                    if (e.Mode == BruteMode.Windup) return blink ? WindupColor : BruteArmored;
+                    return breakable ? BruteBreakable : BruteArmored;
+            }
+        }
+
+        /// <summary>Shake while a brute telegraphs a charge; gentle hover sway for drones.</summary>
+        private Vector2 EnemyOffset(Enemy e, int index)
+        {
+            if (e.Kind == EnemyKind.Brute && e.Mode == BruteMode.Windup)
+                return new Vector2(Mathf.Sin(_time * 70f) * 0.07f, 0f);
+            if (e.Kind == EnemyKind.Drone && e.DroneState == DroneMode.Hover)
+                return new Vector2(0f, Mathf.Sin(_time * 4f + index) * 0.12f);
+            return Vector2.zero;
         }
     }
 }

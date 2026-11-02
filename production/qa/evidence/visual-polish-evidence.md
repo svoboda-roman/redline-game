@@ -13,6 +13,9 @@
 | `gameover.png` | Player shattered into debris; GAME OVER banner | shatter on game over |
 | `victory.png` | VICTORY screen with the new look | — |
 
+| `wave3-drones.png` | Gameplay pass (story 012): purple drones heading for their hover points | drone readability |
+| `wave4-charge-telegraph.png` | Gameplay pass (story 011): brute flashing yellow while telegraphing a charge; second brute steel | charge telegraph |
+
 **Not visible in stills (verify in play)**: dust on jump/land/slide, squash and stretch, slash arc, glowing rope, red vignette pulse on damage, hit pop on enemies.
 
 **Regression check**: gameplay rules unchanged — 77/77 tests pass in Unity EditMode and `dotnet test tools/core-tests`.

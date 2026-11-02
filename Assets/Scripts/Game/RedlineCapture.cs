@@ -77,6 +77,20 @@ namespace Redline.Game
             yield return new WaitForSecondsRealtime(0.06f);
             yield return Shot("fx-kill.png");
 
+            // 3c. Wave 3: drones hover out of reach. 3d. Wave 4: a brute telegraphs a charge.
+            yield return ClearUntilWave(sim, 3);
+            yield return WaitForFight(sim, 2.5f);
+            yield return Shot("wave3-drones.png");
+            yield return ClearUntilWave(sim, 4);
+            yield return WaitForFight(sim, 0.5f);
+            float wait = 8f;
+            while (wait > 0f && !AnyBruteIn(sim, BruteMode.Windup))
+            {
+                wait -= Time.unscaledDeltaTime;
+                yield return null;
+            }
+            yield return Shot("wave4-charge-telegraph.png");
+
             // 4. Game over.
             sim.Player.Hp = 0;
             yield return new WaitForSecondsRealtime(0.5f);
@@ -87,6 +101,9 @@ namespace Redline.Game
             float guard = 120f;
             while (sim.State != SimState.Victory && guard > 0f)
             {
+                // Several fixed steps can run between frames; keep the idle player alive meanwhile.
+                if (sim.State == SimState.GameOver) sim.Restart();
+                sim.Player.InvulnTimer = 1f;
                 if (sim.State == SimState.Fighting)
                     foreach (var e in sim.Enemies) e.Hp = 0f;
                 guard -= Time.unscaledDeltaTime;
@@ -97,6 +114,26 @@ namespace Redline.Game
 
             Debug.Log("REDLINE_CAPTURE_DONE " + Directory);
             Application.Quit();
+        }
+
+        private static IEnumerator ClearUntilWave(RedlineSim sim, int wave)
+        {
+            float guard = 60f;
+            while (sim.CurrentWave < wave && guard > 0f)
+            {
+                sim.Player.InvulnTimer = 1f;
+                if (sim.State == SimState.Fighting)
+                    foreach (var e in sim.Enemies) e.Hp = 0f;
+                guard -= Time.unscaledDeltaTime;
+                yield return null;
+            }
+        }
+
+        private static bool AnyBruteIn(RedlineSim sim, BruteMode mode)
+        {
+            foreach (var e in sim.Enemies)
+                if (e.Alive && e.Kind == EnemyKind.Brute && e.Mode == mode) return true;
+            return false;
         }
 
         private static IEnumerator WaitForFight(RedlineSim sim, float extraSeconds)

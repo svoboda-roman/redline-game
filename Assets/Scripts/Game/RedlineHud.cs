@@ -14,13 +14,15 @@ namespace Redline.Game
     {
         private const string ControlsText =
             "A/D move · Space jump · J attack · hold K hook · S slide · R restart\n" +
-            "Pad: stick · A jump · X attack · hold RB hook · B slide · Start restart";
+            "Pad: stick · A jump · X attack · hold RB hook · B slide · Start restart\n" +
+            "Tier 3 breaks armor: hook swing · wall-jump after a slide · kill chain";
 
         private RedlineGame _game;
         private PanelSettings _settings;
         private int _shownBannerWave = -1;
         private VisualElement _speedFill;
         private Label _tierLabel;
+        private Label _chainLabel;
         private Label _waveLabel;
         private Label _enemiesLabel;
         private Label _banner;
@@ -29,6 +31,7 @@ namespace Redline.Game
         private VisualElement[] _hpPips;
 
         private int _shownTier = -1;
+        private int _shownChain = -1;
         private int _shownHp = -1;
         private int _shownWave = -1;
         private int _shownEnemies = -1;
@@ -101,6 +104,11 @@ namespace Redline.Game
             hpRow.style.flexDirection = FlexDirection.Row;
             hpRow.style.marginLeft = 24;
             statusRow.Add(hpRow);
+
+            _chainLabel = MakeLabel("", 30, RedlineGame.TierColors[2]);
+            _chainLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+            _chainLabel.style.marginLeft = 20;
+            statusRow.Add(_chainLabel);
             _hpPips = new VisualElement[cfg.playerMaxHp];
             for (int i = 0; i < _hpPips.Length; i++)
             {
@@ -173,6 +181,13 @@ namespace Redline.Game
                 _speedFill.style.backgroundColor = c;
                 _tierLabel.text = tier == 3 ? "TIER 3  ·  BREAKS ARMOR" : "TIER " + tier;
                 _tierLabel.style.color = c;
+            }
+
+            int chain = p.Chain >= 2 ? p.Chain : 0;
+            if (chain != _shownChain)
+            {
+                _shownChain = chain;
+                _chainLabel.text = chain >= 2 ? "CHAIN ×" + chain : "";
             }
 
             if (p.Hp != _shownHp)
