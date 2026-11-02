@@ -81,6 +81,8 @@ export_presets.cfg
 [Ll]ogs/
 [Uu]ser[Ss]ettings/
 *.csproj
+# ...except the engine-free test runner (dotnet test tools/core-tests)
+!tools/core-tests/*.csproj
 *.unityproj
 *.sln
 *.suo
@@ -175,3 +177,9 @@ $RECYCLE.BIN/
 # the project root. Anchored so a reports/ folder elsewhere stays tracked.
 /reports/
 /test-results/
+
+# Unity test runner output (commands.test)
+test-results/
+# Unity-generated IDE files
+*.slnx
+.vscode/
