@@ -19,9 +19,18 @@ namespace Redline.Game
     {
         private static Sprite _player;
         private static Sprite _playerSlide;
+        private static Sprite[] _playerRun;
+        private static Sprite _playerJump;
+        private static Sprite _playerFall;
+        private static Sprite _playerSwing;
         private static Sprite _grunt;
         private static Sprite _brute;
         private static Sprite _drone;
+        private static Sprite _shooter;
+        private static Sprite _shieldBearer;
+        private static Sprite _kamikaze;
+        private static Sprite _summoner;
+        private static Sprite _projectile;
         private static Sprite _tile;
         private static Sprite _sword;
         private static Sprite _glow;
@@ -31,7 +40,9 @@ namespace Redline.Game
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetStatics()
         {
-            _player = _playerSlide = _grunt = _brute = _drone = _tile = _sword = _glow = _gradient = null;
+            _playerRun = null;
+            _player = _playerSlide = _playerJump = _playerFall = _playerSwing = _grunt = _brute = _drone = _tile = _sword = _glow = _gradient = null;
+            _shooter = _shieldBearer = _kamikaze = _summoner = _projectile = null;
         }
 
         /// <summary>Standing runner, facing right (visor on the right).</summary>
@@ -67,6 +78,152 @@ namespace Redline.Game
             ".MM.....MM......",
             "................"
         }));
+
+        /// <summary>Number of frames in the run cycle (see <see cref="PlayerRunFrame"/>).</summary>
+        public const int PlayerRunFrameCount = 4;
+
+        /// <summary>
+        /// One frame of the run cycle, facing right: 0 stride, 1 passing, 2 the other stride,
+        /// 3 the other passing. The near limbs are white, the far limbs mid grey for depth. Every
+        /// frame is 16 rows tall like <see cref="Player"/>, so pixels stay the same size.
+        /// </summary>
+        /// <example>
+        /// <code>
+        /// renderer.sprite = PixelArt.PlayerRunFrame((int)phase % PixelArt.PlayerRunFrameCount);
+        /// </code>
+        /// </example>
+        public static Sprite PlayerRunFrame(int index)
+        {
+            if (_playerRun == null)
+            {
+                _playerRun = new[]
+                {
+                    FromPattern("RedlinePlayerRun0", RunRows(
+                        "..MWWWWWWL..",
+                        ".M.WWWWWW.L.",
+                        ".D.WWWWWW.W.",
+                        "....MMWW....",
+                        "...MM..WW...",
+                        "..MM....WW..",
+                        ".DD.....LL..",
+                        "........MMM.")),
+                    FromPattern("RedlinePlayerRun1", RunRows(
+                        "...WWWWWWL..",
+                        "..MWWWWWWL..",
+                        "..DWWWWWWW..",
+                        ".....WWMMM..",
+                        ".....WW..M..",
+                        ".....WW.MM..",
+                        ".....LL.....",
+                        ".....MMM....")),
+                    FromPattern("RedlinePlayerRun2", RunRows(
+                        "..LWWWWWWM..",
+                        ".L.WWWWWW.M.",
+                        ".W.WWWWWW.D.",
+                        "....WWMM....",
+                        "...WW..MM...",
+                        "..WW....MM..",
+                        ".LL.....MM..",
+                        "........DDD.")),
+                    FromPattern("RedlinePlayerRun3", RunRows(
+                        "..LWWWWWW...",
+                        "..LWWWWWWM..",
+                        "..WWWWWWWD..",
+                        ".....MMWWW..",
+                        ".....MM..W..",
+                        ".....MM.WW..",
+                        ".....DD.....",
+                        ".....DDD....")),
+                };
+            }
+            return _playerRun[((index % PlayerRunFrameCount) + PlayerRunFrameCount) % PlayerRunFrameCount];
+        }
+
+        /// <summary>Rising jump, facing right: near fist punched up, near knee tucked, far leg trailing.</summary>
+        public static Sprite PlayerJump => _playerJump != null ? _playerJump : (_playerJump = FromPattern("RedlinePlayerJump", new[]
+        {
+            "....WWWW....",
+            "...WWWWWW...",
+            "...WWWKKK...",
+            "...WWWWWW.W.",
+            "....WWWW..L.",
+            "...WWWWWWL..",
+            "..MWWWWWW...",
+            ".M.WWWWWW...",
+            ".D.WWWWWW...",
+            "...WWWWWW...",
+            "...WWMMWW...",
+            "....MMWWWW..",
+            "...MM...WW..",
+            "...MM...LL..",
+            "..DD....MM..",
+            "............"
+        }));
+
+        /// <summary>Falling, facing right: both arms thrown up, legs spread and reaching for the ground.</summary>
+        public static Sprite PlayerFall => _playerFall != null ? _playerFall : (_playerFall = FromPattern("RedlinePlayerFall", new[]
+        {
+            "....WWWW....",
+            "...WWWWWW...",
+            ".M.WWWKKK.W.",
+            ".M.WWWWWW.L.",
+            "..M.WWWW.L..",
+            "..MWWWWWWL..",
+            "...WWWWWW...",
+            "...WWWWWW...",
+            "...WWWWWW...",
+            "...WWWWWW...",
+            "...WWMMWW...",
+            "...MM.WW....",
+            "..MM...WW...",
+            "..MM...WW...",
+            ".MM.....WW..",
+            ".DD.....LL.."
+        }));
+
+        /// <summary>
+        /// Hanging on the rope, facing right: both hands grip at the top centre (where the rope
+        /// meets the sprite's centre line once it is rotated toward the anchor), head between the
+        /// arms, legs trailing behind.
+        /// </summary>
+        public static Sprite PlayerSwing => _playerSwing != null ? _playerSwing : (_playerSwing = FromPattern("RedlinePlayerSwing", new[]
+        {
+            ".....WW.....",
+            "....M..L....",
+            "...MWWWWL...",
+            "...MWWKKL...",
+            "...MWWWWL...",
+            "..MWWWWWWL..",
+            "...WWWWWW...",
+            "...WWWWWW...",
+            "...WWWWWW...",
+            "...WWMMWW...",
+            "....WWMM....",
+            "...WW.MM....",
+            "...WW..MM...",
+            "..WW...MM...",
+            "..LL..MM....",
+            ".MM..DD....."
+        }));
+
+        /// <summary>Head and hips shared by the run frames, around eight rows of arms and legs.</summary>
+        private static string[] RunRows(string arms6, string arms7, string arms8,
+            string leg11, string leg12, string leg13, string leg14, string leg15)
+        {
+            return new[]
+            {
+                "....WWWW....",
+                "...WWWWWW...",
+                "...WWWKKK...",
+                "...WWWWWW...",
+                "....WWWW....",
+                "...WWWWWW...",
+                arms6, arms7, arms8,
+                "...WWWWWW...",
+                "...WWMMWW...",
+                leg11, leg12, leg13, leg14, leg15
+            };
+        }
 
         /// <summary>Spiky grunt with two eyes and a mouth.</summary>
         public static Sprite Grunt => _grunt != null ? _grunt : (_grunt = FromPattern("RedlineGrunt", new[]
@@ -129,6 +286,99 @@ namespace Redline.Game
             "..WWWWWWWWWW..",
             "...W.W..W.W...",
             "...M.M..M.M..."
+        }));
+
+        /// <summary>Shooter, facing right: hooded head with a visor slit, a gun arm pointing forward.</summary>
+        public static Sprite Shooter => _shooter != null ? _shooter : (_shooter = FromPattern("RedlineShooter", new[]
+        {
+            "....MMMMMM....",
+            "...MWWWWWWM...",
+            "..MWWWWWWWWM..",
+            "..MWWWKKKKWM..",
+            "..MWWWWWWWWM..",
+            "...MWWWWWWM...",
+            "..LWWWWWWWWWWW",
+            ".LWWWWWWWWLKKW",
+            ".LWWWWWWWWWLLL",
+            ".MWWWWWWWWM...",
+            "..WWWWWWWW....",
+            "..WWWMMWWW....",
+            "..WWW..WWW....",
+            "..WWW..WWW....",
+            "..LLL..LLL....",
+            "..MMM..MMM...."
+        }));
+
+        /// <summary>Shield bearer, shield on the right (flip the sprite to put it on the left).</summary>
+        public static Sprite ShieldBearer => _shieldBearer != null ? _shieldBearer : (_shieldBearer = FromPattern("RedlineShieldBearer", new[]
+        {
+            "....MMMMM.......",
+            "...MWWWWWM..MM..",
+            "...MWKKKWM.MLLM.",
+            "...MWWWWWM.MLWLM",
+            "....MWWWM..MLWLM",
+            "..MWWWWWWWMMLWLM",
+            ".MWWWWWWWWWMLWLM",
+            ".MWWWWWWWWWMLWLM",
+            ".MWWWWWWWWMMLWLM",
+            "..MWWWWWWM.MLWLM",
+            "..MWWMMWWM.MLWLM",
+            "..MWW..WWM.MLWLM",
+            "..MWW..WWM..MLM.",
+            "..MWW..WWM...M..",
+            "..LLL..LLL......",
+            "..MMM..MMM......"
+        }));
+
+        /// <summary>Kamikaze: a round bomb with a lit fuse on top, angry eyes and stubby legs.</summary>
+        public static Sprite Kamikaze => _kamikaze != null ? _kamikaze : (_kamikaze = FromPattern("RedlineKamikaze", new[]
+        {
+            "......W.W...",
+            ".....D.W....",
+            ".....D......",
+            "...MMDMM....",
+            "..MWWWWWM...",
+            ".MWWWWWWWM..",
+            "MWKKWWWKKWM.",
+            "MWWKKWKKWWM.",
+            "MWWWWWWWWWM.",
+            "MWWKKKKKWWM.",
+            ".MWWWWWWWM..",
+            "..MWM.MWM...",
+            "..MM...MM..."
+        }));
+
+        /// <summary>Summoner: a robed caster holding a staff topped with a glowing orb (staff on the right).</summary>
+        public static Sprite Summoner => _summoner != null ? _summoner : (_summoner = FromPattern("RedlineSummoner", new[]
+        {
+            ".....MMMM...W.",
+            "....MWWWWM.WLW",
+            "...MWWWWWWM.W.",
+            "...MWKWWKWM.M.",
+            "...MWWWWWWM.M.",
+            "....MWWWWM..M.",
+            "...MWWWWWWMWM.",
+            "..MWWWWWWWWWM.",
+            "..MWWWWWWWM.M.",
+            "..MWWLWWLWM.M.",
+            "..MWWWWWWWM.M.",
+            ".MWWWWWWWWWMM.",
+            ".MWWLWWWLWWMM.",
+            ".MWWWWWWWWWMM.",
+            "MWWWWWWWWWWWM.",
+            "MWWWWWWWWWWWM.",
+            "MMMMMMMMMMMMM."
+        }));
+
+        /// <summary>Shooter projectile: a small bright orb.</summary>
+        public static Sprite Projectile => _projectile != null ? _projectile : (_projectile = FromPattern("RedlineProjectile", new[]
+        {
+            "..LL..",
+            ".LWWL.",
+            "LWWWWL",
+            "LWWWWL",
+            ".LWWL.",
+            "..LL.."
         }));
 
         /// <summary>Bevelled terrain block: bright top-left edge, dark bottom-right edge.</summary>

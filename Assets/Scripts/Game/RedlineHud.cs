@@ -28,6 +28,10 @@ namespace Redline.Game
         private static readonly Color EnemyColor = new Color(1f, 0.62f, 0.3f);
         private static readonly Color Gold = new Color(1f, 0.92f, 0.45f);
         private static readonly Color Danger = new Color(1f, 0.25f, 0.4f);
+        /// <summary>Speed readout colour above maxSpeed (hook flings, air speed, speed buff).</summary>
+        private static readonly Color Overspeed = new Color(1f, 0.45f, 0.18f);
+        private const float ToastLife = 0.9f;
+        private const float ToastRise = 60f;
 
         private RedlineGame _game;
         private PanelSettings _settings;
@@ -40,6 +44,17 @@ namespace Redline.Game
         private Label _tierBadge;
         private Label _armorTag;
         private VisualElement[] _hpPips;
+        private VisualElement _hpRow;
+        private VisualElement _overFill;
+        private Label _overTag;
+        private BuffChip _speedBuff;
+        private BuffChip _hookBuff;
+        private Label _levelLabel;
+        private VisualElement _dotsRow;
+        private Label _toast;
+        private float _toastAge = 99f;
+        private string[] _toastTexts;
+        private float _overTop;
         private VisualElement _chainBox;
         private Label _chainLabel;
         private VisualElement _chainTimer;
@@ -67,6 +82,8 @@ namespace Redline.Game
         private int _shownCountdown = -1;
         private int _shownBannerWave = -1;
         private SimState _shownState = (SimState)(-1);
+        private RedlineSim _shownSim;
+        private bool _shownOver;
         private float _hpFlash;
         private int _hpFlashIndex = -1;
         private float _chainPop;
@@ -89,8 +106,11 @@ namespace Redline.Game
             BuildBanner();
             BuildControls();
             BuildMarkers();
+            BuildToast(cfg);
 
-            _speedTexts = new string[Mathf.CeilToInt(cfg.maxSpeed * 2f) + 1];
+            // Readout range: up to the buffed air cap with headroom for hook flings (clamped beyond).
+            _overTop = Mathf.Max(cfg.airMaxSpeed, cfg.maxSpeed) * cfg.orbSpeedMultiplier;
+            _speedTexts = new string[Mathf.CeilToInt(_overTop * 1.25f * 2f) + 1];
             for (int i = 0; i < _speedTexts.Length; i++) _speedTexts[i] = (i * 0.5f).ToString("0.0");
         }
 
@@ -148,6 +168,7 @@ namespace Redline.Game
             _speedPanel.Add(header);
 
             _speedPanel.Add(BuildMeter(cfg));
+            _speedPanel.Add(BuildOverspeedStrip());
 
             var status = Row(Justify.FlexStart);
             status.style.marginTop = 10;
@@ -162,6 +183,40 @@ namespace Redline.Game
             status.Add(spacer);
             status.Add(BuildHpPips(cfg));
             _speedPanel.Add(status);
+
+            var buffs = Row(Justify.FlexStart);
+            buffs.style.marginTop = 8;
+            _speedBuff = new BuffChip(this, "SPEED", OrbRenderer.KindColor(OrbKind.Speed), cfg.orbSpeedDuration);
+            _hookBuff = new BuffChip(this, "HOOK", OrbRenderer.KindColor(OrbKind.Hook), cfg.orbHookDuration);
+            buffs.Add(_speedBuff.Root);
+            buffs.Add(_hookBuff.Root);
+            _speedPanel.Add(buffs);
+        }
+
+        /// <summary>A thin strip under the meter that fills from maxSpeed up to the buffed air cap.</summary>
+        private VisualElement BuildOverspeedStrip()
+        {
+            var row = Row(Justify.FlexStart);
+            row.style.marginTop = 4;
+            var track = new VisualElement();
+            track.style.height = 6;
+            track.style.flexGrow = 1;
+            track.style.backgroundColor = new Color(1f, 1f, 1f, 0.06f);
+            Round(track, 3);
+            track.style.overflow = Overflow.Hidden;
+            _overFill = new VisualElement();
+            _overFill.style.height = Length.Percent(100);
+            _overFill.style.width = Length.Percent(0);
+            _overFill.style.backgroundColor = Overspeed;
+            Round(_overFill, 3);
+            track.Add(_overFill);
+            row.Add(track);
+            _overTag = Text("OVERSPEED", _bold, 16, Overspeed);
+            _overTag.style.marginLeft = 10;
+            _overTag.style.letterSpacing = 3;
+            _overTag.style.opacity = 0f;
+            row.Add(_overTag);
+            return row;
         }
 
         private VisualElement BuildMeter(RedlineConfig cfg)
@@ -192,8 +247,17 @@ namespace Redline.Game
 
         private VisualElement BuildHpPips(RedlineConfig cfg)
         {
-            var row = Row(Justify.FlexEnd);
-            _hpPips = new VisualElement[cfg.playerMaxHp];
+            _hpRow = Row(Justify.FlexEnd);
+            FillHpPips(cfg.playerMaxHp);
+            return _hpRow;
+        }
+
+        /// <summary>(Re)creates one pip per max HP (max HP changes between runs with upgrades).</summary>
+        private void FillHpPips(int maxHp)
+        {
+            var row = _hpRow;
+            row.Clear();
+            _hpPips = new VisualElement[maxHp];
             for (int i = 0; i < _hpPips.Length; i++)
             {
                 var pip = new VisualElement();
@@ -205,7 +269,6 @@ namespace Redline.Game
                 row.Add(pip);
                 _hpPips[i] = pip;
             }
-            return row;
         }
 
         private void BuildChainBadge()
@@ -244,6 +307,10 @@ namespace Redline.Game
             panel.style.width = 330;
             Root.Add(panel);
 
+            _levelLabel = Text("", _bold, 18, Dim);
+            _levelLabel.style.letterSpacing = 3;
+            panel.Add(_levelLabel);
+
             var top = Row(Justify.SpaceBetween);
             top.style.alignItems = Align.FlexEnd;
             var caption = Caption("WAVE");
@@ -253,7 +320,7 @@ namespace Redline.Game
             number.style.alignItems = Align.FlexEnd;
             _waveNumber = Text("1", _black, 54, Color.white);
             number.Add(_waveNumber);
-            _waveTotal = Text("/" + cfg.WaveCount, _bold, 28, Dim);
+            _waveTotal = Text("", _bold, 28, Dim);
             _waveTotal.style.marginBottom = 8;
             number.Add(_waveTotal);
             top.Add(number);
@@ -261,8 +328,34 @@ namespace Redline.Game
 
             var bottom = Row(Justify.SpaceBetween);
             bottom.style.marginTop = 4;
-            var dots = Row(Justify.FlexStart);
-            _waveDots = new VisualElement[cfg.WaveCount];
+            _dotsRow = Row(Justify.FlexStart);
+            _waveDots = new VisualElement[0];
+            bottom.Add(_dotsRow);
+            var enemies = Row(Justify.FlexEnd);
+            enemies.Add(Caption("FOES"));
+            _enemiesLabel = Text("0", _black, 30, EnemyColor);
+            _enemiesLabel.style.marginLeft = 10;
+            enemies.Add(_enemiesLabel);
+            bottom.Add(enemies);
+            panel.Add(bottom);
+        }
+
+        /// <summary>
+        /// Rebuilds the per-level parts (wave dots, wave total, level label) when a new level's
+        /// sim replaces the old one. Allocates, but only on a level change.
+        /// </summary>
+        private void BindLevel(RedlineSim sim)
+        {
+            _shownSim = sim;
+            if (_hpRow != null && (_hpPips == null || _hpPips.Length != sim.Config.playerMaxHp)) FillHpPips(sim.Config.playerMaxHp);
+            _shownWave = -1;
+            _shownEnemies = -1;
+            _shownBannerWave = -1;
+            _shownState = (SimState)(-1);
+            _waveTotal.text = "/" + sim.WaveCount;
+            _levelLabel.text = "LEVEL " + _game.LevelNumber + "/" + _game.LevelCount + "  ·  " + _game.LevelName.ToUpperInvariant();
+            _dotsRow.Clear();
+            _waveDots = new VisualElement[sim.WaveCount];
             for (int i = 0; i < _waveDots.Length; i++)
             {
                 var dot = new VisualElement();
@@ -271,17 +364,56 @@ namespace Redline.Game
                 dot.style.marginRight = 6;
                 Round(dot, 8);
                 Border(dot, 2f, Cyan);
-                dots.Add(dot);
+                _dotsRow.Add(dot);
                 _waveDots[i] = dot;
             }
-            bottom.Add(dots);
-            var enemies = Row(Justify.FlexEnd);
-            enemies.Add(Caption("FOES"));
-            _enemiesLabel = Text("0", _black, 30, EnemyColor);
-            _enemiesLabel.style.marginLeft = 10;
-            enemies.Add(_enemiesLabel);
-            bottom.Add(enemies);
-            panel.Add(bottom);
+        }
+
+        /// <summary>A short label that rises from the player and fades after an orb pickup.</summary>
+        private void BuildToast(RedlineConfig cfg)
+        {
+            _toastTexts = new string[3];
+            _toastTexts[(int)OrbKind.Health] = "+" + cfg.orbHealAmount + " HP";
+            _toastTexts[(int)OrbKind.Speed] = "SPEED";
+            _toastTexts[(int)OrbKind.Hook] = "HOOK";
+            _toast = Text("", _black, 34, Color.white);
+            _toast.style.position = Position.Absolute;
+            _toast.style.width = 300;
+            _toast.style.unityTextAlign = TextAnchor.MiddleCenter;
+            _toast.style.letterSpacing = 4;
+            _toast.style.display = DisplayStyle.None;
+            Root.Add(_toast);
+        }
+
+        /// <summary>Shows the pickup text for an orb kind above the player ("+1 HP", "SPEED", "HOOK").</summary>
+        public void ShowPickup(OrbKind kind)
+        {
+            if (_toast == null) return;
+            _toast.text = _toastTexts[(int)kind];
+            _toast.style.color = OrbRenderer.KindColor(kind);
+            _toast.style.display = DisplayStyle.Flex;
+            _toastAge = 0f;
+        }
+
+        private void UpdateToast(RedlineSim sim, float dt)
+        {
+            if (_toastAge >= ToastLife) return;
+            _toastAge += dt;
+            if (_toastAge >= ToastLife)
+            {
+                _toast.style.display = DisplayStyle.None;
+                return;
+            }
+            var cam = _game.Camera;
+            float w = Root.resolvedStyle.width;
+            float h = Root.resolvedStyle.height;
+            if (cam == null || float.IsNaN(w) || w <= 0f) return;
+            var p = sim.Player;
+            var vp = cam.WorldToViewportPoint(_game.ToDraw(new Vector2(p.X, p.MaxY + 0.6f)));
+            float t = _toastAge / ToastLife;
+            _toast.style.left = vp.x * w - 150f;
+            _toast.style.top = (1f - vp.y) * h - 24f - ToastRise * (1f - (1f - t) * (1f - t));
+            _toast.style.opacity = t < 0.6f ? 1f : 1f - (t - 0.6f) / 0.4f;
         }
 
         private void BuildBanner()
@@ -380,7 +512,11 @@ namespace Redline.Game
             if (_game == null || _speedFill == null) return;
             var sim = _game.Sim;
             float dt = Time.unscaledDeltaTime;
+            if (sim != _shownSim) BindLevel(sim);
             UpdateSpeed(sim);
+            _speedBuff.Update(sim.Player.SpeedBuffTimer);
+            _hookBuff.Update(sim.Player.HookBuffTimer);
+            UpdateToast(sim, dt);
             UpdateHp(sim, dt);
             UpdateChain(sim, dt);
             UpdateWave(sim);
@@ -403,11 +539,25 @@ namespace Redline.Game
             }
             bool armor = tier == 3;
             _armorTag.style.opacity = armor ? 0.65f + 0.35f * Mathf.Sin(Time.unscaledTime * 10f) : 0f;
+
+            float speed = Mathf.Abs(p.Vx);
+            float cap = sim.Config.maxSpeed;
+            bool over = speed > cap + 0.05f;
+            _overFill.style.width = Length.Percent(over ? Mathf.Clamp01((speed - cap) / (_overTop - cap)) * 100f : 0f);
+            _overTag.style.opacity = over ? 0.7f + 0.3f * Mathf.Sin(Time.unscaledTime * 14f) : 0f;
+            if (over != _shownOver)
+            {
+                _shownOver = over;
+                var vc = over ? Overspeed : RedlineGame.TierColors[tier - 1];
+                _speedValue.style.color = vc;
+                _speedFill.style.backgroundColor = vc;
+            }
+
             if (tier == _shownTier) return;
             _shownTier = tier;
             var c = RedlineGame.TierColors[tier - 1];
-            _speedFill.style.backgroundColor = c;
-            _speedValue.style.color = c;
+            _speedFill.style.backgroundColor = over ? Overspeed : c;
+            _speedValue.style.color = over ? Overspeed : c;
             _tierBadge.text = "TIER " + tier;
             _tierBadge.style.backgroundColor = c;
             Border(_speedPanel, 2f, c);
@@ -521,11 +671,16 @@ namespace Redline.Game
                     break;
                 case SimState.GameOver:
                     SetBanner("GAME OVER", Danger, Danger,
-                        "REACHED WAVE " + sim.CurrentWave + "  ·  " + sim.Kills + " KILLS\nPRESS R / START TO RETRY");
+                        "REACHED WAVE " + sim.CurrentWave + "  ·  " + sim.Kills + " KILLS\nPRESS R / START FOR UPGRADES");
                     break;
                 case SimState.Victory:
-                    SetBanner("VICTORY", Gold, Gold,
-                        "ALL " + sim.WaveCount + " WAVES CLEARED  ·  " + sim.Kills + " KILLS\nPRESS R / START TO PLAY AGAIN");
+                    string next = _game.NextLevelName;
+                    if (next != null)
+                        SetBanner("LEVEL CLEAR", Gold, Gold,
+                            "NEXT: " + next.ToUpperInvariant() + "  ·  " + sim.Kills + " KILLS");
+                    else
+                        SetBanner("VICTORY", Gold, Gold,
+                            "ALL " + _game.LevelCount + " LEVELS CLEARED  ·  " + sim.Kills + " KILLS\nPRESS R / START FOR UPGRADES");
                     break;
             }
         }
@@ -542,6 +697,80 @@ namespace Redline.Game
         private void OnDestroy()
         {
             if (_settings != null) Destroy(_settings);
+        }
+
+        // ------------------------------------------------------------------ buff chip
+
+        /// <summary>
+        /// A small "NAME [bar] 6s" chip for a timed orb buff, hidden while the buff is off. The
+        /// seconds text comes from a pre-built table, so updating it allocates nothing.
+        /// </summary>
+        private sealed class BuffChip
+        {
+            private static readonly string[] Seconds = BuildSeconds();
+            private readonly VisualElement _fill;
+            private readonly Label _secs;
+            private readonly float _duration;
+            private int _shownSecs = -1;
+            private bool _shown = true;
+
+            /// <summary>The chip's element (add it to a row).</summary>
+            public readonly VisualElement Root;
+
+            /// <summary>Builds a chip for a buff lasting <paramref name="duration"/> seconds.</summary>
+            public BuffChip(RedlineHud hud, string name, Color color, float duration)
+            {
+                _duration = Mathf.Max(0.01f, duration);
+                Root = Row(Justify.FlexStart);
+                Root.style.marginRight = 18;
+                var tag = Text(name, hud._black, 18, Color.black);
+                Pill(tag, color);
+                Root.Add(tag);
+                var bar = new VisualElement();
+                bar.style.width = 110;
+                bar.style.height = 8;
+                bar.style.marginLeft = 8;
+                bar.style.backgroundColor = new Color(1f, 1f, 1f, 0.12f);
+                Round(bar, 4);
+                _fill = new VisualElement();
+                _fill.style.height = Length.Percent(100);
+                _fill.style.backgroundColor = color;
+                Round(_fill, 4);
+                bar.Add(_fill);
+                Root.Add(bar);
+                _secs = Text("", hud._bold, 18, color);
+                _secs.style.marginLeft = 8;
+                _secs.style.width = 34;
+                Root.Add(_secs);
+                Update(0f);
+            }
+
+            /// <summary>Shows the remaining time (hidden at 0); the last 1.5 s blink.</summary>
+            public void Update(float timeLeft)
+            {
+                bool on = timeLeft > 0f;
+                if (on != _shown)
+                {
+                    _shown = on;
+                    Root.style.display = on ? DisplayStyle.Flex : DisplayStyle.None;
+                }
+                if (!on) return;
+                _fill.style.width = Length.Percent(Mathf.Clamp01(timeLeft / _duration) * 100f);
+                int secs = Mathf.Clamp(Mathf.CeilToInt(timeLeft), 0, Seconds.Length - 1);
+                if (secs != _shownSecs)
+                {
+                    _shownSecs = secs;
+                    _secs.text = Seconds[secs];
+                }
+                Root.style.opacity = timeLeft < 1.5f ? 0.45f + 0.55f * Mathf.Abs(Mathf.Sin(Time.unscaledTime * 9f)) : 1f;
+            }
+
+            private static string[] BuildSeconds()
+            {
+                var s = new string[100];
+                for (int i = 0; i < s.Length; i++) s[i] = i + "s";
+                return s;
+            }
         }
 
         // ------------------------------------------------------------------ element helpers

@@ -98,6 +98,15 @@ namespace Redline.Game
                 new Vector2(Random.Range(0.6f, 1.4f), 0.04f), 0.18f, 0f, 0f, 0f, 0f, false);
         }
 
+        /// <summary>
+        /// A soft glow that swells and fades in place (orb pickup / expiry). <paramref name="size"/>
+        /// is the starting diameter in world units; it grows to about 3.5x over <paramref name="life"/>.
+        /// </summary>
+        public void Pop(Vector2 at, Color color, float size, float life)
+        {
+            Spawn(PixelArt.Glow, at, Vector2.zero, color, new Vector2(size, size), life, 0f, 0f, 0f, 2.5f, false);
+        }
+
         /// <summary>A fading copy of the player's current pose.</summary>
         public void Afterimage(Sprite sprite, Vector3 position, Vector3 scale, bool flipX, Color color)
         {

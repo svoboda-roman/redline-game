@@ -1,12 +1,13 @@
 using System;
 using System.Collections.Generic;
 using Redline.Core;
+using Redline.Game.Audio;
 using UnityEngine;
 
 namespace Redline.Game
 {
     /// <summary>
-    /// Owns the run: loads config and arena from Resources, steps <see cref="RedlineSim"/> at a
+    /// Owns the run: loads config and the level sequence (<see cref="Levels"/>) from Resources, steps <see cref="RedlineSim"/> at a
     /// fixed 60 Hz, interpolates between steps for drawing, and routes simulation events to the
     /// renderers (<see cref="ArenaRenderer"/>, <see cref="ActorRenderer"/>,
     /// <see cref="EffectsRenderer"/>) and <see cref="PostFx"/>. All rules live in Redline.Core.
@@ -14,8 +15,12 @@ namespace Redline.Game
     /// <remarks>Created by <see cref="RedlineBootstrap"/>. Main-thread only.</remarks>
     public sealed class RedlineGame : MonoBehaviour
     {
-        /// <summary>The level the game plays (a Resources text file).</summary>
-        private const string LevelName = "Loop01";
+        /// <summary>
+        /// The levels played in order (Resources text files). After a level's victory moment
+        /// (levelAdvanceDelay) the next one loads with a fresh, fully healed player; a missing or
+        /// invalid level is skipped with a logged warning. After the last one the victory stays.
+        /// </summary>
+        private static readonly string[] Levels = { "Loop01", "Loop02", "Loop03" };
         /// <summary>Half the view height in tiles: a close camera that follows the player.</summary>
         private const float CameraSize = 8f;
         /// <summary>Seconds of the player's velocity the camera looks ahead by.</summary>
@@ -44,10 +49,32 @@ namespace Redline.Game
         private int _prevRunId = -1;
 
         private Camera _camera;
+        private Transform _world;
+        private GameObject _arenaHost;
         private ArenaRenderer _arena;
+        private RedlineConfig _config;
+        private int _levelIndex;
+        private float _victoryTimer;
+        /// <summary>The last level's victory: nothing left to load.</summary>
+        private bool _finalVictory;
         private ActorRenderer _actors;
         private EffectsRenderer _effects;
         private PostFx _postFx;
+        private OrbRenderer _orbs;
+        private RedlineHud _hud;
+        private RedlineAudio _audio;
+        private Func<Vector2, Vector2> _toDraw;
+
+        // Meta-progression: the base config stays untouched; each run plays an upgraded copy.
+        private UpgradeConfig _upgradeCfg;
+        private UpgradeStore _store;
+        private UpgradeScreen _screen;
+        private RedlineConfig _runConfig;
+        private RunResult _run;
+        /// <summary>Points for this run were awarded (the upgrade screen is up or was shown).</summary>
+        private bool _runEnded;
+        /// <summary>The next WaveStart of this level is its first, so it does not count a cleared wave.</summary>
+        private bool _firstWaveOfLevel;
 
         private float _accumulator;
         private float _hitStop;
@@ -64,18 +91,30 @@ namespace Redline.Game
         private void Awake()
         {
             Application.targetFrameRate = 120;
-            Sim = new RedlineSim(LoadConfig(), LoadMap());
+            _config = LoadConfig();
+            _upgradeCfg = UpgradeStore.LoadConfig(_config);
+            _store = new UpgradeStore(_upgradeCfg);
+            BeginRunState();
+            if (!TryLoadLevel(0)) throw new InvalidOperationException("Redline: no playable level in Resources (" + string.Join(", ", Levels) + ").");
 
-            var world = new GameObject("World").transform;
-            world.SetParent(transform, false);
+            _world = new GameObject("World").transform;
+            _world.SetParent(transform, false);
             SetupCamera();
-            _arena = new ArenaRenderer(world, Sim.Map);
-            _effects = new EffectsRenderer(world, _camera);
-            _actors = new ActorRenderer(world, _effects);
+            _audio = gameObject.AddComponent<RedlineAudio>();
+            _audio.Init(_camera);
+            BuildArena();
+            _effects = new EffectsRenderer(_world, _camera);
+            _actors = new ActorRenderer(_world, _effects);
+            _orbs = new OrbRenderer(_world, _config.orbMaxCount);
+            _toDraw = ToDraw;
             _postFx = gameObject.AddComponent<PostFx>();
             _postFx.Init(_camera);
 
-            gameObject.AddComponent<RedlineHud>().Init(this);
+            _hud = gameObject.AddComponent<RedlineHud>();
+            _hud.Init(this);
+            _screen = gameObject.AddComponent<UpgradeScreen>();
+            _screen.Init(_store);
+            _screen.Continued += StartRun;
             if (RedlineCapture.Requested) gameObject.AddComponent<RedlineCapture>().Init(this);
         }
 
@@ -86,20 +125,38 @@ namespace Redline.Game
             if (_hitStop > 0f) _hitStop -= dt;
             else _accumulator += dt;
 
+            // The upgrade screen reads its own input; the sim is paused behind it.
+            if (_screen.Visible) _accumulator = 0f;
             while (_accumulator >= RedlineSim.FixedDt)
             {
+                var frame = _input.Consume();
+                if (frame.RestartPressed)
+                {
+                    // R / Start ends the run (retry after game over, play again after the last
+                    // level, or abandon mid-run): points are awarded and the upgrade screen opens.
+                    // The sim never restarts itself, so a run cannot farm a level for points.
+                    frame.RestartPressed = false;
+                    EndRun();
+                    _accumulator = 0f;
+                    break;
+                }
                 CapturePrevious();
                 bool wasGrounded = Sim.Player.Grounded;
                 float fallSpeed = -Sim.Player.Vy;
-                Sim.Step(_input.Consume(), RedlineSim.FixedDt);
+                Sim.Step(frame, RedlineSim.FixedDt);
                 if (!wasGrounded && Sim.Player.Grounded && fallSpeed > 6f) OnLanded(fallSpeed);
                 HandleEvents();
+                _audio.Process(Sim, Sim.Events);
+                _run.HighestTier = Math.Max(_run.HighestTier, Sim.PlayerTier);
                 _accumulator -= RedlineSim.FixedDt;
             }
+            _audio.Tick(Sim, Time.unscaledDeltaTime);
+            AdvanceLevelAfterVictory(dt);
 
             UpdateCamera(dt);
             var feet = InterpolatedFeet();
             _actors.Sync(Sim, feet, _drawEnemyFeet, dt);
+            _orbs.Sync(Sim, _toDraw, Time.time);
             _arena.Update(dt, _camera.transform.position);
             SpawnSpeedTrail(dt);
             _effects.Update(dt);
@@ -152,6 +209,21 @@ namespace Redline.Game
         /// <summary>The game camera (for HUD tooling).</summary>
         public Camera Camera => _camera;
 
+        /// <summary>Name of the level being played (its Resources file, e.g. "Loop01").</summary>
+        public string LevelName => Levels[_levelIndex];
+
+        /// <summary>1-based position of the current level in the sequence.</summary>
+        public int LevelNumber => _levelIndex + 1;
+
+        /// <summary>Number of levels in the sequence.</summary>
+        public int LevelCount => Levels.Length;
+
+        /// <summary>
+        /// The level that follows this one, or null on the last. Names the next file in the list;
+        /// if that file turns out to be missing or invalid, a later one is loaded instead.
+        /// </summary>
+        public string NextLevelName => _levelIndex + 1 < Levels.Length ? Levels[_levelIndex + 1] : null;
+
         private Vector2 ToDraw(Vec2 world) => ToDraw(new Vector2(world.X, world.Y));
 
         // ------------------------------------------------------------------ loading
@@ -180,11 +252,103 @@ namespace Redline.Game
             return new RedlineConfig();
         }
 
-        private static TileMap LoadMap()
+        /// <summary>
+        /// Makes <see cref="Sim"/> the first playable level at or after <paramref name="index"/>.
+        /// Missing or invalid levels are skipped with a logged warning. False when none is left.
+        /// </summary>
+        private bool TryLoadLevel(int index)
         {
-            var asset = Resources.Load<TextAsset>(LevelName);
-            if (asset == null) throw new InvalidOperationException("Redline: Resources/" + LevelName + ".txt is missing.");
-            return TileMap.Parse(asset.text);
+            for (int i = index; i < Levels.Length; i++)
+            {
+                string name = Levels[i];
+                var asset = Resources.Load<TextAsset>(name);
+                if (asset == null)
+                {
+                    Debug.LogWarning("Redline: Resources/" + name + ".txt is missing; skipping the level.");
+                    continue;
+                }
+                try
+                {
+                    Sim = new RedlineSim(_runConfig, TileMap.Parse(asset.text));
+                }
+                catch (FormatException ex)
+                {
+                    Debug.LogWarning("Redline: " + name + ".txt is not a valid level; skipping it: " + ex.Message);
+                    continue;
+                }
+                catch (ArgumentException ex)
+                {
+                    Debug.LogWarning("Redline: " + name + ".txt cannot be played yet; skipping it: " + ex.Message);
+                    continue;
+                }
+                _levelIndex = i;
+                _victoryTimer = 0f;
+                _finalVictory = false;
+                _firstWaveOfLevel = true;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>Resets the run counters and builds this run's config from the bought upgrades.</summary>
+        private void BeginRunState()
+        {
+            _runConfig = Upgrades.Apply(_config, _upgradeCfg, _store.State);
+            _run = default;
+            _runEnded = false;
+        }
+
+        /// <summary>The upgrade screen's CONTINUE: a fresh run from the first level with the current upgrades.</summary>
+        private void StartRun()
+        {
+            BeginRunState();
+            if (!TryLoadLevel(0)) throw new InvalidOperationException("Redline: no playable level in Resources.");
+            OnLevelChanged();
+        }
+
+        /// <summary>Awards this run's points once, saves them and opens the upgrade screen.</summary>
+        private void EndRun()
+        {
+            if (_runEnded) return;
+            _runEnded = true;
+            int earned = _store.State.AwardRun(_run, _upgradeCfg);
+            if (!_store.Save()) Debug.LogWarning("Redline: could not save upgrade progress.");
+            _screen.Show(_run, earned);
+        }
+
+        /// <summary>After a level's victory moment, loads the next level; after the last, the victory stays.</summary>
+        private void AdvanceLevelAfterVictory(float dt)
+        {
+            if (Sim.State != SimState.Victory)
+            {
+                _victoryTimer = 0f;
+                return;
+            }
+            if (_finalVictory) return;
+            _victoryTimer += dt;
+            if (_victoryTimer < _config.levelAdvanceDelay) return;
+            if (TryLoadLevel(_levelIndex + 1)) OnLevelChanged();
+            else _finalVictory = true;
+        }
+
+        /// <summary>A new Sim replaced the old one: rebuild the level view and snap the camera.</summary>
+        private void OnLevelChanged()
+        {
+            BuildArena();
+            _prevRunId = -1;
+            _accumulator = 0f;
+            _camX = Sim.Player.X;
+            _camY = Sim.Player.Y + 2.5f;
+            _lookahead = 0f;
+        }
+
+        /// <summary>(Re)builds the arena view for the current map under its own host object.</summary>
+        private void BuildArena()
+        {
+            if (_arenaHost != null) Destroy(_arenaHost);
+            _arenaHost = new GameObject("Level " + Levels[_levelIndex]);
+            _arenaHost.transform.SetParent(_world, false);
+            _arena = new ArenaRenderer(_arenaHost.transform, Sim.Map);
         }
 
         // ------------------------------------------------------------------ camera
@@ -250,7 +414,10 @@ namespace Redline.Game
                 switch (ev.Type)
                 {
                     case SimEventType.Hit: OnHit(at, color, ev.Tier); break;
-                    case SimEventType.Kill: OnKill(at, color, ev.Tier, KilledKindAt(new Vector2(ev.Position.X, ev.Position.Y))); break;
+                    case SimEventType.Kill:
+                        _run.Kills++;
+                        OnKill(at, color, ev.Tier, (EnemyKind)ev.Detail);
+                        break;
                     case SimEventType.Clang: OnClang(at); break;
                     case SimEventType.PlayerHurt: OnHurt(at); break;
                     case SimEventType.GameOver: OnGameOver(at); break;
@@ -258,10 +425,39 @@ namespace Redline.Game
                     case SimEventType.WallJump: OnWallJump(color); break;
                     case SimEventType.Slide: OnSlide(color); break;
                     case SimEventType.HookAttach: _effects.Sparks(at, color, 8, 5f); break;
-                    case SimEventType.WaveStart: _effects.Flash(0.08f); break;
-                    case SimEventType.Victory: _effects.Flash(0.25f); break;
+                    case SimEventType.WaveStart:
+                        // A wave starting means the previous one of this level was cleared.
+                        if (!_firstWaveOfLevel) _run.WavesCleared++;
+                        _firstWaveOfLevel = false;
+                        _effects.Flash(0.08f);
+                        break;
+                    case SimEventType.Victory:
+                        _run.WavesCleared++; // the level's last wave
+                        _run.LevelsCleared++;
+                        _effects.Flash(0.25f);
+                        break;
                     case SimEventType.BruteWindup: _effects.Sparks(at, WindupColor, 6, 3f); break;
                     case SimEventType.BruteCrash: OnBruteCrash(at); break;
+                    case SimEventType.OrbSpawn: _effects.Sparks(at, OrbRenderer.KindColor((OrbKind)ev.Detail), 5, 3f); break;
+                    case SimEventType.OrbPickup: OnOrbPickup(at, (OrbKind)ev.Detail); break;
+                    case SimEventType.OrbExpire: _effects.Pop(at, OrbRenderer.KindColor((OrbKind)ev.Detail) * 0.6f, 0.5f, 0.3f); break;
+                    case SimEventType.ShooterWindup: _effects.Sparks(at, WindupColor, 4, 2f); break;
+                    case SimEventType.Shoot: _effects.Pop(at, new Color(1f, 0.4f, 0.15f), 0.5f, 0.12f); break;
+                    case SimEventType.ProjectileReflect:
+                        _effects.Sparks(at, color, 10, 7f);
+                        _hitStop = Mathf.Max(_hitStop, 0.04f);
+                        break;
+                    case SimEventType.ProjectileHit: _effects.Pop(at, new Color(1f, 0.5f, 0.2f) * 0.8f, 0.4f, 0.15f); break;
+                    case SimEventType.ShieldBlock: _effects.Sparks(at, new Color(0.95f, 0.6f, 0.35f), 8, 5f); break;
+                    case SimEventType.KamikazeFuse: _effects.Sparks(at, new Color(1f, 0.22f, 0.2f), 6, 3f); break;
+                    case SimEventType.Explode:
+                        _effects.Pop(at, new Color(1f, 0.45f, 0.2f), Sim.Config.kamikazeBlastRadius * 2f, 0.35f);
+                        _effects.Debris(at, new Color(1f, 0.3f, 0.2f), 14, 9f);
+                        _shake = Mathf.Max(_shake, 0.35f);
+                        _effects.Flash(0.15f);
+                        break;
+                    case SimEventType.SummonerCast: _effects.Sparks(at, new Color(0.55f, 0.4f, 1f), 6, 2.5f); break;
+                    case SimEventType.Summon: _effects.Pop(at, new Color(0.78f, 0.45f, 1f), 1.2f, 0.3f); break;
                 }
             }
         }
@@ -281,6 +477,14 @@ namespace Redline.Game
             _shake = Mathf.Max(_shake, 0.08f * tier + (brute ? 0.2f : 0f));
             _hitStop = Mathf.Max(_hitStop, 0.02f * tier + (brute ? 0.05f : 0f));
             if (tier == 3) _effects.Flash(brute ? 0.22f : 0.1f);
+        }
+
+        private void OnOrbPickup(Vector2 at, OrbKind kind)
+        {
+            var c = OrbRenderer.KindColor(kind);
+            _effects.Pop(at, c, 0.9f, 0.35f);
+            _effects.Sparks(at, c, 12, 7f);
+            _hud.ShowPickup(kind);
         }
 
         private void OnBruteCrash(Vector2 at)
@@ -338,6 +542,7 @@ namespace Redline.Game
 
         private void OnLanded(float fallSpeed)
         {
+            _audio.PlayLand(fallSpeed);
             var p = Sim.Player;
             _effects.Dust(ToDraw(new Vector2(p.X, p.Y)), fallSpeed > 15f ? 8 : 4, 0f);
             _actors.Squash(Mathf.Lerp(0.85f, 0.65f, Mathf.InverseLerp(6f, 24f, fallSpeed)));
@@ -349,20 +554,6 @@ namespace Redline.Game
             _effects.Sparks(at, TierColors[2], 28, 20f);
             _effects.Debris(at, brute ? BruteDebris : GruntDebris, brute ? 16 : 9, 13f);
             _effects.Flash(0.12f);
-        }
-
-        /// <summary>Kind of the enemy that died at a point this step (events carry no enemy reference).</summary>
-        private EnemyKind KilledKindAt(Vector2 at)
-        {
-            var enemies = Sim.Enemies;
-            for (int i = 0; i < enemies.Count; i++)
-            {
-                var e = enemies[i];
-                if (e.Alive || e.SinceHit > 0f) continue;
-                var c = e.Center;
-                if (Mathf.Abs(c.X - at.x) < 0.01f && Mathf.Abs(c.Y - at.y) < 0.01f) return e.Kind;
-            }
-            return EnemyKind.Grunt;
         }
 
         /// <summary>Afterimages at tier 2+, speed lines at tier 3.</summary>
