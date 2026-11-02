@@ -22,7 +22,7 @@ namespace Redline.Tests
         [Test]
         public void Drone_HoversAboveThePlayer_WithoutGravity()
         {
-            var drone = _sim.SpawnEnemy(EnemyKind.Drone, new Vec2(40f, 12f));
+            var drone = _sim.SpawnEnemy(EnemyKind.Drone, new Vec2(27f, 12f)); // inside aggro range
             drone.ModeTimer = 99f; // hold it in hover for this test
 
             Run(_sim, Hold(0f), 8f);

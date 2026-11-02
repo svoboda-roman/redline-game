@@ -52,6 +52,10 @@ namespace Redline.Game
         private VisualElement _bannerLine;
         private Label _subBanner;
         private VisualElement _controls;
+        private VisualElement[] _markers;
+        private const int MarkerCount = 12;
+        private static readonly Color DroneMarker = new Color(0.78f, 0.45f, 1f);
+        private static readonly Color BruteMarker = new Color(1f, 0.3f, 0.35f);
 
         private string[] _speedTexts;
         private int _shownSpeed = -1;
@@ -84,6 +88,7 @@ namespace Redline.Game
             BuildWavePanel(cfg);
             BuildBanner();
             BuildControls();
+            BuildMarkers();
 
             _speedTexts = new string[Mathf.CeilToInt(cfg.maxSpeed * 2f) + 1];
             for (int i = 0; i < _speedTexts.Length; i++) _speedTexts[i] = (i * 0.5f).ToString("0.0");
@@ -325,6 +330,49 @@ namespace Redline.Game
             bar.Add(_controls);
         }
 
+        /// <summary>Edge markers pointing at enemies outside the view (the camera follows the player).</summary>
+        private void BuildMarkers()
+        {
+            _markers = new VisualElement[MarkerCount];
+            for (int i = 0; i < MarkerCount; i++)
+            {
+                var m = new VisualElement { pickingMode = PickingMode.Ignore };
+                m.style.position = Position.Absolute;
+                m.style.width = 20;
+                m.style.height = 20;
+                m.style.rotate = new StyleRotate(new Rotate(45f));
+                Border(m, 2f, Color.white);
+                m.style.display = DisplayStyle.None;
+                Root.Add(m);
+                _markers[i] = m;
+            }
+        }
+
+        private void UpdateMarkers(RedlineSim sim)
+        {
+            var cam = _game.Camera;
+            float w = Root.resolvedStyle.width;
+            float h = Root.resolvedStyle.height;
+            int used = 0;
+            if (cam != null && !float.IsNaN(w) && w > 0f && sim.State == SimState.Fighting)
+            {
+                foreach (var e in sim.Enemies)
+                {
+                    if (used >= MarkerCount) break;
+                    if (!e.Alive) continue;
+                    var vp = cam.WorldToViewportPoint(_game.ToDraw(new Vector2(e.Center.X, e.Center.Y)));
+                    if (vp.x >= 0f && vp.x <= 1f && vp.y >= 0f && vp.y <= 1f) continue;
+                    var m = _markers[used++];
+                    m.style.display = DisplayStyle.Flex;
+                    m.style.left = Mathf.Clamp(vp.x, 0.02f, 0.97f) * w - 10f;
+                    m.style.top = (1f - Mathf.Clamp(vp.y, 0.06f, 0.78f)) * h - 10f;
+                    var c = e.Kind == EnemyKind.Brute ? BruteMarker : e.Kind == EnemyKind.Drone ? DroneMarker : EnemyColor;
+                    m.style.backgroundColor = c;
+                }
+            }
+            for (int i = used; i < MarkerCount; i++) _markers[i].style.display = DisplayStyle.None;
+        }
+
         // ------------------------------------------------------------------ per frame
 
         private void LateUpdate()
@@ -337,6 +385,7 @@ namespace Redline.Game
             UpdateChain(sim, dt);
             UpdateWave(sim);
             UpdateBanner(sim, dt);
+            UpdateMarkers(sim);
             bool showControls = sim.CurrentWave == 1 && sim.State != SimState.GameOver && sim.State != SimState.Victory;
             _controls.style.display = showControls ? DisplayStyle.Flex : DisplayStyle.None;
         }

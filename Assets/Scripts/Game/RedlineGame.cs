@@ -14,8 +14,12 @@ namespace Redline.Game
     /// <remarks>Created by <see cref="RedlineBootstrap"/>. Main-thread only.</remarks>
     public sealed class RedlineGame : MonoBehaviour
     {
-        /// <summary>World tiles kept free above the arena for the HUD panels.</summary>
-        private const float HudHeadroom = 5.6f;
+        /// <summary>The level the game plays (a Resources text file).</summary>
+        private const string LevelName = "Loop01";
+        /// <summary>Half the view height in tiles: a close camera that follows the player.</summary>
+        private const float CameraSize = 8f;
+        /// <summary>Seconds of the player's velocity the camera looks ahead by.</summary>
+        private const float Lookahead = 0.35f;
         private static readonly Color Background = new Color(0.01f, 0.01f, 0.04f);
         private static readonly Color GruntDebris = new Color(1f, 0.55f, 0.15f);
         private static readonly Color BruteDebris = new Color(1f, 0.2f, 0.28f);
@@ -48,10 +52,11 @@ namespace Redline.Game
         private float _accumulator;
         private float _hitStop;
         private float _shake;
-        private float _lastAspect;
+        private float _camX;
+        private float _camY;
+        private float _lookahead;
         private float _afterimageTimer;
         private float _speedLineTimer;
-        private Vector3 _cameraHome;
 
         /// <summary>The running simulation (read by the HUD).</summary>
         public RedlineSim Sim { get; private set; }
@@ -65,8 +70,8 @@ namespace Redline.Game
             world.SetParent(transform, false);
             SetupCamera();
             _arena = new ArenaRenderer(world, Sim.Map);
-            _actors = new ActorRenderer(world);
             _effects = new EffectsRenderer(world, _camera);
+            _actors = new ActorRenderer(world, _effects);
             _postFx = gameObject.AddComponent<PostFx>();
             _postFx.Init(_camera);
 
@@ -92,12 +97,12 @@ namespace Redline.Game
                 _accumulator -= RedlineSim.FixedDt;
             }
 
+            UpdateCamera(dt);
             var feet = InterpolatedFeet();
             _actors.Sync(Sim, feet, _drawEnemyFeet, dt);
-            _arena.Update(dt);
+            _arena.Update(dt, _camera.transform.position);
             SpawnSpeedTrail(dt);
             _effects.Update(dt);
-            UpdateCamera(dt);
         }
 
         // ------------------------------------------------------------------ interpolation
@@ -118,17 +123,36 @@ namespace Redline.Game
             float alpha = Mathf.Clamp01(_accumulator / RedlineSim.FixedDt);
             bool sameRun = _prevRunId == Sim.RunId;
             var p = Sim.Player;
-            var now = new Vector2(p.X, p.Y);
             var enemies = Sim.Enemies;
             bool enemiesMatch = sameRun && _prevEnemyFeet.Count == enemies.Count;
             _drawEnemyFeet.Clear();
             for (int i = 0; i < enemies.Count; i++)
             {
                 var e = new Vector2(enemies[i].X, enemies[i].Y);
-                _drawEnemyFeet.Add(enemiesMatch ? Vector2.Lerp(_prevEnemyFeet[i], e, alpha) : e);
+                _drawEnemyFeet.Add(ToDraw(enemiesMatch ? Blend(_prevEnemyFeet[i], e, alpha) : e));
             }
-            return sameRun ? Vector2.Lerp(_prevPlayerFeet, now, alpha) : now;
+            var now = new Vector2(p.X, p.Y);
+            return ToDraw(sameRun ? Blend(_prevPlayerFeet, now, alpha) : now);
         }
+
+        /// <summary>Blends two step positions; on a ring it goes the short way across the seam.</summary>
+        private Vector2 Blend(Vector2 prev, Vector2 now, float alpha)
+        {
+            float dx = Sim.Map.Dx(prev.x, now.x);
+            return new Vector2(now.x - (1f - alpha) * dx, Mathf.Lerp(prev.y, now.y, alpha));
+        }
+
+        /// <summary>
+        /// Simulation position -> drawing position. On a ring the copy nearest the camera is drawn,
+        /// so the level has no visible seam.
+        /// </summary>
+        public Vector2 ToDraw(Vector2 world) =>
+            Sim.Map.WrapsX ? new Vector2(_camX + Sim.Map.Dx(_camX, world.x), world.y) : world;
+
+        /// <summary>The game camera (for HUD tooling).</summary>
+        public Camera Camera => _camera;
+
+        private Vector2 ToDraw(Vec2 world) => ToDraw(new Vector2(world.X, world.Y));
 
         // ------------------------------------------------------------------ loading
 
@@ -158,8 +182,8 @@ namespace Redline.Game
 
         private static TileMap LoadMap()
         {
-            var asset = Resources.Load<TextAsset>("Arena01");
-            if (asset == null) throw new InvalidOperationException("Redline: Resources/Arena01.txt is missing.");
+            var asset = Resources.Load<TextAsset>(LevelName);
+            if (asset == null) throw new InvalidOperationException("Redline: Resources/" + LevelName + ".txt is missing.");
             return TileMap.Parse(asset.text);
         }
 
@@ -176,30 +200,41 @@ namespace Redline.Game
             _camera.orthographic = true;
             _camera.clearFlags = CameraClearFlags.SolidColor;
             _camera.backgroundColor = Background;
-            FitCamera();
+            _camX = Sim.Player.X;
+            _camY = Sim.Player.Y + 2.5f;
         }
 
-        private void FitCamera()
-        {
-            var map = Sim.Map;
-            float aspect = Mathf.Max(0.1f, _camera.aspect);
-            // Fit the whole arena, shifted down so the HUD panels sit above it.
-            _camera.orthographicSize = Mathf.Max(map.Height * 0.5f + HudHeadroom * 0.5f + 0.5f, map.Width * 0.5f / aspect + 0.5f);
-            float aboveArena = _camera.orthographicSize - map.Height * 0.5f;
-            float shift = Mathf.Max(0f, HudHeadroom - aboveArena);
-            _cameraHome = new Vector3(map.Width * 0.5f, map.Height * 0.5f + shift, -10f);
-            _camera.transform.position = _cameraHome;
-            _lastAspect = _camera.aspect;
-        }
-
+        /// <summary>
+        /// Follows the player closely, looking ahead in the running direction; vertically it keeps
+        /// the player in the lower half and stays inside the level. Screen shake rides on top.
+        /// </summary>
         private void UpdateCamera(float dt)
         {
-            if (!Mathf.Approximately(_camera.aspect, _lastAspect)) FitCamera();
+            var p = Sim.Player;
+            var map = Sim.Map;
+            _camera.orthographicSize = CameraSize;
+            _lookahead = Mathf.Lerp(_lookahead, Mathf.Clamp(p.Vx * Lookahead, -5f, 5f), 1f - Mathf.Exp(-dt * 3f));
+            float targetX = _camX + map.Dx(_camX, p.X) + _lookahead;
+            float targetY = p.Y + 2.5f;
+            _camX = Mathf.Lerp(_camX, targetX, 1f - Mathf.Exp(-dt * 7f));
+            _camY = Mathf.Lerp(_camY, targetY, 1f - Mathf.Exp(-dt * 5f));
+            float halfW = CameraSize * Mathf.Max(0.1f, _camera.aspect);
+            if (!map.WrapsX) _camX = ClampView(_camX, halfW, map.Width);
+            _camY = ClampView(_camY, CameraSize, map.Height);
+
             _shake = Mathf.Max(0f, _shake - dt * 1.5f);
             var offset = _shake > 0f
                 ? new Vector3(UnityEngine.Random.Range(-1f, 1f), UnityEngine.Random.Range(-1f, 1f), 0f) * _shake
                 : Vector3.zero;
-            _camera.transform.position = _cameraHome + offset;
+            _camera.transform.position = new Vector3(_camX, _camY, -10f) + offset;
+        }
+
+        /// <summary>Keeps a view of half-size <paramref name="half"/> inside [-1, size+1], centring when it is larger.</summary>
+        private static float ClampView(float centre, float half, float size)
+        {
+            float min = half - 1f;
+            float max = size + 1f - half;
+            return min > max ? size * 0.5f : Mathf.Clamp(centre, min, max);
         }
 
         // ------------------------------------------------------------------ feedback
@@ -210,12 +245,12 @@ namespace Redline.Game
             for (int i = 0; i < events.Count; i++)
             {
                 var ev = events[i];
-                var at = new Vector2(ev.Position.X, ev.Position.Y);
+                var at = ToDraw(ev.Position);
                 var color = TierColors[Mathf.Clamp(ev.Tier, 1, 3) - 1];
                 switch (ev.Type)
                 {
                     case SimEventType.Hit: OnHit(at, color, ev.Tier); break;
-                    case SimEventType.Kill: OnKill(at, color, ev.Tier); break;
+                    case SimEventType.Kill: OnKill(at, color, ev.Tier, KilledKindAt(new Vector2(ev.Position.X, ev.Position.Y))); break;
                     case SimEventType.Clang: OnClang(at); break;
                     case SimEventType.PlayerHurt: OnHurt(at); break;
                     case SimEventType.GameOver: OnGameOver(at); break;
@@ -237,9 +272,8 @@ namespace Redline.Game
             _shake = Mathf.Max(_shake, 0.05f * tier);
         }
 
-        private void OnKill(Vector2 at, Color color, int tier)
+        private void OnKill(Vector2 at, Color color, int tier, EnemyKind kind)
         {
-            var kind = KilledKindAt(at);
             bool brute = kind == EnemyKind.Brute;
             var debris = brute ? BruteDebris : kind == EnemyKind.Drone ? DroneDebris : GruntDebris;
             _effects.Sparks(at, color, 10 + 6 * tier, 8f + 4f * tier);
@@ -283,29 +317,29 @@ namespace Redline.Game
         private void OnJump()
         {
             var p = Sim.Player;
-            _effects.Dust(new Vector2(p.X, p.Y), 5, p.Vx);
+            _effects.Dust(ToDraw(new Vector2(p.X, p.Y)), 5, p.Vx);
             _actors.Squash(1.25f);
         }
 
         private void OnWallJump(Color color)
         {
             var p = Sim.Player;
-            _effects.Dust(new Vector2(p.X - Mathf.Sign(p.Vx) * p.Width * 0.5f, p.Y + p.Height * 0.5f), 6, p.Vx);
-            _effects.Sparks(new Vector2(p.X, p.Y + p.Height * 0.5f), color, 5, 4f);
+            _effects.Dust(ToDraw(new Vector2(p.X - Mathf.Sign(p.Vx) * p.Width * 0.5f, p.Y + p.Height * 0.5f)), 6, p.Vx);
+            _effects.Sparks(ToDraw(new Vector2(p.X, p.Y + p.Height * 0.5f)), color, 5, 4f);
             _actors.Squash(1.2f);
         }
 
         private void OnSlide(Color color)
         {
             var p = Sim.Player;
-            _effects.Dust(new Vector2(p.X, p.Y), 8, p.Vx);
-            _effects.Sparks(new Vector2(p.X, p.Y + 0.1f), color, 5, 4f);
+            _effects.Dust(ToDraw(new Vector2(p.X, p.Y)), 8, p.Vx);
+            _effects.Sparks(ToDraw(new Vector2(p.X, p.Y + 0.1f)), color, 5, 4f);
         }
 
         private void OnLanded(float fallSpeed)
         {
             var p = Sim.Player;
-            _effects.Dust(new Vector2(p.X, p.Y), fallSpeed > 15f ? 8 : 4, 0f);
+            _effects.Dust(ToDraw(new Vector2(p.X, p.Y)), fallSpeed > 15f ? 8 : 4, 0f);
             _actors.Squash(Mathf.Lerp(0.85f, 0.65f, Mathf.InverseLerp(6f, 24f, fallSpeed)));
         }
 

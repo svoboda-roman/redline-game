@@ -23,7 +23,7 @@ namespace Redline.Game
         private static Sprite _brute;
         private static Sprite _drone;
         private static Sprite _tile;
-        private static Sprite _slash;
+        private static Sprite _sword;
         private static Sprite _glow;
         private static Sprite _gradient;
 
@@ -31,7 +31,7 @@ namespace Redline.Game
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetStatics()
         {
-            _player = _playerSlide = _grunt = _brute = _drone = _tile = _slash = _glow = _gradient = null;
+            _player = _playerSlide = _grunt = _brute = _drone = _tile = _sword = _glow = _gradient = null;
         }
 
         /// <summary>Standing runner, facing right (visor on the right).</summary>
@@ -71,56 +71,64 @@ namespace Redline.Game
         /// <summary>Spiky grunt with two eyes and a mouth.</summary>
         public static Sprite Grunt => _grunt != null ? _grunt : (_grunt = FromPattern("RedlineGrunt", new[]
         {
-            ".W......W.",
-            ".WW....WW.",
-            "..WWWWWW..",
-            ".WWWWWWWW.",
-            ".WKKWWKKW.",
-            ".WKKWWKKW.",
-            ".WWWWWWWW.",
-            ".WWKKKKWW.",
-            "..WWWWWW..",
-            "..WW..WW..",
-            ".WW....WW.",
-            ".MM....MM."
+            "..W..........W..",
+            "..WW........WW..",
+            "...WWWWWWWWWW...",
+            "..WWWWWWWWWWWW..",
+            ".WWKKKWWWWKKKWW.",
+            ".WWKWKWWWWKWKWW.",
+            ".WWWWWWWWWWWWWW.",
+            "..WWKKKKKKKKWW..",
+            "..WWWKWKWKWWWW..",
+            "...WWWWWWWWWW...",
+            "MWW.WWWWWWWW.WWM",
+            "MW..LWWWWWWL..WM",
+            "....WWW..WWW....",
+            "....WW....WW....",
+            "...MWW....WWM...",
+            "...MM......MM..."
         }));
 
         /// <summary>Armored brute with a visor slit and plated shoulders.</summary>
         public static Sprite Brute => _brute != null ? _brute : (_brute = FromPattern("RedlineBrute", new[]
         {
-            "....MMMMM....",
-            "...MWWWWWM...",
-            "...MWKKKWM...",
-            "...MWWWWWM...",
-            ".MMMMMMMMMMM.",
-            "MWWWWWWWWWWWM",
-            "MWLLWWWWWLLWM",
-            "MWWWWWWWWWWWM",
-            "MWLLWWWWWLLWM",
-            "MWWWWWWWWWWWM",
-            ".MWWWWWWWWWM.",
-            ".MWWWWWWWWWM.",
-            ".MWWMMMMMWWM.",
-            "..MWWWWWWWM..",
-            "..MWW...WWM..",
-            "..MWW...WWM..",
-            "..MWW...WWM..",
-            ".MMWW...WWMM.",
-            ".MMMM...MMMM.",
-            "............."
+            "......MMMMMM......",
+            ".....MWWWWWWM.....",
+            ".....MWKKKKWM.....",
+            ".....MWWWWWWM.....",
+            "...MMMMMMMMMMMM...",
+            "..MWWWWWWWWWWWWM..",
+            ".MWWLLWWWWWWLLWWM.",
+            "MWWWWWWWWWWWWWWWWM",
+            "MWLLWWWWLLWWWWLLWM",
+            "MWWWWWWWWWWWWWWWWM",
+            "MWLLWWWWLLWWWWLLWM",
+            ".MWWWWWWWWWWWWWWM.",
+            ".MWWMMMMMMMMMMWWM.",
+            ".MWWWWWWWWWWWWWWM.",
+            "..MWWWWWWWWWWWWM..",
+            "..MWWWWMMMMWWWWM..",
+            "..MWWWM....MWWWM..",
+            "..MWWWM....MWWWM..",
+            "..MWWWM....MWWWM..",
+            "..MWWWM....MWWWM..",
+            ".MMWWWMM..MMWWWMM.",
+            ".MMMMMMM..MMMMMMM."
         }));
 
         /// <summary>Flying drone: wings, a single dark eye band, two dangling claws.</summary>
         public static Sprite Drone => _drone != null ? _drone : (_drone = FromPattern("RedlineDrone", new[]
         {
-            "W........W",
-            ".WW....WW.",
-            "..WWWWWW..",
-            ".WWKKKKWW.",
-            "WWWKWWKWWW",
-            ".WWWWWWWW.",
-            "..W....W..",
-            "..M....M.."
+            "WW..........WW",
+            ".WW........WW.",
+            "..WW.MMMM.WW..",
+            "...WWWWWWWW...",
+            "..WWKKKKKKWW..",
+            ".WWWKWWWWKWWW.",
+            "WWWWWKKKKWWWWW",
+            "..WWWWWWWWWW..",
+            "...W.W..W.W...",
+            "...M.M..M.M..."
         }));
 
         /// <summary>Bevelled terrain block: bright top-left edge, dark bottom-right edge.</summary>
@@ -136,26 +144,28 @@ namespace Redline.Game
             "MDDDDDDD"
         }));
 
-        /// <summary>Crescent slash for a strike, opening to the right.</summary>
-        public static Sprite Slash => _slash != null ? _slash : (_slash = FromPattern("RedlineSlash", new[]
+        /// <summary>Sword pointing up, pivot at the grip (rotate it to swing).</summary>
+        public static Sprite Sword => _sword != null ? _sword : (_sword = FromPattern("RedlineSword", new[]
         {
-            "......WWWW......",
-            "........WWWW....",
-            "..........WWW...",
-            "...........WWW..",
-            "............WWW.",
-            "............LWW.",
-            ".............LW.",
-            ".............LW.",
-            ".............LW.",
-            ".............LW.",
-            "............LWW.",
-            "............WWW.",
-            "...........WWW..",
-            "..........WWW...",
-            "........WWWW....",
-            "......WWWW......"
-        }));
+            "...W...",
+            "..WWW..",
+            "..WLW..",
+            "..WLW..",
+            "..WLW..",
+            "..WLW..",
+            "..WLW..",
+            "..WLW..",
+            "..WLW..",
+            "..WLW..",
+            "..WLW..",
+            "..WLW..",
+            "..WLW..",
+            "MMMMMMM",
+            ".MDDDM.",
+            "...D...",
+            "...D...",
+            "..MMM.."
+        }, new Vector2(0.5f, 3.5f / 18f)));
 
         /// <summary>Soft round glow (alpha falls off from the centre).</summary>
         public static Sprite Glow
@@ -173,7 +183,7 @@ namespace Redline.Game
                         float t = Mathf.Clamp01(1f - Mathf.Sqrt(dx * dx + dy * dy) * 2f);
                         pixels[y * size + x] = new Color32(255, 255, 255, (byte)(t * t * 255f));
                     }
-                _glow = Make("RedlineGlow", size, size, pixels, FilterMode.Bilinear);
+                _glow = Make("RedlineGlow", size, size, pixels, FilterMode.Bilinear, new Vector2(0.5f, 0.5f));
                 return _glow;
             }
         }
@@ -191,12 +201,14 @@ namespace Redline.Game
                     byte v = (byte)(255f * y / (height - 1));
                     pixels[y] = new Color32(v, v, v, 255);
                 }
-                _gradient = Make("RedlineGradient", 1, height, pixels, FilterMode.Bilinear);
+                _gradient = Make("RedlineGradient", 1, height, pixels, FilterMode.Bilinear, new Vector2(0.5f, 0.5f));
                 return _gradient;
             }
         }
 
-        private static Sprite FromPattern(string name, string[] rows)
+        private static Sprite FromPattern(string name, string[] rows) => FromPattern(name, rows, new Vector2(0.5f, 0.5f));
+
+        private static Sprite FromPattern(string name, string[] rows, Vector2 pivot)
         {
             int h = rows.Length;
             int w = rows[0].Length;
@@ -206,7 +218,7 @@ namespace Redline.Game
                 int y = h - 1 - row;
                 for (int x = 0; x < w; x++) pixels[y * w + x] = Shade(x < rows[row].Length ? rows[row][x] : '.');
             }
-            return Make(name, w, h, pixels, FilterMode.Point);
+            return Make(name, w, h, pixels, FilterMode.Point, pivot);
         }
 
         private static Color32 Shade(char c)
@@ -223,7 +235,7 @@ namespace Redline.Game
         }
 
         /// <summary>Builds a sprite whose full texture spans one world unit on its longer side.</summary>
-        private static Sprite Make(string name, int w, int h, Color32[] pixels, FilterMode filter)
+        private static Sprite Make(string name, int w, int h, Color32[] pixels, FilterMode filter, Vector2 pivot)
         {
             var tex = new Texture2D(w, h, TextureFormat.RGBA32, false)
             {
@@ -233,7 +245,7 @@ namespace Redline.Game
             };
             tex.SetPixels32(pixels);
             tex.Apply();
-            return Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.5f), Mathf.Max(w, h));
+            return Sprite.Create(tex, new Rect(0, 0, w, h), pivot, Mathf.Max(w, h));
         }
 
         /// <summary>World size of a sprite made by this class at scale 1 (longer side = 1).</summary>

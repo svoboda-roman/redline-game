@@ -6,11 +6,13 @@ namespace Redline.Game
 {
     /// <summary>
     /// Draws the moving actors: the player (pose, facing, lean, squash and stretch, tier glow),
-    /// enemies (bob, hit pop, brute armor state), the strike slash and the grappling rope.
+    /// the sword (held, swung in an arc with a ghost trail), enemies (drawn larger than their
+    /// hitboxes; bob, hit pop, brute armor state) and the grappling rope. Positions arrive in
+    /// draw space (the ring already unrolled around the camera).
     /// </summary>
     /// <example>
     /// <code>
-    /// var actors = new ActorRenderer(worldRoot);
+    /// var actors = new ActorRenderer(worldRoot, effects);
     /// actors.Sync(sim, interpolatedFeet, enemyFeet, Time.deltaTime);
     /// actors.Squash(0.75f);   // on landing
     /// </code>
@@ -28,7 +30,14 @@ namespace Redline.Game
         private readonly Transform _root;
         private readonly SpriteRenderer _player;
         private readonly SpriteRenderer _playerGlow;
-        private readonly SpriteRenderer _slash;
+        private readonly SpriteRenderer _sword;
+        private readonly EffectsRenderer _effects;
+        private float _swingHold;
+        private float _swingAngle = RestAngle;
+        private const float RestAngle = 28f;
+        private const float SwingFrom = 115f;
+        private const float SwingTo = -120f;
+        private const float SwordLength = 1.7f;
         private readonly SpriteRenderer _rope;
         private readonly SpriteRenderer _ropeGlow;
         private readonly SpriteRenderer _anchor;
@@ -41,15 +50,16 @@ namespace Redline.Game
         public SpriteRenderer PlayerView => _player;
 
         /// <summary>Creates the actor views under a parent transform.</summary>
-        public ActorRenderer(Transform parent)
+        public ActorRenderer(Transform parent, EffectsRenderer effects)
         {
+            _effects = effects;
             _root = new GameObject("Actors").transform;
             _root.SetParent(parent, false);
             _playerGlow = SpriteFactory.Create("PlayerGlow", _root, PixelArt.Glow, Color.clear, 6);
             _ropeGlow = SpriteFactory.Create("RopeGlow", _root, SpriteFactory.Square, Color.clear, 6);
             _rope = SpriteFactory.Create("Rope", _root, SpriteFactory.Square, RopeCore, 7);
             _anchor = SpriteFactory.Create("Anchor", _root, PixelArt.Glow, RopeCore, 7);
-            _slash = SpriteFactory.Create("Slash", _root, PixelArt.Slash, Color.clear, 11);
+            _sword = SpriteFactory.Create("Sword", _root, PixelArt.Sword, Color.white, 11);
             _player = SpriteFactory.Create("Player", _root, PixelArt.Player, Color.white, 10);
         }
 
@@ -66,7 +76,7 @@ namespace Redline.Game
             _stretch = Mathf.Lerp(_stretch, 1f, Mathf.Min(1f, dt * 12f));
             int tier = sim.PlayerTier;
             SyncPlayer(sim, playerFeet, tier);
-            SyncStrike(sim, playerFeet, tier);
+            SyncSword(sim, playerFeet, tier, dt);
             SyncRope(sim, playerFeet, tier);
             SyncEnemies(sim, enemyFeet, tier);
         }
@@ -90,7 +100,7 @@ namespace Redline.Game
             var t = _player.transform;
             t.localScale = new Vector3(k / (p.Sliding ? 1f : _stretch), k * (p.Sliding ? 1f : _stretch), 1f);
             t.localPosition = new Vector3(feet.x, feet.y + height * 0.5f, 0f);
-            t.localRotation = Quaternion.Euler(0f, 0f, PlayerTilt(p));
+            t.localRotation = Quaternion.Euler(0f, 0f, PlayerTilt(p, sim.Map));
 
             var glow = RedlineGame.TierColors[tier - 1];
             glow.a = 0.14f + 0.12f * tier;
@@ -101,35 +111,61 @@ namespace Redline.Game
         }
 
         /// <summary>Leans into a run, and hangs along the rope while swinging.</summary>
-        private static float PlayerTilt(Player p)
+        private static float PlayerTilt(Player p, TileMap map)
         {
             if (p.Hooked)
             {
-                var d = p.HookAnchor - p.Center;
+                var d = map.Near(p.Center, p.HookAnchor) - p.Center;
                 return Mathf.Atan2(d.Y, d.X) * Mathf.Rad2Deg - 90f;
             }
             if (p.Sliding) return 0f;
             return Mathf.Clamp(-p.Vx * 0.7f, -12f, 12f);
         }
 
-        private void SyncStrike(RedlineSim sim, Vector2 feet, int tier)
+        /// <summary>
+        /// The sword rests over the shoulder; a strike swings it from behind the head down in front
+        /// (matching the strike box), leaving a fading trail, then it eases back to rest.
+        /// </summary>
+        private void SyncSword(RedlineSim sim, Vector2 feet, int tier, float dt)
         {
             var p = sim.Player;
-            if (!p.Attacking || sim.State == SimState.GameOver)
+            bool show = sim.State != SimState.GameOver;
+            _sword.enabled = show;
+            if (!show) return;
+
+            float target = p.Sliding ? -70f : RestAngle;
+            if (p.Attacking)
             {
-                _slash.enabled = false;
-                return;
+                float t = 1f - Mathf.Clamp01(p.AttackTimer / sim.Config.attackActiveTime);
+                float ease = 1f - (1f - t) * (1f - t) * (1f - t);
+                _swingAngle = Mathf.Lerp(SwingFrom, SwingTo, ease);
+                _swingHold = 0.1f;
             }
-            sim.GetStrikeBox(out float minX, out float minY, out float maxX, out float maxY);
-            var offset = feet - new Vector2(p.X, p.Y);
-            _slash.enabled = true;
-            _slash.flipX = p.Facing < 0;
-            var c = RedlineGame.TierColors[tier - 1];
-            c.a = Mathf.Clamp01(p.AttackTimer / sim.Config.attackActiveTime) * 0.95f;
-            _slash.color = c;
-            var size = _slash.sprite.bounds.size;
-            _slash.transform.localPosition = new Vector3((minX + maxX) * 0.5f + offset.x, (minY + maxY) * 0.5f + offset.y, 0f);
-            _slash.transform.localScale = new Vector3((maxX - minX) / size.x, (maxY - minY) / size.y, 1f);
+            else if (_swingHold > 0f)
+            {
+                _swingHold -= dt;
+            }
+            else
+            {
+                _swingAngle = Mathf.Lerp(_swingAngle, target, Mathf.Min(1f, dt * 14f));
+            }
+
+            float side = p.Facing >= 0 ? 1f : -1f;
+            var t2 = _sword.transform;
+            t2.localPosition = new Vector3(feet.x + side * 0.28f, feet.y + p.Height * 0.5f, 0f);
+            t2.localRotation = Quaternion.Euler(0f, 0f, _swingAngle * side);
+            float k = SwordLength / _sword.sprite.bounds.size.y;
+            t2.localScale = new Vector3(k, k, 1f);
+            _sword.flipX = side < 0f;
+            var c = Color.Lerp(Color.white, RedlineGame.TierColors[tier - 1], 0.35f);
+            _sword.color = c;
+
+            if (p.Attacking)
+            {
+                var ghost = RedlineGame.TierColors[tier - 1];
+                ghost.a = 0.5f;
+                _effects.Ghost(_sword.sprite, t2.localPosition, t2.localRotation, t2.localScale, _sword.flipX, ghost, 0.12f);
+            }
         }
 
         private void SyncRope(RedlineSim sim, Vector2 feet, int tier)
@@ -139,7 +175,7 @@ namespace Redline.Game
             _rope.enabled = _ropeGlow.enabled = _anchor.enabled = show;
             if (!show) return;
             var from = new Vector2(feet.x, feet.y + p.Height * 0.5f);
-            var to = new Vector2(p.HookAnchor.X, p.HookAnchor.Y);
+            var to = new Vector2(feet.x + sim.Map.Dx(p.X, p.HookAnchor.X), p.HookAnchor.Y);
             var d = to - from;
             var mid = (from + to) * 0.5f;
             var rot = Quaternion.Euler(0f, 0f, Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg);
@@ -185,7 +221,7 @@ namespace Redline.Game
             view.color = c;
 
             float bob = e.Kind == EnemyKind.Grunt && e.Grounded ? Mathf.Abs(Mathf.Sin(_time * 12f + index)) * 0.08f : 0f;
-            float pop = e.SinceHit < 0.12f ? 1.15f : 1f;
+            float pop = (e.SinceHit < 0.12f ? 1.15f : 1f) * (brute ? 1.2f : 1.15f);
             float k = e.Height / view.sprite.bounds.size.y * pop;
             var t = view.transform;
             t.localScale = new Vector3(k * (1f + bob), k * (1f - bob), 1f);

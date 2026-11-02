@@ -106,6 +106,15 @@ namespace Redline.Game
             _sprite[k].sortingOrder = 5;
         }
 
+        /// <summary>A fading copy of a rotated sprite (the sword's swing trail).</summary>
+        public void Ghost(Sprite sprite, Vector3 position, Quaternion rotation, Vector3 scale, bool flipX, Color color, float life)
+        {
+            int k = Spawn(sprite, position, Vector2.zero, color, scale, life, 0f, 0f, 0f, 0f, false);
+            _sprite[k].flipX = flipX;
+            _sprite[k].sortingOrder = 9;
+            _sprite[k].transform.localRotation = rotation;
+        }
+
         /// <summary>Flashes the whole view (alpha 0-1), fading out quickly.</summary>
         public void Flash(float alpha)
         {

@@ -35,7 +35,9 @@
 - No multiplayer (local versus is a later candidate).
 - No items/power-ups, no upgrade tree, no bosses.
 - No ranged enemies or projectiles, no second arena (the pass tunes what exists).
-- One arena only; no save system; no story, cutscenes or dialogue.
+- No save system; no story, cutscenes or dialogue.
+
+**v1.2 direction (2026-11-02, from playtest feedback):** the level is a ring you can run around forever (`;wrap` levels; more levels later), the camera follows the player closely, the player swings a visible sword, and enemies are bigger and guard posts (they engage when you come near) instead of all chasing you.
 - Audio is still missing (the art direction asks for synthwave) — a separate candidate, not part of this pass.
 
 ## Build order

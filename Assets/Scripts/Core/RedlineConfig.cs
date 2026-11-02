@@ -71,7 +71,8 @@ namespace Redline.Core
         /// <summary>Knockback speed applied to enemies for tiers 1, 2, 3.</summary>
         public float[] tierKnockback = { 5f, 9f, 14f };
         public float attackRange = 1.5f;
-        public float attackHeight = 1.6f;
+        /// <summary>How far above the player's head the sword arc reaches (tiles); the strike box starts at the feet.</summary>
+        public float attackReachUp = 0.6f;
         public float attackActiveTime = 0.15f;
         public float attackCooldown = 0.25f;
         public float killMomentumRefund = 2.5f;
@@ -98,23 +99,34 @@ namespace Redline.Core
         public float spikeSpeedKeep = 0.3f;
 
         // --- Enemies ---
-        public float gruntWidth = 0.9f;
-        public float gruntHeight = 1.1f;
+        public float gruntWidth = 1.0f;
+        public float gruntHeight = 1.3f;
         public float gruntHp = 1f;
         public float gruntSpeed = 3.5f;
-        public float gruntJumpSpeed = 13f;
+        /// <summary>High enough (~2.3 tiles) to hop the 2-tile bumps levels use.</summary>
+        public float gruntJumpSpeed = 14.5f;
         public int gruntContactDamage = 1;
-        public float bruteWidth = 1.3f;
-        public float bruteHeight = 2f;
+        public float bruteWidth = 1.5f;
+        /// <summary>Hitbox height; kept low enough that a full jump clears a charge (the sprite is drawn taller).</summary>
+        public float bruteHeight = 2.1f;
         public float bruteHp = 4f;
         public float bruteSpeed = 1.6f;
-        public float bruteJumpSpeed = 11f;
+        /// <summary>0: brutes are too heavy to jump; a bump stops them (and a charge crashes into it).</summary>
+        public float bruteJumpSpeed = 0f;
         public int bruteContactDamage = 2;
         /// <summary>Lowest player tier that can damage a brute.</summary>
         public int bruteMinTier = 3;
         /// <summary>Brutes take this fraction of knockback (they are heavy).</summary>
         public float bruteKnockbackScale = 0.35f;
         public float enemyStunTime = 0.35f;
+        /// <summary>Walkers leave their post for a player this close horizontally (tiles).</summary>
+        public float enemyAggroRange = 8f;
+        /// <summary>...and at most this far above or below (tiles).</summary>
+        public float enemyAggroHeight = 16f;
+        /// <summary>Walkers never chase further than this from their post (tiles).</summary>
+        public float enemyLeash = 10f;
+        /// <summary>Drones leave their post for a player this close horizontally (tiles).</summary>
+        public float droneAggroRange = 10f;
         /// <summary>Charging brutes: how far away (tiles, same level) the player triggers a charge.</summary>
         public float bruteChargeRange = 9f;
         public float bruteWindupTime = 0.5f;
@@ -127,12 +139,12 @@ namespace Redline.Core
         /// <summary>First wave (1-based) whose brutes charge.</summary>
         public int bruteChargeFromWave = 4;
         // --- Drone ---
-        public float droneSize = 0.8f;
+        public float droneSize = 1.0f;
         public float droneHp = 1f;
         public int droneContactDamage = 1;
         public float droneSpeed = 3f;
         /// <summary>Hover height of the drone's underside above the player's feet (out of jump-strike reach).</summary>
-        public float droneHoverHeight = 5f;
+        public float droneHoverHeight = 5.5f;
         public float droneWindupTime = 0.45f;
         public float droneDiveSpeed = 12f;
         public float droneDiveTime = 0.8f;
@@ -152,7 +164,7 @@ namespace Redline.Core
         /// <summary>Grunts in each wave. Length = number of waves.</summary>
         public int[] waveGrunts = { 3, 5, 6, 6, 8 };
         /// <summary>Brutes in each wave. Same length as waveGrunts.</summary>
-        public int[] waveBrutes = { 0, 1, 1, 2, 3 };
+        public int[] waveBrutes = { 0, 1, 1, 1, 2 };
         /// <summary>Drones in each wave. Same length as waveGrunts.</summary>
         public int[] waveDrones = { 0, 0, 2, 2, 3 };
 

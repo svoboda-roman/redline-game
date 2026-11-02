@@ -32,8 +32,12 @@ namespace Redline.Core
         public bool Overlaps(float minX, float minY, float maxX, float maxY) =>
             MaxX > minX && MinX < maxX && MaxY > minY && Y < maxY;
 
-        /// <summary>True when this box overlaps another body.</summary>
-        public bool Overlaps(Body other) => Overlaps(other.MinX, other.Y, other.MaxX, other.MaxY);
+        /// <summary>True when this box overlaps another body (measured around the ring when the level wraps).</summary>
+        public bool Overlaps(Body other, TileMap map)
+        {
+            float dx = map.Dx(X, other.X);
+            return MathF.Abs(dx) < (Width + other.Width) * 0.5f && MaxY > other.Y && Y < other.MaxY;
+        }
 
         /// <summary>
         /// Moves by velocity × dt with axis-separated collision against solid tiles.
@@ -74,6 +78,7 @@ namespace Redline.Core
                     }
                 }
             }
+            if (map.WrapsX) X = map.WrapX(X);
             RefreshContacts(map);
             return wallImpact;
         }

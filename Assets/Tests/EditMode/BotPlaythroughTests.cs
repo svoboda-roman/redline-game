@@ -6,7 +6,7 @@ using static Redline.Tests.TestSupport;
 namespace Redline.Tests
 {
     /// <summary>
-    /// Integration: scripted players run the real arena with the shipped config. A skilled one must
+    /// Integration: scripted players run the shipped level (the Loop01 ring) with the shipped config. A skilled one must
     /// clear every wave, using the hook to earn tier 3 for armored brutes; a sloppy one (no jump,
     /// hook or slide) must die before the last wave. Stories 009 and 013.
     /// </summary>
@@ -17,7 +17,7 @@ namespace Redline.Tests
         private static (RedlineSim sim, ScriptedPlayer bot, float time) Play(bool skilled)
         {
             var cfg = new RedlineConfig();
-            var map = TileMap.Parse(ReadResource("Arena01.txt"));
+            var map = TileMap.Parse(ReadResource("Loop01.txt"));
             var sim = new RedlineSim(cfg, map);
             var bot = new ScriptedPlayer(cfg, map, skilled);
             float t = 0f;
@@ -40,10 +40,10 @@ namespace Redline.Tests
         }
 
         [Test]
-        public void Arena01_OffersHookLaunchesThatReachTier3()
+        public void Loop01_OffersHookLaunchesThatReachTier3()
         {
             var cfg = new RedlineConfig();
-            var bot = new ScriptedPlayer(cfg, TileMap.Parse(ReadResource("Arena01.txt")), skilled: true);
+            var bot = new ScriptedPlayer(cfg, TileMap.Parse(ReadResource("Loop01.txt")), skilled: true);
 
             Assert.Greater(bot.LaunchCount, 0);
         }

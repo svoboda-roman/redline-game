@@ -98,7 +98,7 @@ namespace Redline.Core
         /// <summary>Spawns an enemy directly (used by tests and tools; waves use the same path).</summary>
         public Enemy SpawnEnemy(EnemyKind kind, Vec2 position)
         {
-            var e = new Enemy(kind, position, _cfg);
+            var e = new Enemy(kind, new Vec2(_map.WrapX(position.X), position.Y), _cfg);
             e.RefreshContacts(_map);
             _enemies.Add(e);
             EnemiesAlive++;
@@ -138,13 +138,15 @@ namespace Redline.Core
             UpdateWaveProgress();
         }
 
-        /// <summary>The player's strike hitbox for the current facing (valid whether or not striking).</summary>
+        /// <summary>
+        /// The player's strike hitbox for the current facing (valid whether or not striking): the
+        /// sword's arc, from the feet to just above the head, reaching forward by attackRange.
+        /// </summary>
         public void GetStrikeBox(out float minX, out float minY, out float maxX, out float maxY)
         {
             var p = Player;
-            float cy = p.Y + p.Height * 0.5f;
-            minY = cy - _cfg.attackHeight * 0.5f;
-            maxY = cy + _cfg.attackHeight * 0.5f;
+            minY = p.Y + 0.1f;
+            maxY = p.MaxY + _cfg.attackReachUp;
             if (p.Facing > 0)
             {
                 minX = p.X - _cfg.strikeBackReach;
@@ -407,22 +409,23 @@ namespace Redline.Core
         }
 
         /// <summary>Rope constraint: keep the predicted centre within the rope length.</summary>
-        private static void ApplyRope(Player p, float dt)
+        private void ApplyRope(Player p, float dt)
         {
             if (!p.Hooked) return;
             var centre = p.Center;
+            var anchor = _map.Near(centre, p.HookAnchor);
             var predicted = new Vec2(centre.X + p.Vx * dt, centre.Y + p.Vy * dt);
-            var d = predicted - p.HookAnchor;
+            var d = predicted - anchor;
             float len = d.Length;
             if (len <= p.HookLength || len <= 1e-4f) return;
-            var onRope = p.HookAnchor + d * (p.HookLength / len);
+            var onRope = anchor + d * (p.HookLength / len);
             p.Vx = (onRope.X - centre.X) / dt;
             p.Vy = (onRope.Y - centre.Y) / dt;
         }
 
         private void PumpSwing(Player p, int dir, float dt)
         {
-            var d = p.Center - p.HookAnchor;
+            var d = p.Center - _map.Near(p.Center, p.HookAnchor);
             float len = d.Length;
             if (len < 1e-3f || d.Y >= 0f) return; // only pump while hanging below the anchor
             float tx = -d.Y / len;
@@ -448,7 +451,7 @@ namespace Redline.Core
             var dir = new Vec2(MathF.Cos(a) * p.Facing, MathF.Sin(a));
             if (!_map.Raycast(p.Center, dir, c.hookRange, out var hit)) return;
             p.Hooked = true;
-            p.HookAnchor = hit;
+            p.HookAnchor = new Vec2(_map.WrapX(hit.X), hit.Y);
             p.HookLength = MathF.Max(c.hookMinLength, (p.Center - hit).Length);
             Emit(SimEventType.HookAttach, hit);
         }
@@ -524,7 +527,7 @@ namespace Redline.Core
             {
                 case BruteMode.Walk:
                     e.ChargeCooldown -= dt;
-                    float dx = p.X - e.X;
+                    float dx = _map.Dx(e.X, p.X);
                     bool sameLevel = MathF.Abs(p.Y - e.Y) < 1f && p.Grounded;
                     if (e.ChargeCooldown > 0f || !e.Grounded || !sameLevel || MathF.Abs(dx) > c.bruteChargeRange) return false;
                     e.Mode = BruteMode.Windup;
@@ -586,7 +589,8 @@ namespace Redline.Core
                 SteerDrone(e, p);
             }
             e.Move(_map, dt);
-            bool blocked = e.Grounded || e.WallDir != 0 || (e.DiveDir.Y > 0f && e.Vy == 0f);
+            // A dive slides along walls; it ends on landing, when fully stopped, or against a ceiling.
+            bool blocked = e.Grounded || (e.Vx == 0f && e.Vy == 0f) || (e.DiveDir.Y > 0f && e.Vy == 0f);
             if (e.DroneState == DroneMode.Dive && (e.ModeTimer <= 0f || blocked))
             {
                 e.DroneState = DroneMode.Climb;
@@ -596,13 +600,18 @@ namespace Redline.Core
         private void SteerDrone(Enemy e, Player p)
         {
             var c = _cfg;
+            if (e.DroneState == DroneMode.Hover && !Aggro(e, c.droneAggroRange))
+            {
+                FlyToward(e, e.Post.X, e.Post.Y, c.droneSpeed);
+                return;
+            }
             ChooseHoverPoint(e, p, out float hoverX, out float hoverY);
             switch (e.DroneState)
             {
                 case DroneMode.Hover:
                     FlyToward(e, hoverX, hoverY, c.droneSpeed);
-                    bool inPlace = MathF.Abs(e.X - hoverX) < c.droneDiveTriggerX && MathF.Abs(e.Y - hoverY) < 1f;
-                    if (e.ModeTimer <= 0f && inPlace && HasLineOfSight(e.Center, p.Center))
+                    bool inPlace = MathF.Abs(_map.Dx(hoverX, e.X)) < c.droneDiveTriggerX && MathF.Abs(e.Y - hoverY) < 1f;
+                    if (e.ModeTimer <= 0f && inPlace && HasLineOfSight(e.Center, _map.Near(e.Center, p.Center)))
                     {
                         e.DroneState = DroneMode.Windup;
                         e.ModeTimer = c.droneWindupTime;
@@ -613,11 +622,13 @@ namespace Redline.Core
                     e.Vx = 0f;
                     e.Vy = 0f;
                     if (e.ModeTimer > 0f) break;
-                    var d = p.Center - e.Center;
+                    var d = _map.Near(e.Center, p.Center) - e.Center;
                     float len = MathF.Max(1e-3f, d.Length);
                     e.DiveDir = new Vec2(d.X / len, d.Y / len);
                     e.DroneState = DroneMode.Dive;
                     e.ModeTimer = c.droneDiveTime;
+                    e.Vx = e.DiveDir.X * c.droneDiveSpeed;
+                    e.Vy = e.DiveDir.Y * c.droneDiveSpeed;
                     break;
                 case DroneMode.Dive:
                     e.Vx = e.DiveDir.X * c.droneDiveSpeed;
@@ -651,9 +662,16 @@ namespace Redline.Core
                 x = p.X + HoverOffsets[i] * side;
                 float half = e.Width * 0.5f;
                 if (_map.OverlapsSolid(x - half, y, x + half, y + e.Height)) continue;
-                if (HasLineOfSight(new Vec2(x, y + e.Height * 0.5f), target)) return;
+                if (HasClearDive(new Vec2(x, y + e.Height * 0.5f), half, target)) return;
             }
             x = p.X;
+        }
+
+        /// <summary>True when a body of the given half-width could fly straight from one point to another.</summary>
+        private bool HasClearDive(Vec2 from, float half, Vec2 to)
+        {
+            var side = new Vec2(half * 0.9f, 0f);
+            return HasLineOfSight(from, to) && HasLineOfSight(from - side, to - side) && HasLineOfSight(from + side, to + side);
         }
 
         /// <summary>True when no solid tile lies on the straight line between two points.</summary>
@@ -665,26 +683,57 @@ namespace Redline.Core
             return !_map.Raycast(from, d * (1f / len), len, out _);
         }
 
-        /// <summary>Velocity toward a point, easing in near it, capped at a speed per axis.</summary>
-        private static void FlyToward(Enemy e, float x, float y, float speed)
+        /// <summary>Velocity toward a point (around the ring), easing in near it, capped at a speed per axis.</summary>
+        private void FlyToward(Enemy e, float x, float y, float speed)
         {
-            e.Vx = Math.Clamp((x - e.X) * 3f, -speed, speed);
+            e.Vx = Math.Clamp(_map.Dx(e.X, x) * 3f, -speed, speed);
             e.Vy = Math.Clamp((y - e.Y) * 3f, -speed, speed);
         }
 
+        /// <summary>True when the player is close enough for an enemy to leave its post and attack.</summary>
+        private bool Aggro(Enemy e, float range)
+        {
+            var p = Player;
+            return MathF.Abs(_map.Dx(e.X, p.X)) < range && MathF.Abs(p.Y - e.Y) < _cfg.enemyAggroHeight;
+        }
+
+        /// <summary>
+        /// Walkers guard a post: they chase a nearby player (never further than the leash from the
+        /// post) and walk back to the post when the player leaves.
+        /// </summary>
         private void SteerEnemy(Enemy e)
         {
             var p = Player;
-            float dx = p.X - e.X;
+            float dx = _map.Dx(e.X, p.X);
+            if (!Aggro(e, _cfg.enemyAggroRange))
+            {
+                ReturnToPost(e, dx);
+                return;
+            }
             int dir = dx > 0.3f ? 1 : dx < -0.3f ? -1 : 0;
             // Roughly above the player: commit to one direction so the enemy walks off its
             // ledge instead of turning back and forth over the player's head.
-            if (p.Y < e.Y - 1f && MathF.Abs(dx) < 1.5f) dir = e.Facing;
+            if (p.Y < e.Y - 1f && MathF.Abs(dx) < 4f) dir = e.Facing;
+            float fromPost = _map.Dx(e.Post.X, e.X);
+            bool leashed = MathF.Abs(fromPost) > _cfg.enemyLeash && Sign(fromPost) == dir && MathF.Abs(e.Y - e.Post.Y) < 1f;
+            if (leashed) dir = 0;
             if (dir != 0) e.Facing = dir;
+            else if (dx != 0f) e.Facing = Sign(dx);
             e.Vx = dir * e.Speed;
             if (e.Grounded && dir != 0 && e.WallDir == dir) e.Vy = e.JumpSpeed;
             else if (e.Kind == EnemyKind.Grunt && e.Grounded && p.Y - e.Y > 2f && MathF.Abs(dx) < 3f)
                 e.Vy = e.JumpSpeed;
+        }
+
+        private void ReturnToPost(Enemy e, float dxToPlayer)
+        {
+            // Fell off its post (or was knocked off): guard where it landed.
+            if (e.Grounded && MathF.Abs(e.Y - e.Post.Y) > 1.5f) e.Post = new Vec2(e.X, e.Y);
+            float toPost = _map.Dx(e.X, e.Post.X);
+            int dir = toPost > 0.5f ? 1 : toPost < -0.5f ? -1 : 0;
+            e.Vx = dir * e.Speed * 0.6f;
+            e.Facing = dir != 0 ? dir : (dxToPlayer >= 0f ? 1 : -1);
+            if (e.Grounded && dir != 0 && e.WallDir == dir) e.Vy = e.JumpSpeed;
         }
 
         /// <summary>
@@ -703,7 +752,7 @@ namespace Redline.Core
             {
                 var e = _enemies[i];
                 if (!e.Alive || e.LastStrikeId == p.StrikeId) continue;
-                if (!e.Overlaps(minX, minY, maxX, maxY)) continue;
+                if (!InStrikeBox(e, minX, minY, maxX, maxY)) continue;
                 e.LastStrikeId = p.StrikeId;
                 e.SinceHit = 0f;
                 if (CombatRules.CanDamage(tier, e.ArmorTier)) StrikeEnemy(p, e, tier);
@@ -713,6 +762,14 @@ namespace Redline.Core
             p.Vx = -p.Facing * _cfg.clangBounceSpeed;
             p.AttackTimer = 0f;
             Emit(SimEventType.Clang, clanged.Center, tier);
+        }
+
+        /// <summary>True when an enemy (its copy nearest the player, on a ring) overlaps the strike box.</summary>
+        public bool InStrikeBox(Enemy e, float minX, float minY, float maxX, float maxY)
+        {
+            float ex = Player.X + _map.Dx(Player.X, e.X);
+            float half = e.Width * 0.5f;
+            return ex + half > minX && ex - half < maxX && e.MaxY > minY && e.Y < maxY;
         }
 
         private void StrikeEnemy(Player p, Enemy e, int tier)
@@ -757,8 +814,9 @@ namespace Redline.Core
             for (int i = 0; i < _enemies.Count; i++)
             {
                 var e = _enemies[i];
-                if (!e.Alive || e.Dazed || !p.Overlaps(e)) continue;
-                int away = p.X > e.X ? 1 : p.X < e.X ? -1 : -p.Facing;
+                if (!e.Alive || e.Dazed || !p.Overlaps(e, _map)) continue;
+                float side = _map.Dx(e.X, p.X);
+                int away = side > 0f ? 1 : side < 0f ? -1 : -p.Facing;
                 Hurt(e.ContactDamage, away, false);
                 return;
             }

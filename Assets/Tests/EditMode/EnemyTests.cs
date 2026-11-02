@@ -20,10 +20,10 @@ namespace Redline.Tests
         [Test]
         public void Grunt_ChasesThePlayer()
         {
-            var grunt = _sim.SpawnEnemy(EnemyKind.Grunt, new Vec2(30f, 1f));
+            var grunt = _sim.SpawnEnemy(EnemyKind.Grunt, new Vec2(9f, 1f)); // inside aggro range
             Run(_sim, Hold(0f), 1f);
 
-            Assert.That(grunt.X, Is.EqualTo(30f - _cfg.gruntSpeed).Within(0.1f));
+            Assert.That(grunt.X, Is.EqualTo(9f - _cfg.gruntSpeed).Within(0.1f));
         }
 
         [Test]

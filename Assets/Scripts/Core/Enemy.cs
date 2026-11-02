@@ -69,6 +69,9 @@ namespace Redline.Core
         /// <summary>Drones only: unit direction of the current dive.</summary>
         public Vec2 DiveDir;
 
+        /// <summary>Where this enemy stands guard; it returns here when the player leaves.</summary>
+        public Vec2 Post;
+
         public bool Alive => Hp > 0f;
 
         /// <summary>The tier a strike needs to damage this enemy right now (a crashed brute's armor is down).</summary>
@@ -82,6 +85,7 @@ namespace Redline.Core
             Kind = kind;
             X = spawn.X;
             Y = spawn.Y;
+            Post = spawn;
             MinTier = 1;
             switch (kind)
             {

@@ -14,7 +14,9 @@ namespace Redline.Core
     /// <summary>
     /// Arena grid. Cell (x, y) covers [x, x+1) × [y, y+1); y grows upward.
     /// Text format: row 0 is the TOP of the arena. '#' solid, '^' spike, 'P' player start,
-    /// 'S' enemy spawn, anything else empty. Cells outside the grid count as solid.
+    /// 'S' enemy spawn (guard post), anything else empty. Lines starting with ';' are directives:
+    /// ';wrap' makes the level a horizontal ring (leaving one side enters the other).
+    /// Cells above or below the grid are solid; left/right of it are solid unless the level wraps.
     /// </summary>
     public sealed class TileMap
     {
@@ -23,14 +25,18 @@ namespace Redline.Core
         public int Width { get; }
         public int Height { get; }
 
+        /// <summary>True when the level is a horizontal ring.</summary>
+        public bool WrapsX { get; }
+
         /// <summary>Bottom-centre of the player start cell.</summary>
         public Vec2 PlayerStart { get; }
 
         /// <summary>Bottom-centre of each enemy spawn cell, in text order.</summary>
         public IReadOnlyList<Vec2> SpawnPoints { get; }
 
-        private TileMap(int width, int height, Tile[] tiles, Vec2 start, List<Vec2> spawns)
+        private TileMap(int width, int height, Tile[] tiles, Vec2 start, List<Vec2> spawns, bool wraps)
         {
+            WrapsX = wraps;
             Width = width;
             Height = height;
             _tiles = tiles;
@@ -43,9 +49,15 @@ namespace Redline.Core
         {
             if (text == null) throw new ArgumentNullException(nameof(text));
             var rows = new List<string>();
+            bool wraps = false;
             foreach (var raw in text.Split('\n'))
             {
                 var line = raw.TrimEnd('\r');
+                if (line.StartsWith(";"))
+                {
+                    if (line.Trim() == ";wrap") wraps = true;
+                    continue;
+                }
                 rows.Add(line);
             }
             while (rows.Count > 0 && rows[rows.Count - 1].Trim().Length == 0) rows.RemoveAt(rows.Count - 1);
@@ -82,15 +94,30 @@ namespace Redline.Core
             }
             if (!start.HasValue) throw new FormatException("map has no player start 'P'");
             if (spawns.Count == 0) throw new FormatException("map has no enemy spawn 'S'");
-            return new TileMap(width, height, tiles, start.Value, spawns);
+            return new TileMap(width, height, tiles, start.Value, spawns, wraps);
         }
 
-        /// <summary>Tile at a cell; outside the grid is Solid.</summary>
+        /// <summary>Tile at a cell; above/below the grid is Solid, and so are the sides unless the level wraps.</summary>
         public Tile Get(int x, int y)
         {
-            if (x < 0 || y < 0 || x >= Width || y >= Height) return Tile.Solid;
+            if (y < 0 || y >= Height) return Tile.Solid;
+            if (WrapsX) x = ((x % Width) + Width) % Width;
+            else if (x < 0 || x >= Width) return Tile.Solid;
             return _tiles[y * Width + x];
         }
+
+        /// <summary>A world x folded into [0, Width) on a ring; unchanged otherwise.</summary>
+        public float WrapX(float x) => WrapsX ? x - Width * MathF.Floor(x / Width) : x;
+
+        /// <summary>Shortest signed horizontal distance from one x to another (around the ring when it wraps).</summary>
+        public float Dx(float from, float to)
+        {
+            float d = to - from;
+            return WrapsX ? d - Width * MathF.Round(d / Width) : d;
+        }
+
+        /// <summary>The copy of <paramref name="to"/> nearest to <paramref name="from"/> (same point off a ring).</summary>
+        public Vec2 Near(Vec2 from, Vec2 to) => new Vec2(from.X + Dx(from.X, to.X), to.Y);
 
         /// <summary>True when the cell blocks movement.</summary>
         public bool IsSolid(int x, int y) => Get(x, y) == Tile.Solid;
