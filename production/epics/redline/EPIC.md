@@ -23,3 +23,8 @@
 | 006 | Wave flow, HP, game over, victory | Logic | Ready | N/A |
 | 007 | HUD and end screens | UI | Ready | N/A |
 | 008 | Visual polish — neon look and combat feedback | Visual/Feel | Ready | N/A |
+| 009 | Earned tier 3 | Logic | Ready | N/A |
+| 010 | Kill chain | Logic | Ready | N/A |
+| 011 | Charging brute | Logic | Ready | N/A |
+| 012 | Drone | Logic | Ready | N/A |
+| 013 | Rebalanced waves | Integration | Ready | N/A |
