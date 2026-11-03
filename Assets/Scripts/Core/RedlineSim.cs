@@ -84,9 +84,12 @@ namespace Redline.Core
         /// <summary>The player's current speed tier (1-3), from horizontal speed.</summary>
         public int PlayerTier => CombatRules.TierFor(Player.Vx, _cfg);
 
+        /// <summary>True on the training level: no waves, no victory, no game over (see <see cref="SimState.Training"/>).</summary>
+        public bool Training => _map.Training;
+
         /// <summary>
         /// Creates a run. Throws ArgumentException when the config is invalid or the level's waves
-        /// ask for an enemy kind the sim cannot spawn yet.
+        /// ask for an enemy kind the sim cannot spawn yet. A training map has no waves at all.
         /// </summary>
         public RedlineSim(RedlineConfig config, TileMap map)
         {
@@ -94,8 +97,8 @@ namespace Redline.Core
             _map = map ?? throw new ArgumentNullException(nameof(map));
             var errors = _cfg.Validate();
             if (errors.Count > 0) throw new ArgumentException("Invalid RedlineConfig: " + string.Join("; ", errors));
-            _waves = _map.Waves.Count > 0 ? _map.Waves : WaveSpec.FromConfig(_cfg);
-            var waveErrors = ValidateWaves(_waves);
+            _waves = _map.Training ? Array.Empty<WaveSpec>() : _map.Waves.Count > 0 ? _map.Waves : WaveSpec.FromConfig(_cfg);
+            var waveErrors = _map.Training ? new List<string>() : ValidateWaves(_waves);
             if (waveErrors.Count > 0) throw new ArgumentException("Invalid level waves: " + string.Join("; ", waveErrors));
             _orbs = new List<Orb>(_cfg.orbMaxCount);
             _freeOrbs = new List<Orb>(_cfg.orbMaxCount);
@@ -127,7 +130,7 @@ namespace Redline.Core
             };
             p.RefreshContacts(_map);
             Player = p;
-            State = SimState.WaveBreak;
+            State = _map.Training ? SimState.Training : SimState.WaveBreak;
             WaveIndex = 0;
             BreakTimer = _cfg.firstWaveDelay;
             EnemiesAlive = 0;
@@ -143,6 +146,47 @@ namespace Redline.Core
             _enemies.Add(e);
             EnemiesAlive++;
             return e;
+        }
+
+        /// <summary>
+        /// Puts the player at a point (bottom-centre, e.g. a training checkpoint) at rest: off the
+        /// rope, standing, full HP, no strike, chain or buffs running. Does not count as a restart.
+        /// </summary>
+        public void RespawnPlayer(Vec2 position)
+        {
+            var p = Player;
+            p.Hooked = false;
+            p.Sliding = false;
+            p.Height = _cfg.playerHeight;
+            p.X = _map.WrapX(position.X);
+            p.Y = position.Y;
+            p.Vx = 0f;
+            p.Vy = 0f;
+            p.Hp = _cfg.playerMaxHp;
+            p.AttackTimer = 0f;
+            p.Chain = 0;
+            p.ChainTimer = 0f;
+            p.SpeedBuffTimer = 0f;
+            p.HookBuffTimer = 0f;
+            p.HookCooldownTimer = 0f;
+            p.WallImpactSpeed = 0f;
+            p.WallJumpLockTimer = 0f;
+            p.InvulnTimer = 0f;
+            p.RefreshContacts(_map);
+        }
+
+        /// <summary>
+        /// Removes every enemy, orb and projectile without events or kill credit (the training script
+        /// clears a station between steps). Returns orbs and projectiles to their pools; no allocation.
+        /// </summary>
+        public void ClearActors()
+        {
+            _enemies.Clear();
+            for (int i = 0; i < _orbs.Count; i++) _freeOrbs.Add(_orbs[i]);
+            _orbs.Clear();
+            for (int i = 0; i < _projectiles.Count; i++) _freeProjectiles.Add(_projectiles[i]);
+            _projectiles.Clear();
+            EnemiesAlive = 0;
         }
 
         /// <summary>
@@ -192,6 +236,8 @@ namespace Redline.Core
             UpdateProjectiles(dt);
             ResolveContacts();
 
+            // Training: nobody dies while learning; HP that runs out refills (the hit still landed).
+            if (Player.Hp <= 0 && State == SimState.Training) Player.Hp = _cfg.playerMaxHp;
             if (Player.Hp <= 0)
             {
                 Player.Hp = 0;

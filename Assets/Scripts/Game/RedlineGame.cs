@@ -104,6 +104,15 @@ namespace Redline.Game
         private TutorialOverlay _tutorial;
         private Func<string, string> _hintLabels;
 
+        // The training level (Resources/Training.txt + Training.json): non-null while it runs.
+        private TrainingScript _training;
+        private TrainingOverlay _trainingOverlay;
+        private MenuScreen _trainingPauseMenu;
+        private float _trainingCompleteTimer;
+
+        /// <summary>True while the training level runs (no waves, no points; the HUD hides the wave panel).</summary>
+        public bool InTraining => _training != null;
+
         /// <summary>Resolves a hint token ("HOOK", "JUMP"…) to the key bound to that action, or null.</summary>
         private static string HintLabel(string token) =>
             Enum.TryParse<GameAction>(token, true, out var action) ? ControlLabels.Get(action) : null;
@@ -145,6 +154,8 @@ namespace Redline.Game
             _hintLabels = HintLabel;
             _tutorial = gameObject.AddComponent<TutorialOverlay>();
             _tutorial.Init(TutorialOverlay.LoadCatalog(), TutorialProgress.Deserialize(GameSettings.Current.TutorialSeen), _hintLabels);
+            _trainingOverlay = gameObject.AddComponent<TrainingOverlay>();
+            _trainingOverlay.Init(this, _hintLabels);
             _screen = gameObject.AddComponent<UpgradeScreen>();
             _screen.Init(_store);
             _screen.Continued += OnUpgradesContinue;
@@ -154,6 +165,8 @@ namespace Redline.Game
             GameSettings.Changed += _onSettingsChanged;
             ApplySettings();
             ShowMainMenu(null);
+            // First launch (or an older settings file): the training runs before anything else.
+            if (!GameSettings.Current.TrainingDone) StartTraining();
             if (RedlineCapture.Requested) gameObject.AddComponent<RedlineCapture>().Init(this);
         }
 
@@ -182,7 +195,7 @@ namespace Redline.Game
             while (_accumulator >= RedlineSim.FixedDt)
             {
                 var frame = _input.Consume();
-                if (frame.RestartPressed)
+                if (frame.RestartPressed && _training == null)
                 {
                     // R / Select ends the run (retry after game over, play again after the last
                     // level, or abandon mid-run): points are awarded and the upgrade screen opens.
@@ -195,15 +208,20 @@ namespace Redline.Game
                 CapturePrevious();
                 bool wasGrounded = Sim.Player.Grounded;
                 float fallSpeed = -Sim.Player.Vy;
-                Sim.Step(frame, RedlineSim.FixedDt);
+                // Training: the script runs the sim (Restart held skips a step instead of ending a run).
+                if (_training != null) _training.Step(frame, RedlineSim.FixedDt);
+                else Sim.Step(frame, RedlineSim.FixedDt);
                 if (!wasGrounded && Sim.Player.Grounded && fallSpeed > 6f) OnLanded(fallSpeed);
                 HandleEvents();
-                _tutorial.Step(Sim, GameSettings.HintsEnabled); // per step: orb pickups are one-step events
+                // Per step: orb pickups are one-step events. The training teaches with its own cards.
+                if (_training == null) _tutorial.Step(Sim, GameSettings.HintsEnabled);
                 _audio.Process(Sim, Sim.Events);
                 _run.HighestTier = Math.Max(_run.HighestTier, Sim.PlayerTier);
                 _accumulator -= RedlineSim.FixedDt;
             }
             _tutorial.Tick(Time.unscaledDeltaTime, paused: !stepping);
+            _trainingOverlay.Tick(Time.unscaledDeltaTime, paused: !stepping);
+            if (stepping && _training != null) TickTrainingEnd(dt);
             _audio.Tick(Sim, Time.unscaledDeltaTime);
             if (_flow == Flow.Paused) return; // the whole view is frozen behind the pause menu
             if (stepping) AdvanceLevelAfterVictory(dt);
@@ -414,6 +432,7 @@ namespace Redline.Game
             _mainMenu = gameObject.AddComponent<MenuScreen>();
             _mainMenu.Init("MainMenu", 90f, "REDLINE", true);
             _mainMenu.AddItem("PLAY", StartRun);
+            _mainMenu.AddItem("TUTORIAL", StartTraining);
             _mainMenu.AddItem("UPGRADES", OpenUpgradesFromMenu);
             _mainMenu.AddItem("SETTINGS", () => OpenSettings(_mainMenu));
             _mainMenu.AddItem("QUIT", QuitGame);
@@ -425,17 +444,27 @@ namespace Redline.Game
             _pauseMenu.AddItem("ABANDON RUN", AbandonRun);
             _pauseMenu.AddItem("QUIT TO MENU", QuitToMenu);
             _pauseMenu.Cancelled = Resume;
+
+            _trainingPauseMenu = gameObject.AddComponent<MenuScreen>();
+            _trainingPauseMenu.Init("TrainingPauseMenu", 110f, "PAUSED", false);
+            _trainingPauseMenu.AddItem("RESUME", Resume);
+            _trainingPauseMenu.AddItem("SETTINGS", () => OpenSettings(_trainingPauseMenu));
+            _trainingPauseMenu.AddItem("SKIP TUTORIAL", () => FinishTraining(false));
+            _trainingPauseMenu.Cancelled = Resume;
         }
 
         /// <summary>The title menu over a fresh, frozen level. <paramref name="notice"/> is an optional line under the title.</summary>
         private void ShowMainMenu(string notice)
         {
             _pauseMenu.Hide();
+            _trainingPauseMenu.Hide();
             _settingsScreen.Hide();
             _screen.Hide();
             _audio.SetPaused(false);
             _audio.StopEffects();
             _tutorial.Hide();
+            _training = null;
+            _trainingOverlay.Bind(null);
             PrepareRun();
             _mainMenu.SetNotice(notice);
             _mainMenu.Show();
@@ -470,7 +499,7 @@ namespace Redline.Game
         {
             if (_flow != Flow.Playing) return;
             _audio.SetPaused(true);
-            _pauseMenu.Show();
+            (_training != null ? _trainingPauseMenu : _pauseMenu).Show();
             SetFlow(Flow.Paused);
         }
 
@@ -478,6 +507,7 @@ namespace Redline.Game
         {
             if (_flow != Flow.Paused) return;
             _pauseMenu.Hide();
+            _trainingPauseMenu.Hide();
             _audio.SetPaused(false);
             _accumulator = 0f;
             SetFlow(Flow.Playing);
@@ -515,6 +545,7 @@ namespace Redline.Game
             _audio.SetVolumes(s.MasterVolume / 100f, s.MusicVolume / 100f, s.SfxVolume / 100f);
             if (Screen.fullScreen != s.Fullscreen) Screen.fullScreen = s.Fullscreen;
             if (_tutorial != null) _tutorial.SetLabels(_hintLabels); // keys may have been rebound
+            if (_trainingOverlay != null) _trainingOverlay.SetLabels(_hintLabels);
         }
 
         private void OnApplicationQuit() => SaveTutorialProgress();
@@ -522,6 +553,78 @@ namespace Redline.Game
         private void OnDestroy()
         {
             if (_onSettingsChanged != null) GameSettings.Changed -= _onSettingsChanged;
+        }
+
+        // ------------------------------------------------------------------ training
+
+        /// <summary>
+        /// TUTORIAL, or the first launch: loads the training level with the base config (no upgrades)
+        /// and runs it through a <see cref="TrainingScript"/>. It earns no points and is not part of
+        /// the Loop01-03 sequence. Missing or invalid training data logs an error and stays in the menu.
+        /// </summary>
+        private void StartTraining()
+        {
+            var data = TrainingOverlay.LoadData();
+            var asset = Resources.Load<TextAsset>("Training");
+            if (data == null || asset == null)
+            {
+                if (asset == null) Debug.LogError("Redline: Resources/Training.txt not found; the training is unavailable.");
+                return;
+            }
+            TrainingScript script;
+            try
+            {
+                var map = TileMap.Parse(asset.text);
+                var errors = data.Validate(map);
+                if (errors.Count > 0)
+                {
+                    Debug.LogError("Redline: Training.json does not fit Training.txt: " + string.Join("; ", errors));
+                    return;
+                }
+                script = new TrainingScript(new RedlineSim(_config, map), data);
+            }
+            catch (FormatException ex)
+            {
+                Debug.LogError("Redline: Training.txt is not a valid level: " + ex.Message);
+                return;
+            }
+            catch (ArgumentException ex)
+            {
+                Debug.LogError("Redline: the training cannot run: " + ex.Message);
+                return;
+            }
+            _mainMenu.Hide();
+            _pauseMenu.Hide();
+            _trainingPauseMenu.Hide();
+            _screen.Hide();
+            _tutorial.Hide();
+            _audio.SetPaused(false);
+            _audio.StopEffects();
+            _training = script;
+            Sim = script.Sim;
+            _run = default;
+            _runEnded = true; // the training awards nothing: AwardRun and EndRun are no-ops
+            _victoryTimer = 0f;
+            _trainingCompleteTimer = 0f;
+            OnLevelChanged();
+            _trainingOverlay.Bind(script);
+            SetFlow(Flow.Playing);
+        }
+
+        /// <summary>After the last step the "TRAINING COMPLETE" card shows for completeTime, then the main menu.</summary>
+        private void TickTrainingEnd(float dt)
+        {
+            if (_training.Phase != TrainingPhase.Complete) return;
+            _trainingCompleteTimer += dt;
+            if (_trainingCompleteTimer >= _training.Data.Settings.completeTime) FinishTraining(true);
+        }
+
+        /// <summary>Marks the training done (finished or SKIP TUTORIAL), saves it and returns to the main menu.</summary>
+        private void FinishTraining(bool completed)
+        {
+            GameSettings.Current.TrainingDone = true;
+            if (!GameSettings.Save()) Debug.LogWarning("Redline: could not save the training progress.");
+            ShowMainMenu(completed ? "TRAINING COMPLETE  ·  PRESS PLAY TO START A RUN" : null);
         }
 
         /// <summary>After a level's victory moment, loads the next level; after the last, the victory stays.</summary>

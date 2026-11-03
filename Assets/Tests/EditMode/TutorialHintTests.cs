@@ -357,7 +357,10 @@ namespace Redline.Tests
                     zones++;
                     Assert.IsTrue(catalog.TryGet(zone.Id, out _), level + " uses undefined hint " + zone.Id);
                 }
-            Assert.GreaterOrEqual(zones, 6);
+            Assert.AreEqual(2, zones, "Loop02 and Loop03 keep one zone hint each; Loop01 is taught by the training level");
+            Assert.AreEqual(0, TileMap.Parse(ReadResource("Loop01.txt")).Hints.Count, "Loop01 has no zone hints any more");
+            foreach (var id in catalog.Ids)
+                Assert.IsFalse(id.StartsWith("l1."), "Hints.json still defines the removed Loop01 hint " + id);
 
             var known = new HashSet<string> { "HOOK", "JUMP", "ATTACK", "SLIDE" };
             foreach (var id in catalog.Ids)

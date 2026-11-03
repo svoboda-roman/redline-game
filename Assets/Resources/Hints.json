@@ -9,14 +9,6 @@
     "queueCapacity": 3
   },
   "hints": [
-    { "id": "l1.runway", "scope": "run", "title": "BUILD SPEED",
-      "body": "Run and {JUMP} to move. At speed, {SLIDE} for a burst. Speed is power: the faster you go, the harder you hit." },
-    { "id": "l1.hook", "scope": "run", "title": "HOOK AND FLING",
-      "body": "Jump, then hold {HOOK} to latch onto the block above and swing. Let go at the bottom of the swing to fling: you fly farther than any jump." },
-    { "id": "l1.tiers", "scope": "run", "title": "SPEED TIERS",
-      "body": "Your speed sets your tier (1-3): higher tiers hit harder. Brutes are armoured below tier 3. Fling or chain kills to reach it." },
-    { "id": "l1.climb", "scope": "run", "title": "WALL JUMP",
-      "body": "Jump into a wall, then {JUMP} again to kick off it. Hook the ledges above to climb fast." },
     { "id": "l2.rail", "scope": "save", "title": "THE RAIL",
       "body": "The overpass underside is one long anchor. Swing, let go, {HOOK} again ahead: chain swings, then fling off the end." },
     { "id": "l3.chandeliers", "scope": "save", "title": "THE GALLERY",

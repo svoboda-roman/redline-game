@@ -19,7 +19,8 @@ namespace Redline.Core
     /// ';wave grunt=3 brute=1 ...' declares the level's next wave (see <see cref="WaveSpec.Parse"/>);
     /// a level without ';wave' lines uses the config's waves;
     /// ';hint x0 x1 id' declares a tutorial hint zone over the cell columns x0..x1 inclusive
-    /// (see <see cref="HintZone"/>). Other ';' lines are comments.
+    /// (see <see cref="HintZone"/>); ';training' marks the training level (no waves and no victory,
+    /// see <see cref="RedlineSim"/> and <see cref="TrainingScript"/>). Other ';' lines are comments.
     /// Cells above or below the grid are solid; left/right of it are solid unless the level wraps.
     /// </summary>
     public sealed class TileMap
@@ -44,9 +45,16 @@ namespace Redline.Core
         /// <summary>The level's tutorial hint zones from ';hint' lines, in file order; empty when it has none.</summary>
         public IReadOnlyList<HintZone> Hints { get; }
 
+        /// <summary>
+        /// True for the training level (';training'): the sim spawns no waves and never reaches
+        /// Victory; a <see cref="TrainingScript"/> drives it instead. Its ';wave' lines are rejected.
+        /// </summary>
+        public bool Training { get; }
+
         private TileMap(int width, int height, Tile[] tiles, Vec2 start, List<Vec2> spawns, bool wraps, List<WaveSpec> waves,
-            List<HintZone> hints)
+            List<HintZone> hints, bool training)
         {
+            Training = training;
             Hints = hints;
             Waves = waves;
             WrapsX = wraps;
@@ -63,6 +71,7 @@ namespace Redline.Core
             if (text == null) throw new ArgumentNullException(nameof(text));
             var rows = new List<string>();
             bool wraps = false;
+            bool training = false;
             var waves = new List<WaveSpec>();
             var hintLines = new List<(string line, int number)>();
             int lineNumber = 0;
@@ -74,6 +83,7 @@ namespace Redline.Core
                 {
                     var directive = line.Trim();
                     if (directive == ";wrap") wraps = true;
+                    else if (directive == ";training") training = true;
                     else if (directive == ";wave" || directive.StartsWith(";wave ") || directive.StartsWith(";wave\t"))
                     {
                         try
@@ -124,6 +134,7 @@ namespace Redline.Core
                 }
             }
             if (!start.HasValue) throw new FormatException("map has no player start 'P'");
+            if (training && waves.Count > 0) throw new FormatException("a ';training' level cannot declare ';wave' lines");
             if (spawns.Count == 0) throw new FormatException("map has no enemy spawn 'S'");
             var hints = new List<HintZone>(hintLines.Count);
             foreach (var (hintLine, number) in hintLines)
@@ -142,7 +153,7 @@ namespace Redline.Core
                         throw new FormatException($"line {number}: hint id '{zone.Id}' is used twice in this level");
                 hints.Add(zone);
             }
-            return new TileMap(width, height, tiles, start.Value, spawns, wraps, waves, hints);
+            return new TileMap(width, height, tiles, start.Value, spawns, wraps, waves, hints, training);
         }
 
         /// <summary>Tile at a cell; above/below the grid is Solid, and so are the sides unless the level wraps.</summary>

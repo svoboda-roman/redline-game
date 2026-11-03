@@ -75,7 +75,7 @@ namespace Redline.Core
 
     /// <summary>
     /// Hint text and settings parsed from Resources/Hints.json:
-    /// { "settings": { "minDisplayTime": 2.5, ... }, "hints": [ { "id": "l1.hook", "title": "...", "body": "...", "scope": "run" } ] }.
+    /// { "settings": { "minDisplayTime": 2.5, ... }, "hints": [ { "id": "l2.rail", "title": "...", "body": "...", "scope": "run" } ] }.
     /// "scope" is "save" (default) or "run"; "settings" may be omitted or partial (defaults above).
     /// </summary>
     public sealed class HintCatalog

@@ -23,6 +23,11 @@ namespace Redline.Core
         public bool HintsEnabled = true;
         /// <summary>Tutorial hints already shown (comma-separated hint ids, see TutorialProgress).</summary>
         public string TutorialSeen = "";
+        /// <summary>
+        /// True once the training level was finished or skipped; while false the game starts it on
+        /// launch. Optional in the file: absent (older files, no file) reads as false.
+        /// </summary>
+        public bool TrainingDone;
         /// <summary>Keyboard bindings.</summary>
         public readonly ControlBindings Bindings = ControlBindings.CreateDefaults();
 
@@ -36,6 +41,7 @@ namespace Redline.Core
             Fullscreen = other.Fullscreen;
             HintsEnabled = other.HintsEnabled;
             TutorialSeen = other.TutorialSeen ?? "";
+            TrainingDone = other.TrainingDone;
             Bindings.CopyFrom(other.Bindings);
         }
     }
@@ -72,6 +78,7 @@ namespace Redline.Core
             sb.Append(",\"hints\":").Append(s.HintsEnabled ? "true" : "false");
             sb.Append(",\"tutorialSeen\":");
             AppendString(sb, s.TutorialSeen ?? "");
+            sb.Append(",\"trainingDone\":").Append(s.TrainingDone ? "true" : "false");
             sb.Append(",\"bindings\":{");
             var actions = ControlBindings.Actions;
             for (int i = 0; i < actions.Length; i++)
@@ -137,6 +144,12 @@ namespace Redline.Core
             if (root.TryGetValue("tutorialSeen", out var seen))
             {
                 if (seen is string text) s.TutorialSeen = text;
+                else repaired = true;
+            }
+            // Optional too: absent means the training has not been played yet.
+            if (root.TryGetValue("trainingDone", out var done))
+            {
+                if (done is bool d) s.TrainingDone = d;
                 else repaired = true;
             }
             if (!ReadBindings(root, s.Bindings, isKnownKey))

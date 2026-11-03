@@ -7,20 +7,13 @@ namespace Redline.Game
     /// <summary>
     /// UI Toolkit HUD built from code, styled to match the neon arena: a speed panel (tier-coloured
     /// border, zoned meter, live speed, tier badge, HP pips), a chain badge with a draining timer,
-    /// a wave panel (number + progress dots + enemies left), an animated centre banner and the
-    /// wave-1 controls hint. Text is only rewritten when its value changes, and the speed readout
+    /// a wave panel (number + progress dots + enemies left) and an animated centre banner (the
+    /// controls are taught by the training level, see TrainingOverlay). Text is only rewritten when its value changes, and the speed readout
     /// uses pre-built strings, so a steady frame allocates nothing.
     /// </summary>
     /// <remarks>Added by <see cref="RedlineGame"/>. Main-thread only. Font: Source Code Pro (SIL OFL, see Resources/Fonts).</remarks>
     public sealed class RedlineHud : MonoBehaviour
     {
-        private const string ControlsText =
-            "<color=#7FE3FF>A/D</color> move · <color=#7FE3FF>Space</color> jump · <color=#7FE3FF>J</color> attack · " +
-            "hold <color=#7FE3FF>K</color> hook · <color=#7FE3FF>S</color> slide · <color=#7FE3FF>R</color> restart\n" +
-            "Pad: stick · <color=#7FE3FF>A</color> jump · <color=#7FE3FF>X</color> attack · hold <color=#7FE3FF>RB</color> hook · " +
-            "<color=#7FE3FF>B</color> slide\n" +
-            "<color=#FFF27A>Tier 3 breaks armor:</color> hook swing · wall-jump after a slide · kill chain";
-
         private static readonly Color PanelColor = new Color(0.03f, 0.03f, 0.09f, 0.82f);
         private static readonly Color Dim = new Color(0.62f, 0.68f, 0.9f);
         private static readonly Color Cyan = new Color(0.3f, 0.85f, 1f);
@@ -63,10 +56,12 @@ namespace Redline.Game
         private VisualElement[] _waveDots;
         private Label _enemiesLabel;
         private VisualElement _bannerBox;
+        /// <summary>The wave panel (level label, wave number and dots, foes); hidden in training.</summary>
+        private VisualElement _wavePanel;
+        private bool _shownTraining;
         private Label _banner;
         private VisualElement _bannerLine;
         private Label _subBanner;
-        private VisualElement _controls;
         private VisualElement[] _markers;
         private const int MarkerCount = 12;
         private static readonly Color DroneMarker = new Color(0.78f, 0.45f, 1f);
@@ -104,7 +99,6 @@ namespace Redline.Game
             BuildChainBadge();
             BuildWavePanel(cfg);
             BuildBanner();
-            BuildControls();
             BuildMarkers();
             BuildToast(cfg);
 
@@ -274,7 +268,7 @@ namespace Redline.Game
         private void BuildChainBadge()
         {
             _chainBox = new VisualElement();
-            // Top centre, in the strip between the HUD panels and the arena (the wave-1 hint sits above it).
+            // Top centre, in the strip between the HUD panels and the arena.
             _chainBox.style.position = Position.Absolute;
             _chainBox.style.left = 0;
             _chainBox.style.right = 0;
@@ -306,6 +300,7 @@ namespace Redline.Game
             panel.style.right = 24;
             panel.style.width = 330;
             Root.Add(panel);
+            _wavePanel = panel;
 
             _levelLabel = Text("", _bold, 18, Dim);
             _levelLabel.style.letterSpacing = 3;
@@ -442,26 +437,6 @@ namespace Redline.Game
             _bannerBox.Add(_subBanner);
         }
 
-        private void BuildControls()
-        {
-            var bar = new VisualElement();
-            bar.style.position = Position.Absolute;
-            bar.style.left = 0;
-            bar.style.right = 0;
-            bar.style.top = 16;
-            bar.style.alignItems = Align.Center;
-            bar.pickingMode = PickingMode.Ignore;
-            Root.Add(bar);
-            _controls = Panel(float.NaN, float.NaN, new Color(0.3f, 0.85f, 1f, 0.35f));
-            _controls.style.position = Position.Relative;
-            var label = new Label(ControlsText) { enableRichText = true, pickingMode = PickingMode.Ignore };
-            label.style.fontSize = 21;
-            label.style.color = new Color(0.85f, 0.88f, 1f);
-            label.style.unityTextAlign = TextAnchor.MiddleCenter;
-            _controls.Add(label);
-            bar.Add(_controls);
-        }
-
         /// <summary>Edge markers pointing at enemies outside the view (the camera follows the player).</summary>
         private void BuildMarkers()
         {
@@ -486,7 +461,7 @@ namespace Redline.Game
             float w = Root.resolvedStyle.width;
             float h = Root.resolvedStyle.height;
             int used = 0;
-            if (cam != null && !float.IsNaN(w) && w > 0f && sim.State == SimState.Fighting)
+            if (cam != null && !float.IsNaN(w) && w > 0f && (sim.State == SimState.Fighting || sim.State == SimState.Training))
             {
                 foreach (var e in sim.Enemies)
                 {
@@ -519,11 +494,20 @@ namespace Redline.Game
             UpdateToast(sim, dt);
             UpdateHp(sim, dt);
             UpdateChain(sim, dt);
-            UpdateWave(sim);
-            UpdateBanner(sim, dt);
+            // Training has no waves: no wave panel and no wave banners (its own overlay draws the steps).
+            bool training = sim.State == SimState.Training;
+            if (training != _shownTraining)
+            {
+                _shownTraining = training;
+                _wavePanel.style.display = training ? DisplayStyle.None : DisplayStyle.Flex;
+                if (training) SetBanner("", Color.white, Color.clear, "");
+            }
+            if (!training)
+            {
+                UpdateWave(sim);
+                UpdateBanner(sim, dt);
+            }
             UpdateMarkers(sim);
-            bool showControls = sim.CurrentWave == 1 && sim.State != SimState.GameOver && sim.State != SimState.Victory;
-            _controls.style.display = showControls ? DisplayStyle.Flex : DisplayStyle.None;
         }
 
         private void UpdateSpeed(RedlineSim sim)

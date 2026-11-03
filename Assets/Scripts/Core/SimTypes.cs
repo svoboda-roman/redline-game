@@ -36,6 +36,8 @@ namespace Redline.Core
         public bool HookPressed;
         public bool HookHeld;
         public bool RestartPressed;
+        /// <summary>Restart is held (a level). The sim ignores it; the training script uses it to skip a step.</summary>
+        public bool RestartHeld;
     }
 
     /// <summary>High-level state of a run.</summary>
@@ -48,7 +50,12 @@ namespace Redline.Core
         /// <summary>All waves cleared.</summary>
         Victory,
         /// <summary>Player HP reached 0.</summary>
-        GameOver
+        GameOver,
+        /// <summary>
+        /// The training level (<see cref="TileMap.Training"/>): no waves, no victory and no game over
+        /// (HP that reaches 0 refills). It lasts until the game leaves the level.
+        /// </summary>
+        Training
     }
 
     /// <summary>Kinds of feedback events the simulation reports to the presentation layer.</summary>

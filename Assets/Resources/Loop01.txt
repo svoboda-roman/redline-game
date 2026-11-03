@@ -3,11 +3,6 @@
 ;  0-15 runway (start)  16-31 hook gate over a spike trench  32-47 fight pocket, brute guards the exit
 ;  48-63 climb to the high route, drone guard  60-84 split: fast high lane / slower guarded floor
 ;  80-95 drop, bump (brutes crash into it), drone; then back to the runway
-;Tutorial hint zones (cell columns, see Resources/Hints.json):
-;hint 0 11 l1.runway
-;hint 12 19 l1.hook
-;hint 27 33 l1.tiers
-;hint 46 55 l1.climb
 ################################################################################################
 ................................................................................................
 ................................................................................................

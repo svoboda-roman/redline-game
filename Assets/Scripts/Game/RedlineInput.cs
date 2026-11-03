@@ -39,6 +39,8 @@ namespace Redline.Game
         private bool _slidePressed;
         private bool _hookPressed;
         private bool _restartPressed;
+        /// <summary>Restart is held this frame (the training skips a step on a long hold).</summary>
+        private bool _restartHeld;
 
 #if ENABLE_INPUT_SYSTEM
         // Resolved keys per action, rebuilt when the binding table's Version changes.
@@ -90,6 +92,7 @@ namespace Redline.Game
             _hookPressed |= Down(kb, GameAction.Hook) || Down(mouse?.rightButton)
                             || Down(pad?.rightShoulder) || Down(pad?.rightTrigger);
             _restartPressed |= Down(kb, GameAction.Restart) || Down(pad?.selectButton);
+            _restartHeld = Held(kb, GameAction.Restart) || Held(pad?.selectButton);
             PausePressed = Down(kb, GameAction.Pause) || Down(pad?.startButton);
 #else
             // Legacy Input Manager fallback (unused: the project runs the Input System): default keys only.
@@ -106,6 +109,7 @@ namespace Redline.Game
             _slidePressed |= Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow) || Input.GetKeyDown(KeyCode.LeftShift);
             _hookPressed |= Input.GetKeyDown(KeyCode.K) || Input.GetKeyDown(KeyCode.X) || Input.GetMouseButtonDown(1);
             _restartPressed |= Input.GetKeyDown(KeyCode.R) || Input.GetKeyDown(KeyCode.Return);
+            _restartHeld = Input.GetKey(KeyCode.R) || Input.GetKey(KeyCode.Return);
             PausePressed = Input.GetKeyDown(KeyCode.Escape);
 #endif
         }
@@ -122,7 +126,8 @@ namespace Redline.Game
                 AttackPressed = _attackPressed,
                 SlidePressed = _slidePressed,
                 HookPressed = _hookPressed,
-                RestartPressed = _restartPressed
+                RestartPressed = _restartPressed,
+                RestartHeld = _restartHeld
             };
             ClearLatched();
             return frame;
