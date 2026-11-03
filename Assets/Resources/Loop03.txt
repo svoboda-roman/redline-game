@@ -11,6 +11,8 @@
 ;Posts in file order (waves fill them round-robin, brutes first, then grunts, drones, shooters, shields,
 ;  kamikazes, summoners): 0 x93 bridge, 1 x108 bridge, 2 x85 step3, 3 x75 step1, 4 x44 gallery landing,
 ;  5 x52, 6 x58, 7 x64 plaza, 8 x80 under the steps, 9 x94, 10 x107, 11 x112 undercroft
+;Tutorial hint zone: the runway end, just before the gallery
+;hint 12 18 l3.chandeliers
 ;wave grunt=5 brute=0 drone=0 shooter=0 shield=0 kamikaze=2 summoner=0
 ;wave grunt=5 brute=0 drone=0 shooter=0 shield=0 kamikaze=0 summoner=1
 ;wave grunt=5 brute=1 drone=2 shooter=2 shield=1 kamikaze=2 summoner=0

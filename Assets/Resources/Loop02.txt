@@ -9,6 +9,8 @@
 ;Posts in file order (waves fill them round-robin, brutes first, then grunts, drones, shooters, shields):
 ;  0 x67 top lane, 1 x86 top lane, 2 x59 step3, 3 x49 step1, 4 x101 plinth,
 ;  5 x32, 6 x38 shield pocket, 7 x68, 8 x77, 9 x86 under the overpass, 10 x93, 11 x106 landing pocket
+;Tutorial hint zone: the rail entrance under the overpass
+;hint 60 66 l2.rail
 ;wave grunt=4 brute=0 drone=0 shooter=1 shield=0 kamikaze=0 summoner=0
 ;wave grunt=5 brute=0 drone=0 shooter=0 shield=1 kamikaze=0 summoner=0
 ;wave grunt=5 brute=1 drone=2 shooter=2 shield=1 kamikaze=0 summoner=0
