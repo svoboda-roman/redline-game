@@ -67,6 +67,7 @@ namespace Redline.Game.Audio
         private float _arpGain;
         private float _leadGain;
         private float _duck = 1f;
+        private float _userGain = 1f;
 
         private Rng _rng = new Rng(4242);
 
@@ -127,6 +128,9 @@ namespace Redline.Game.Audio
         /// <summary>Main thread: ducks the whole track to <see cref="AudioMix.GameOverDuck"/> (game over).</summary>
         public void SetDucked(bool ducked) => _duckTarget = ducked ? AudioMix.GameOverDuck : 1f;
 
+        /// <summary>Main thread: ducks the whole track to a level multiplier (1 = no duck), e.g. <see cref="AudioMix.PauseDuck"/>.</summary>
+        public void SetDuck(float level) => _duckTarget = level < 0f ? 0f : level > 1f ? 1f : level;
+
         /// <summary>Main thread: the output sample rate changed (applied at the next audio block).</summary>
         public void SetSampleRate(int sampleRate)
         {
@@ -135,7 +139,7 @@ namespace Redline.Game.Audio
 
         /// <summary>
         /// Audio thread: overwrites an interleaved buffer with the next block of music, already
-        /// scaled by <see cref="AudioMix.MusicBus"/> and <see cref="AudioMix.Master"/>.
+        /// scaled by <see cref="AudioMix.MusicBus"/>, <see cref="AudioMix.Master"/> and the player's music and master volumes.
         /// </summary>
         public void Render(float[] data, int channels)
         {
@@ -149,6 +153,8 @@ namespace Redline.Game.Audio
             float down = _invRate / AudioMix.LayerFadeOutSeconds;
             float duckStep = _invRate / AudioMix.DuckSeconds;
             const float bus = AudioMix.MusicBus * AudioMix.Master;
+            float userTarget = AudioMix.UserMaster * AudioMix.UserMusic;
+            float userStep = _invRate / AudioMix.UserVolumeSeconds;
 
             for (int i = 0; i + channels <= data.Length; i += channels)
             {
@@ -163,9 +169,10 @@ namespace Redline.Game.Audio
                 _arpGain = Ramp(_arpGain, arpTarget, up, down);
                 _leadGain = Ramp(_leadGain, leadTarget, up, down);
                 _duck = Ramp(_duck, duckTarget, duckStep, duckStep);
+                _userGain = Ramp(_userGain, userTarget, userStep, userStep);
 
                 RenderFrame(out float l, out float r);
-                float g = bus * _duck;
+                float g = bus * _duck * _userGain;
                 l = Dsp.SoftClip(l) * g;
                 r = Dsp.SoftClip(r) * g;
 

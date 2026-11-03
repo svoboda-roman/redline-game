@@ -29,7 +29,8 @@ namespace Redline.Game
     /// Keyboard: W/S or arrows select, Enter/Space activate, Esc cancels the reset prompt.
     /// Gamepad: d-pad/stick select, South activate, East cancel. Mouse: hover and click.
     /// The press that opens the screen is ignored, so the key that ended a run cannot buy.
-    /// Main-thread only. Not wired into <see cref="RedlineGame"/> yet.
+    /// Main-thread only. In <see cref="RedlineGame"/>: after a run CONTINUE starts a new run and
+    /// MENU goes to the title menu; opened from the title menu, CONTINUE returns there.
     /// </remarks>
     public sealed class UpgradeScreen : MonoBehaviour
     {
@@ -45,7 +46,8 @@ namespace Redline.Game
 
         private const int ResetIndex = 4;
         private const int ContinueIndex = 5;
-        private const int ItemCount = 6;
+        private const int MenuIndex = 6;
+        private const int ItemCount = 7;
 
         private UpgradeStore _store;
         private PanelSettings _settings;
@@ -60,6 +62,8 @@ namespace Redline.Game
         private readonly Button[] _buy = new Button[UpgradeState.Kinds.Length];
         private Button _reset;
         private Button _continue;
+        private Button _menu;
+        private bool _menuShown;
         private VisualElement _confirm;
         private Button _confirmYes;
         private Button _confirmNo;
@@ -72,6 +76,9 @@ namespace Redline.Game
 
         /// <summary>Raised when the player picks continue (the screen hides itself first).</summary>
         public event Action Continued;
+
+        /// <summary>Raised when the player picks MENU (shown after a run only; the screen hides itself first).</summary>
+        public event Action MenuRequested;
 
         /// <summary>Raised after a purchase or reset changed the saved state.</summary>
         public event Action Changed;
@@ -94,8 +101,12 @@ namespace Redline.Game
         }
 
         /// <summary>Shows the screen with the result of the run just finished.</summary>
-        public void Show(RunResult run, int pointsEarned)
+        /// <param name="run">The run just finished.</param>
+        /// <param name="pointsEarned">Points it earned.</param>
+        /// <param name="offerMenu">Also show a MENU button (back to the title menu instead of a new run).</param>
+        public void Show(RunResult run, int pointsEarned, bool offerMenu = false)
         {
+            _menuShown = offerMenu;
             _earned.text = pointsEarned > 0
                 ? "+" + pointsEarned + " THIS RUN  ·  " + run.Kills + " KILLS  ·  " + run.WavesCleared + " WAVES  ·  "
                   + run.LevelsCleared + " LEVELS  ·  TIER " + Mathf.Max(1, run.HighestTier)
@@ -107,6 +118,7 @@ namespace Redline.Game
         /// <summary>Shows the screen without a run summary (e.g. from a title menu).</summary>
         public void Show()
         {
+            _menuShown = false;
             _earned.style.display = DisplayStyle.None;
             Open();
         }
@@ -126,6 +138,7 @@ namespace Redline.Game
             _confirm.style.display = DisplayStyle.None;
             _openedFrame = Time.frameCount;
             _selected = FirstAffordable();
+            _menu.style.display = _menuShown ? DisplayStyle.Flex : DisplayStyle.None;
             Root.style.display = DisplayStyle.Flex;
             Refresh();
         }
@@ -138,6 +151,11 @@ namespace Redline.Game
             if (index < UpgradeState.Kinds.Length) Buy(UpgradeState.Kinds[index]);
             else if (index == ResetIndex) AskReset();
             else if (index == ContinueIndex) Continue();
+            else if (index == MenuIndex && _menuShown)
+            {
+                Hide();
+                MenuRequested?.Invoke();
+            }
         }
 
         private void Buy(UpgradeKind kind)
@@ -214,11 +232,32 @@ namespace Redline.Game
                 else if (submit) AnswerReset(_confirmOnYes);
                 return;
             }
-            if (up) Select((_selected + ItemCount - 1) % ItemCount);
-            if (down) Select((_selected + 1) % ItemCount);
-            if (side && _selected >= ResetIndex) Select(_selected == ResetIndex ? ContinueIndex : ResetIndex);
+            if (up) Select(Step(_selected, -1));
+            if (down) Select(Step(_selected, 1));
+            bool left = Pressed(kb?.aKey) || Pressed(kb?.leftArrowKey) || Pressed(pad?.dpad.left) || (stickEdge && stick == -2);
+            if (side && _selected >= ResetIndex) Select(Footer(_selected, left ? -1 : 1));
             if (submit) Activate(_selected);
 #endif
+        }
+
+        /// <summary>Next item up or down, skipping the hidden MENU button.</summary>
+        private int Step(int from, int dir)
+        {
+            int i = (from + dir + ItemCount) % ItemCount;
+            if (i == MenuIndex && !_menuShown) i = (i + dir + ItemCount) % ItemCount;
+            return i;
+        }
+
+        private static readonly int[] FooterWithMenu = { ResetIndex, MenuIndex, ContinueIndex };
+        private static readonly int[] FooterNoMenu = { ResetIndex, ContinueIndex };
+
+        /// <summary>Moves along the footer, laid out RESET, MENU, CONTINUE.</summary>
+        private int Footer(int from, int dir)
+        {
+            int[] order = _menuShown ? FooterWithMenu : FooterNoMenu;
+            int pos = Array.IndexOf(order, from);
+            if (pos < 0) pos = 0;
+            return order[(pos + dir + order.Length) % order.Length];
         }
 
 #if ENABLE_INPUT_SYSTEM
@@ -261,6 +300,7 @@ namespace Redline.Game
             }
             StyleButton(_reset, "RESET PROGRESS", Danger, false, !_confirming && _selected == ResetIndex);
             StyleButton(_continue, "CONTINUE", Cyan, true, !_confirming && _selected == ContinueIndex);
+            StyleButton(_menu, "MENU", Cyan, false, !_confirming && _selected == MenuIndex);
             StyleButton(_confirmYes, "YES, RESET", Danger, _confirmOnYes, _confirming && _confirmOnYes);
             StyleButton(_confirmNo, "NO", Cyan, !_confirmOnYes, _confirming && !_confirmOnYes);
         }
@@ -394,7 +434,9 @@ namespace Redline.Game
             footer.style.marginTop = 26;
             _reset = MakeButton(() => { Select(ResetIndex); Activate(ResetIndex); }, ResetIndex, 300);
             _continue = MakeButton(() => { Select(ContinueIndex); Activate(ContinueIndex); }, ContinueIndex, 300);
+            _menu = MakeButton(() => { Select(MenuIndex); Activate(MenuIndex); }, MenuIndex, 220);
             footer.Add(_reset);
+            footer.Add(_menu);
             footer.Add(_continue);
             panel.Add(footer);
 

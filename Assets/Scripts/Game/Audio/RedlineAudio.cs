@@ -34,6 +34,8 @@ namespace Redline.Game.Audio
             public SfxId Group;
             public float Start;
             public float End;
+            /// <summary>Level before the player's volumes, so a volume change can rescale a playing voice.</summary>
+            public float BaseVolume;
         }
 
         private AudioClip[] _clips;
@@ -48,6 +50,10 @@ namespace Redline.Game.Audio
         private int _musicTier = 1;
         private float _tierHold;
         private bool _ready;
+        private bool _paused;
+
+        /// <summary>True while <see cref="SetPaused"/> has frozen the effects and ducked the music.</summary>
+        public bool Paused => _paused;
 
         /// <summary>True when at least one orb event name was found in <see cref="SimEventType"/>.</summary>
         public bool OrbEventsMapped { get; private set; }
@@ -104,6 +110,13 @@ namespace Redline.Game.Audio
         public void Tick(RedlineSim sim, float dt)
         {
             if (!_ready || sim == null) return;
+            if (_paused)
+            {
+                // Frozen with the game: no voice clock, no layer changes; the music stays ducked.
+                var pausedSequencer = _music != null ? _music.Sequencer : null;
+                if (pausedSequencer != null) pausedSequencer.SetDuck(AudioMix.PauseDuck);
+                return;
+            }
             if (dt < 0f) dt = 0f;
             _now += dt;
 
@@ -165,14 +178,61 @@ namespace Redline.Game.Audio
             source.Stop();
             source.clip = clip;
             source.pitch = pitch;
-            source.volume = Mathf.Clamp01(spec.Volume * volumeScale * AudioMix.SfxBus * AudioMix.Master);
+            float baseVolume = spec.Volume * volumeScale * AudioMix.SfxBus * AudioMix.Master;
+            source.volume = Mathf.Clamp01(baseVolume * AudioMix.UserSfx * AudioMix.UserMaster);
             source.Play();
+            _voices[slot].BaseVolume = baseVolume;
 
             _voices[slot].Group = group;
             _voices[slot].Start = _now;
             _voices[slot].End = _now + clip.length / pitch;
             _lastStart[(int)group] = _now;
         }
+
+        /// <summary>
+        /// Main thread: applies the player's volumes (0-1 each) to the music and to effects, including
+        /// effects already playing.
+        /// </summary>
+        /// <example><code>audio.SetVolumes(settings.MasterVolume / 100f, settings.MusicVolume / 100f, settings.SfxVolume / 100f);</code></example>
+        public void SetVolumes(float master, float music, float sfx)
+        {
+            AudioMix.SetVolumes(master, music, sfx);
+            if (!_ready) return;
+            float user = AudioMix.UserSfx * AudioMix.UserMaster;
+            for (int i = 0; i < _sources.Length; i++)
+                _sources[i].volume = Mathf.Clamp01(_voices[i].BaseVolume * user);
+        }
+
+        /// <summary>
+        /// Freezes (true) or resumes (false) the audio with the game: playing effects pause in place
+        /// and resume where they were, and the music ducks to <see cref="AudioMix.PauseDuck"/>.
+        /// </summary>
+        public void SetPaused(bool paused)
+        {
+            if (!_ready || paused == _paused) return;
+            _paused = paused;
+            for (int i = 0; i < _sources.Length; i++)
+            {
+                if (paused) _sources[i].Pause();
+                else _sources[i].UnPause();
+            }
+            var sequencer = _music != null ? _music.Sequencer : null;
+            if (sequencer != null) sequencer.SetDuck(paused ? AudioMix.PauseDuck : 1f);
+        }
+
+        /// <summary>Stops every effect at once (a run is abandoned or left); the music keeps playing.</summary>
+        public void StopEffects()
+        {
+            if (!_ready) return;
+            for (int i = 0; i < _sources.Length; i++)
+            {
+                _sources[i].Stop();
+                _voices[i].End = 0f;
+            }
+        }
+
+        /// <summary>Plays a short effect at the player's current effects volume, as a preview in the settings.</summary>
+        public void PlayPreview() => Play(SfxId.OrbPickup, 1f, 1f);
 
         // ------------------------------------------------------------------ voices
 

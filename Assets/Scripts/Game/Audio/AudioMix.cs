@@ -74,6 +74,38 @@ namespace Redline.Game.Audio
         /// <summary>Level of the music bus (kept well under the SFX bus).</summary>
         public const float MusicBus = 0.34f;
 
+        /// <summary>Music level multiplier while the pause menu is open.</summary>
+        public const float PauseDuck = 0.35f;
+        /// <summary>Seconds the player's music volume takes to reach a new setting (avoids zipper noise).</summary>
+        public const float UserVolumeSeconds = 0.05f;
+
+        // Player volume settings (0-1). Written on the main thread, read on the audio thread.
+        private static volatile float _userMaster = 1f;
+        private static volatile float _userMusic = 1f;
+        private static volatile float _userSfx = 1f;
+
+        /// <summary>Player master volume (0-1), on top of <see cref="Master"/>. Safe to read on any thread.</summary>
+        public static float UserMaster => _userMaster;
+        /// <summary>Player music volume (0-1), on top of <see cref="MusicBus"/>. Safe to read on any thread.</summary>
+        public static float UserMusic => _userMusic;
+        /// <summary>Player effects volume (0-1), on top of <see cref="SfxBus"/>. Safe to read on any thread.</summary>
+        public static float UserSfx => _userSfx;
+
+        /// <summary>
+        /// Main thread: sets the player's volumes (each clamped to 0-1). The music picks them up on
+        /// its next audio buffer (ramped over <see cref="UserVolumeSeconds"/>); effects on their next
+        /// start. Use <see cref="RedlineAudio.SetVolumes"/> to also rescale effects already playing.
+        /// </summary>
+        /// <example><code>AudioMix.SetVolumes(1f, 0.6f, 0.8f);</code></example>
+        public static void SetVolumes(float master, float music, float sfx)
+        {
+            _userMaster = Clamp01(master);
+            _userMusic = Clamp01(music);
+            _userSfx = Clamp01(sfx);
+        }
+
+        private static float Clamp01(float v) => v > 1f ? 1f : v > 0f ? v : 0f; // NaN -> 0
+
         /// <summary>Music level multiplier while the run is over.</summary>
         public const float GameOverDuck = 0.55f;
         /// <summary>Seconds for the music to duck or recover.</summary>

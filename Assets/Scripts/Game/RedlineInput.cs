@@ -1,6 +1,7 @@
 using Redline.Core;
 using UnityEngine;
 #if ENABLE_INPUT_SYSTEM
+using System;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Controls;
 #endif
@@ -10,22 +11,26 @@ namespace Redline.Game
     /// <summary>
     /// Reads keyboard and gamepad every rendered frame and hands the simulation one
     /// <see cref="InputFrame"/> per fixed step. Button presses are latched until a step
-    /// consumes them, so a press is never lost when a frame runs no step.
+    /// consumes them, so a press is never lost when a frame runs no step. Keyboard keys come from
+    /// a <see cref="ControlBindings"/> table (rebindable in the settings); mouse and gamepad are fixed.
     /// </summary>
     /// <example>
     /// <code>
+    /// var input = new RedlineInput(GameSettings.Current.Bindings);
     /// input.Poll();                         // once per Update
+    /// if (input.PausePressed) OpenPause();  // this frame only
     /// sim.Step(input.Consume(), dt);        // once per fixed step
     /// </code>
     /// </example>
     /// <remarks>
-    /// Keyboard: A/D or arrows move, Space/W/Up jump, J/Z or left mouse attack,
-    /// K/X or right mouse hold to hook, S/Down/Shift slide, R or Enter restart.
+    /// Default keyboard: A/D or arrows move, Space/W/Up jump, J/Z or left mouse attack,
+    /// K/X or right mouse hold to hook, S/Down/Shift slide, R or Enter end the run, Esc pause.
     /// Gamepad: stick or d-pad move, South jump, West attack, right shoulder/trigger hook,
-    /// East or left trigger slide, Start restart.
+    /// East or left trigger slide, Select/View end the run, Start/Options pause.
     /// </remarks>
     public sealed class RedlineInput
     {
+        private readonly ControlBindings _bindings;
         private float _moveX;
         private bool _jumpHeld;
         private bool _hookHeld;
@@ -35,17 +40,37 @@ namespace Redline.Game
         private bool _hookPressed;
         private bool _restartPressed;
 
+#if ENABLE_INPUT_SYSTEM
+        // Resolved keys per action, rebuilt when the binding table's Version changes.
+        private readonly Key[][] _keys = new Key[ControlBindings.Actions.Length][];
+        private readonly int[] _keyCounts = new int[ControlBindings.Actions.Length];
+        private int _bindingsVersion = -1;
+#endif
+
+        /// <summary>Creates the reader over a binding table (kept by reference, so rebinding applies at once).</summary>
+        public RedlineInput(ControlBindings bindings)
+        {
+            _bindings = bindings ?? ControlBindings.CreateDefaults();
+#if ENABLE_INPUT_SYSTEM
+            for (int i = 0; i < _keys.Length; i++) _keys[i] = new Key[ControlBindings.SlotsPerAction];
+#endif
+        }
+
+        /// <summary>The pause key or Start was pressed this frame (not latched).</summary>
+        public bool PausePressed { get; private set; }
+
         /// <summary>Samples devices. Call once per rendered frame.</summary>
         public void Poll()
         {
 #if ENABLE_INPUT_SYSTEM
+            ResolveBindings();
             var kb = Keyboard.current;
             var pad = Gamepad.current;
             var mouse = Mouse.current;
 
             float move = 0f;
-            if (Held(kb?.aKey) || Held(kb?.leftArrowKey)) move -= 1f;
-            if (Held(kb?.dKey) || Held(kb?.rightArrowKey)) move += 1f;
+            if (Held(kb, GameAction.MoveLeft)) move -= 1f;
+            if (Held(kb, GameAction.MoveRight)) move += 1f;
             if (pad != null)
             {
                 float stick = pad.leftStick.ReadValue().x;
@@ -55,18 +80,19 @@ namespace Redline.Game
             }
             _moveX = Mathf.Clamp(move, -1f, 1f);
 
-            _jumpHeld = Held(kb?.spaceKey) || Held(kb?.wKey) || Held(kb?.upArrowKey) || Held(pad?.buttonSouth);
-            _hookHeld = Held(kb?.kKey) || Held(kb?.xKey) || Held(mouse?.rightButton)
+            _jumpHeld = Held(kb, GameAction.Jump) || Held(pad?.buttonSouth);
+            _hookHeld = Held(kb, GameAction.Hook) || Held(mouse?.rightButton)
                         || Held(pad?.rightShoulder) || Held(pad?.rightTrigger);
 
-            _jumpPressed |= Down(kb?.spaceKey) || Down(kb?.wKey) || Down(kb?.upArrowKey) || Down(pad?.buttonSouth);
-            _attackPressed |= Down(kb?.jKey) || Down(kb?.zKey) || Down(mouse?.leftButton) || Down(pad?.buttonWest);
-            _slidePressed |= Down(kb?.sKey) || Down(kb?.downArrowKey) || Down(kb?.leftShiftKey)
-                             || Down(pad?.buttonEast) || Down(pad?.leftTrigger);
-            _hookPressed |= Down(kb?.kKey) || Down(kb?.xKey) || Down(mouse?.rightButton)
+            _jumpPressed |= Down(kb, GameAction.Jump) || Down(pad?.buttonSouth);
+            _attackPressed |= Down(kb, GameAction.Attack) || Down(mouse?.leftButton) || Down(pad?.buttonWest);
+            _slidePressed |= Down(kb, GameAction.Slide) || Down(pad?.buttonEast) || Down(pad?.leftTrigger);
+            _hookPressed |= Down(kb, GameAction.Hook) || Down(mouse?.rightButton)
                             || Down(pad?.rightShoulder) || Down(pad?.rightTrigger);
-            _restartPressed |= Down(kb?.rKey) || Down(kb?.enterKey) || Down(pad?.startButton);
+            _restartPressed |= Down(kb, GameAction.Restart) || Down(pad?.selectButton);
+            PausePressed = Down(kb, GameAction.Pause) || Down(pad?.startButton);
 #else
+            // Legacy Input Manager fallback (unused: the project runs the Input System): default keys only.
             float move = 0f;
             if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow)) move -= 1f;
             if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow)) move += 1f;
@@ -80,6 +106,7 @@ namespace Redline.Game
             _slidePressed |= Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow) || Input.GetKeyDown(KeyCode.LeftShift);
             _hookPressed |= Input.GetKeyDown(KeyCode.K) || Input.GetKeyDown(KeyCode.X) || Input.GetMouseButtonDown(1);
             _restartPressed |= Input.GetKeyDown(KeyCode.R) || Input.GetKeyDown(KeyCode.Return);
+            PausePressed = Input.GetKeyDown(KeyCode.Escape);
 #endif
         }
 
@@ -97,15 +124,60 @@ namespace Redline.Game
                 HookPressed = _hookPressed,
                 RestartPressed = _restartPressed
             };
+            ClearLatched();
+            return frame;
+        }
+
+        /// <summary>
+        /// Drops latched presses and the pause press, e.g. while a menu is open, so a key used in a
+        /// menu does not reach the first step of the run.
+        /// </summary>
+        public void ClearLatched()
+        {
             _jumpPressed = false;
             _attackPressed = false;
             _slidePressed = false;
             _hookPressed = false;
             _restartPressed = false;
-            return frame;
+            PausePressed = false;
         }
 
 #if ENABLE_INPUT_SYSTEM
+        private void ResolveBindings()
+        {
+            if (_bindings.Version == _bindingsVersion) return;
+            _bindingsVersion = _bindings.Version;
+            var actions = ControlBindings.Actions;
+            for (int a = 0; a < actions.Length; a++)
+            {
+                int n = 0;
+                for (int s = 0; s < ControlBindings.SlotsPerAction; s++)
+                {
+                    string name = _bindings.Get(actions[a], s);
+                    if (name != null && Enum.TryParse(name, false, out Key key) && key != Key.None) _keys[a][n++] = key;
+                }
+                _keyCounts[a] = n;
+            }
+        }
+
+        private bool Held(Keyboard kb, GameAction action)
+        {
+            if (kb == null) return false;
+            var keys = _keys[(int)action];
+            for (int i = 0, n = _keyCounts[(int)action]; i < n; i++)
+                if (kb[keys[i]].isPressed) return true;
+            return false;
+        }
+
+        private bool Down(Keyboard kb, GameAction action)
+        {
+            if (kb == null) return false;
+            var keys = _keys[(int)action];
+            for (int i = 0, n = _keyCounts[(int)action]; i < n; i++)
+                if (kb[keys[i]].wasPressedThisFrame) return true;
+            return false;
+        }
+
         private static bool Held(ButtonControl control) => control != null && control.isPressed;
 
         private static bool Down(ButtonControl control) => control != null && control.wasPressedThisFrame;

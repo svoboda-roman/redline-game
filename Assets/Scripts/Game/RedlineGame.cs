@@ -41,7 +41,19 @@ namespace Redline.Game
             new Color(1f, 0.95f, 0.45f)
         };
 
-        private readonly RedlineInput _input = new RedlineInput();
+        /// <summary>Where the game is: the sim steps only while Playing (and no upgrade screen is up).</summary>
+        private enum Flow { Menu, Playing, Paused, Upgrades }
+
+        private RedlineInput _input;
+        private Flow _flow = Flow.Menu;
+        /// <summary>Frame of the last flow change: a pause toggle on that frame is ignored (no open-and-close in one press).</summary>
+        private int _flowFrame = -1;
+        private MenuScreen _mainMenu;
+        private MenuScreen _pauseMenu;
+        private SettingsScreen _settingsScreen;
+        /// <summary>The upgrade screen was opened from the main menu, so its CONTINUE goes back there.</summary>
+        private bool _upgradesReturnToMenu;
+        private Action _onSettingsChanged;
         // Positions before the latest fixed step, for drawing between steps (render interpolation).
         private readonly List<Vector2> _prevEnemyFeet = new List<Vector2>(32);
         private readonly List<Vector2> _drawEnemyFeet = new List<Vector2>(32);
@@ -88,9 +100,27 @@ namespace Redline.Game
         /// <summary>The running simulation (read by the HUD).</summary>
         public RedlineSim Sim { get; private set; }
 
+        // Tutorial hints: level zones and first-sight cards, text tokens resolved to the bound keys.
+        private TutorialOverlay _tutorial;
+        private Func<string, string> _hintLabels;
+
+        /// <summary>Resolves a hint token ("HOOK", "JUMP"…) to the key bound to that action, or null.</summary>
+        private static string HintLabel(string token) =>
+            Enum.TryParse<GameAction>(token, true, out var action) ? ControlLabels.Get(action) : null;
+
+        /// <summary>Writes the hints already shown into the settings file.</summary>
+        private void SaveTutorialProgress()
+        {
+            if (_tutorial == null || _tutorial.Progress == null) return;
+            GameSettings.Current.TutorialSeen = _tutorial.Progress.Serialize();
+            if (!GameSettings.Save()) Debug.LogWarning("Redline: could not save tutorial progress.");
+        }
+
         private void Awake()
         {
             Application.targetFrameRate = 120;
+            GameSettings.Load();
+            _input = new RedlineInput(GameSettings.Current.Bindings);
             _config = LoadConfig();
             _upgradeCfg = UpgradeStore.LoadConfig(_config);
             _store = new UpgradeStore(_upgradeCfg);
@@ -112,9 +142,18 @@ namespace Redline.Game
 
             _hud = gameObject.AddComponent<RedlineHud>();
             _hud.Init(this);
+            _hintLabels = HintLabel;
+            _tutorial = gameObject.AddComponent<TutorialOverlay>();
+            _tutorial.Init(TutorialOverlay.LoadCatalog(), TutorialProgress.Deserialize(GameSettings.Current.TutorialSeen), _hintLabels);
             _screen = gameObject.AddComponent<UpgradeScreen>();
             _screen.Init(_store);
-            _screen.Continued += StartRun;
+            _screen.Continued += OnUpgradesContinue;
+            _screen.MenuRequested += () => ShowMainMenu(null);
+            BuildMenus();
+            _onSettingsChanged = ApplySettings;
+            GameSettings.Changed += _onSettingsChanged;
+            ApplySettings();
+            ShowMainMenu(null);
             if (RedlineCapture.Requested) gameObject.AddComponent<RedlineCapture>().Init(this);
         }
 
@@ -122,17 +161,30 @@ namespace Redline.Game
         {
             _input.Poll();
             float dt = Mathf.Min(Time.deltaTime, 0.1f);
-            if (_hitStop > 0f) _hitStop -= dt;
-            else _accumulator += dt;
 
-            // The upgrade screen reads its own input; the sim is paused behind it.
-            if (_screen.Visible) _accumulator = 0f;
+            // Pause toggles (bound pause key or gamepad Start); the menus read their own input.
+            bool canToggle = Time.frameCount != _flowFrame && !_settingsScreen.Visible;
+            if (canToggle && _input.PausePressed)
+            {
+                if (_flow == Flow.Playing) Pause();
+                else if (_flow == Flow.Paused) Resume();
+            }
+
+            // The sim steps only in Playing; in menus the presses are dropped so they cannot reach the run.
+            bool stepping = _flow == Flow.Playing && !_screen.Visible;
+            if (!stepping)
+            {
+                _input.ClearLatched();
+                _accumulator = 0f;
+            }
+            else if (_hitStop > 0f) _hitStop -= dt;
+            else _accumulator += dt;
             while (_accumulator >= RedlineSim.FixedDt)
             {
                 var frame = _input.Consume();
                 if (frame.RestartPressed)
                 {
-                    // R / Start ends the run (retry after game over, play again after the last
+                    // R / Select ends the run (retry after game over, play again after the last
                     // level, or abandon mid-run): points are awarded and the upgrade screen opens.
                     // The sim never restarts itself, so a run cannot farm a level for points.
                     frame.RestartPressed = false;
@@ -146,12 +198,15 @@ namespace Redline.Game
                 Sim.Step(frame, RedlineSim.FixedDt);
                 if (!wasGrounded && Sim.Player.Grounded && fallSpeed > 6f) OnLanded(fallSpeed);
                 HandleEvents();
+                _tutorial.Step(Sim, GameSettings.HintsEnabled); // per step: orb pickups are one-step events
                 _audio.Process(Sim, Sim.Events);
                 _run.HighestTier = Math.Max(_run.HighestTier, Sim.PlayerTier);
                 _accumulator -= RedlineSim.FixedDt;
             }
+            _tutorial.Tick(Time.unscaledDeltaTime, paused: !stepping);
             _audio.Tick(Sim, Time.unscaledDeltaTime);
-            AdvanceLevelAfterVictory(dt);
+            if (_flow == Flow.Paused) return; // the whole view is frozen behind the pause menu
+            if (stepping) AdvanceLevelAfterVictory(dt);
 
             UpdateCamera(dt);
             var feet = InterpolatedFeet();
@@ -298,22 +353,175 @@ namespace Redline.Game
             _runEnded = false;
         }
 
-        /// <summary>The upgrade screen's CONTINUE: a fresh run from the first level with the current upgrades.</summary>
-        private void StartRun()
+        /// <summary>A fresh, not yet started run from the first level with the current upgrades.</summary>
+        private void PrepareRun()
         {
             BeginRunState();
             if (!TryLoadLevel(0)) throw new InvalidOperationException("Redline: no playable level in Resources.");
             OnLevelChanged();
         }
 
-        /// <summary>Awards this run's points once, saves them and opens the upgrade screen.</summary>
+        /// <summary>PLAY, or the upgrade screen's CONTINUE after a run: a fresh run starts stepping.</summary>
+        private void StartRun()
+        {
+            _mainMenu.Hide();
+            _screen.Hide();
+            _audio.SetPaused(false);
+            PrepareRun();
+            _tutorial.BeginRun();
+            SetFlow(Flow.Playing);
+        }
+
+        /// <summary>
+        /// Awards this run's points once and saves them. Returns the points (0 if already awarded).
+        /// Every way out of a run (R, ABANDON RUN, QUIT TO MENU) goes through here exactly once, and a
+        /// new run always restarts at the first level, so leaving can neither lose nor farm points.
+        /// </summary>
+        private int AwardRun()
+        {
+            if (_runEnded) return 0;
+            _runEnded = true;
+            _tutorial.Hide();
+            SaveTutorialProgress();
+            int earned = _store.State.AwardRun(_run, _upgradeCfg);
+            if (!_store.Save()) Debug.LogWarning("Redline: could not save upgrade progress.");
+            return earned;
+        }
+
+        /// <summary>Awards this run's points once, saves them and opens the upgrade screen (CONTINUE = new run).</summary>
         private void EndRun()
         {
             if (_runEnded) return;
-            _runEnded = true;
-            int earned = _store.State.AwardRun(_run, _upgradeCfg);
-            if (!_store.Save()) Debug.LogWarning("Redline: could not save upgrade progress.");
-            _screen.Show(_run, earned);
+            int earned = AwardRun();
+            _upgradesReturnToMenu = false;
+            _screen.Show(_run, earned, true);
+            SetFlow(Flow.Upgrades);
+        }
+
+        // ------------------------------------------------------------------ menus and flow
+
+        private void SetFlow(Flow flow)
+        {
+            _flow = flow;
+            _flowFrame = Time.frameCount;
+        }
+
+        private void BuildMenus()
+        {
+            _settingsScreen = gameObject.AddComponent<SettingsScreen>();
+            _settingsScreen.Init(_audio.PlayPreview);
+
+            _mainMenu = gameObject.AddComponent<MenuScreen>();
+            _mainMenu.Init("MainMenu", 90f, "REDLINE", true);
+            _mainMenu.AddItem("PLAY", StartRun);
+            _mainMenu.AddItem("UPGRADES", OpenUpgradesFromMenu);
+            _mainMenu.AddItem("SETTINGS", () => OpenSettings(_mainMenu));
+            _mainMenu.AddItem("QUIT", QuitGame);
+
+            _pauseMenu = gameObject.AddComponent<MenuScreen>();
+            _pauseMenu.Init("PauseMenu", 110f, "PAUSED", false);
+            _pauseMenu.AddItem("RESUME", Resume);
+            _pauseMenu.AddItem("SETTINGS", () => OpenSettings(_pauseMenu));
+            _pauseMenu.AddItem("ABANDON RUN", AbandonRun);
+            _pauseMenu.AddItem("QUIT TO MENU", QuitToMenu);
+            _pauseMenu.Cancelled = Resume;
+        }
+
+        /// <summary>The title menu over a fresh, frozen level. <paramref name="notice"/> is an optional line under the title.</summary>
+        private void ShowMainMenu(string notice)
+        {
+            _pauseMenu.Hide();
+            _settingsScreen.Hide();
+            _screen.Hide();
+            _audio.SetPaused(false);
+            _audio.StopEffects();
+            _tutorial.Hide();
+            PrepareRun();
+            _mainMenu.SetNotice(notice);
+            _mainMenu.Show();
+            SetFlow(Flow.Menu);
+        }
+
+        private void OpenUpgradesFromMenu()
+        {
+            _mainMenu.Hide();
+            _upgradesReturnToMenu = true;
+            _screen.Show();
+            SetFlow(Flow.Upgrades);
+        }
+
+        private void OnUpgradesContinue()
+        {
+            if (_upgradesReturnToMenu) ShowMainMenu(null);
+            else StartRun();
+        }
+
+        private void OpenSettings(MenuScreen from)
+        {
+            from.Hide();
+            _settingsScreen.Show(() =>
+            {
+                from.Show();
+                SetFlow(_flow); // the Esc that closed the settings must not also toggle pause
+            });
+        }
+
+        private void Pause()
+        {
+            if (_flow != Flow.Playing) return;
+            _audio.SetPaused(true);
+            _pauseMenu.Show();
+            SetFlow(Flow.Paused);
+        }
+
+        private void Resume()
+        {
+            if (_flow != Flow.Paused) return;
+            _pauseMenu.Hide();
+            _audio.SetPaused(false);
+            _accumulator = 0f;
+            SetFlow(Flow.Playing);
+        }
+
+        /// <summary>ABANDON RUN: the same path as R / Select (points awarded, upgrade screen opens).</summary>
+        private void AbandonRun()
+        {
+            _pauseMenu.Hide();
+            _audio.SetPaused(false);
+            _audio.StopEffects();
+            EndRun();
+        }
+
+        /// <summary>QUIT TO MENU: awards the run's points (as EndRun does) and goes straight to the title menu.</summary>
+        private void QuitToMenu()
+        {
+            int earned = AwardRun();
+            ShowMainMenu(earned > 0 ? "+" + earned + " POINTS BANKED FROM THE LAST RUN" : "THE LAST RUN EARNED NO POINTS");
+        }
+
+        private static void QuitGame()
+        {
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+            Application.Quit();
+#endif
+        }
+
+        /// <summary>Applies the volumes and fullscreen of <see cref="GameSettings.Current"/>.</summary>
+        private void ApplySettings()
+        {
+            var s = GameSettings.Current;
+            _audio.SetVolumes(s.MasterVolume / 100f, s.MusicVolume / 100f, s.SfxVolume / 100f);
+            if (Screen.fullScreen != s.Fullscreen) Screen.fullScreen = s.Fullscreen;
+            if (_tutorial != null) _tutorial.SetLabels(_hintLabels); // keys may have been rebound
+        }
+
+        private void OnApplicationQuit() => SaveTutorialProgress();
+
+        private void OnDestroy()
+        {
+            if (_onSettingsChanged != null) GameSettings.Changed -= _onSettingsChanged;
         }
 
         /// <summary>After a level's victory moment, loads the next level; after the last, the victory stays.</summary>

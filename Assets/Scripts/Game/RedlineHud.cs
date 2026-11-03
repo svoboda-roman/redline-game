@@ -671,7 +671,7 @@ namespace Redline.Game
                     break;
                 case SimState.GameOver:
                     SetBanner("GAME OVER", Danger, Danger,
-                        "REACHED WAVE " + sim.CurrentWave + "  ·  " + sim.Kills + " KILLS\nPRESS R / START FOR UPGRADES");
+                        "REACHED WAVE " + sim.CurrentWave + "  ·  " + sim.Kills + " KILLS\nPRESS " + ControlLabels.Get(GameAction.Restart) + " / SELECT FOR UPGRADES");
                     break;
                 case SimState.Victory:
                     string next = _game.NextLevelName;
@@ -680,7 +680,7 @@ namespace Redline.Game
                             "NEXT: " + next.ToUpperInvariant() + "  ·  " + sim.Kills + " KILLS");
                     else
                         SetBanner("VICTORY", Gold, Gold,
-                            "ALL " + _game.LevelCount + " LEVELS CLEARED  ·  " + sim.Kills + " KILLS\nPRESS R / START FOR UPGRADES");
+                            "ALL " + _game.LevelCount + " LEVELS CLEARED  ·  " + sim.Kills + " KILLS\nPRESS " + ControlLabels.Get(GameAction.Restart) + " / SELECT FOR UPGRADES");
                     break;
             }
         }
