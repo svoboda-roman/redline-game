@@ -103,6 +103,7 @@ namespace Redline.RoninEditor
             _katana = null;
             _uprightDeg = float.NaN;
             _twoHand = false;
+            _rightForward = false;
             if (_cam != null)
             {
                 _cam.targetTexture = null;
@@ -146,13 +147,14 @@ namespace Redline.RoninEditor
             // Idle: 1.33 s breathing cycle, 16 frames at 12 fps.
             // Sword held upright in a normal grip (blade up, leaning forward) in every non-attack pose; the slashes,
             // the slide attack and death keep their own blade (see _uprightDeg / FixKatana).
-            _uprightDeg = 30f;   // standing: two-handed guard, blade up and forward in front of the body
-            _twoHand = true;
+            _uprightDeg = 12f;   // standing: the right hand forward in front of the body, blade up
+            _rightForward = true;
             list.Add(SampleClip("idle", RoninClip.Idle, 16f / L(RoninClip.Idle), true, Uniform(16, 0f, L(RoninClip.Idle), true), 0f, false, idleHips, hand));
             // Run and sprint: one stride cycle each (10 and 8 frames). The presenter plays them at
             // speed x duration / stride (the stride is measured here from the planted foot), so the cloth is simulated
             // in the real time one cycle takes at the speed each represents (run 9 u/s = the sim's run speed, sprint 18).
             _twoHand = false;
+            _rightForward = false;
             _uprightDeg = 35f;
             list.Add(Loco("run", RoninClip.Run, 10, 9f, idleHips, hand));
             _uprightDeg = 55f;
@@ -575,6 +577,9 @@ namespace Redline.RoninEditor
         /// <summary>Standing two-handed guard: both palms on the handle in front of the belly (set per clip while baking).</summary>
         private static bool _twoHand;
 
+        /// <summary>Standing one-handed: the right hand brought forward in front of the body, blade up (set per clip while baking).</summary>
+        private static bool _rightForward;
+
         /// <summary>Handle centre of the two-handed guard relative to the hips (world units, facing +x; -z is toward the camera).</summary>
         private static readonly Vector3 GuardOffset = new Vector3(0.3f, 0.14f, -0.1f);
 
@@ -585,12 +590,18 @@ namespace Redline.RoninEditor
         /// </summary>
         private static void TwoHandGuard()
         {
-            if (!_twoHand || float.IsNaN(_uprightDeg)) return;
+            if ((!_twoHand && !_rightForward) || float.IsNaN(_uprightDeg)) return;
             var hips = Bone(HumanBodyBones.Hips);
             if (hips == null) return;
             float a = _uprightDeg * Mathf.Deg2Rad;
             var dir = new Vector3(Mathf.Sin(a), Mathf.Cos(a), 0f);
             Vector3 centre = hips.position + GuardOffset;   // world units (the baked model is already at game scale)
+            if (_rightForward)
+            {
+                // One-handed: only the right (sword, near-camera) hand comes forward in front of the body.
+                ArmTo(HumanBodyBones.RightUpperArm, HumanBodyBones.RightLowerArm, HumanBodyBones.RightHand, HumanBodyBones.RightMiddleProximal, centre);
+                return;
+            }
             ArmTo(HumanBodyBones.RightUpperArm, HumanBodyBones.RightLowerArm, HumanBodyBones.RightHand, HumanBodyBones.RightMiddleProximal, centre + dir * 0.06f);
             ArmTo(HumanBodyBones.LeftUpperArm, HumanBodyBones.LeftLowerArm, HumanBodyBones.LeftHand, HumanBodyBones.LeftMiddleProximal, centre - dir * 0.07f);
         }
