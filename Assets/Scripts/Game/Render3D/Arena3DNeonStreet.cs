@@ -60,6 +60,18 @@ namespace Redline.Game.Render3D
                     if (period - x - w < 3f) w = period - x;   // no sliver at the seam
                     float top = FloorTop + (22f + (float)rnd.NextDouble() * 26f) * scale + z * 0.25f;
                     StreetBuilding(rnd, facades, signs, blink, halos, x, w, top, z, detail, scale, r == 0);
+                    // Power / telecom cables sagging between neighbouring buildings (the two nearest rows).
+                    if (r <= 1 && x > 0f)
+                    {
+                        int nc = rnd.Next(0, 3);
+                        for (int k = 0; k < nc; k++)
+                        {
+                            float ya = FloorTop + (5f + (float)rnd.NextDouble() * 14f) * scale, yb = ya + ((float)rnd.NextDouble() - 0.5f) * 3f * scale;
+                            var a = new Vector3(x - (1f + (float)rnd.NextDouble() * 3f) * scale, ya, z - 1.4f * scale);
+                            var b = new Vector3(x + (1f + (float)rnd.NextDouble() * 4f) * scale, yb, z - 1.4f * scale);
+                            Cable(facades, a, b, (0.4f + (float)rnd.NextDouble() * 0.8f) * scale, 0.06f * scale, new Color(0.05f, 0.04f, 0.06f));
+                        }
+                    }
                     x += w;
                 }
                 // Street floor between the deck's back edge and the nearest fronts (no void under the signs).
@@ -120,16 +132,84 @@ namespace Redline.Game.Render3D
                 signs.Quad(new Vector3(x + 0.07f * scale, (FloorTop + 4f + top) * 0.5f, z - 0.1f), 0.14f * scale, top - FloorTop - 4f, WhiteUv, led);
             }
 
-            // Ground floor shop front with an awning (the bright band along the street).
+            var dark = new Color(0.22f, 0.18f, 0.24f);   // metal: railings, pipes, pillars, roof kit (x plaster texel ~0.38)
+
+            // Ground floor: a row of separate shops (3-4 units each) between dark pillars, each its own front
+            // (lit store, bar, convenience, restaurant, shutter down, dark), its own header sign and maybe an awning.
             if (near || z < 40f)
             {
-                var shop = Pick(rnd, 2);
-                float sh = 3.2f * scale;
-                bool shopDead = R() < _look.DeadSigns * 0.6f;   // the odd closed, dark shop
-                signs.Quad(new Vector3(x + w * 0.5f, FloorTop + sh * 0.5f, z - 0.15f), w - 0.5f, sh, shop.Uv, shopDead ? new Color(0.12f, 0.1f, 0.11f) : Color.white * 0.8f);
-                var aw = _look.SignColors[rnd.Next(_look.SignColors.Length)] * 1.3f;
-                signs.Quad(new Vector3(x + w * 0.5f, FloorTop + sh + 0.25f * scale, z - 0.5f), w - 0.3f, 0.5f * scale, WhiteUv, aw);
-                if (!shopDead) halos.Billboard(new Vector3(x + w * 0.5f, FloorTop + sh * 0.5f, z - 1.2f), w * 1.3f, sh * 2.2f, shop.Tint * 0.08f);
+                float sh = 2.6f * scale, pillar = 0.28f * scale;
+                int units = Mathf.Max(1, Mathf.RoundToInt((w - pillar) / (3.6f * scale)));
+                float uw = (w - pillar) / units;
+                facades.Quad(new Vector3(x + w * 0.5f, FloorTop + sh * 0.5f, z - 0.12f), w, sh + 0.2f * scale, PlasterUv, dark);
+                for (int u = 0; u < units; u++)
+                {
+                    float ux = x + pillar + u * uw + (uw - pillar) * 0.5f;
+                    var shop = Pick(rnd, 2);
+                    bool shut = shop.Tint.r < 0.3f;   // shutter / dark variants carry a dark tint
+                    signs.Quad(new Vector3(ux, FloorTop + sh * 0.5f, z - 0.15f), uw - pillar, sh, shop.Uv, Color.white * (shut ? 0.75f : 0.9f));
+                    // Header board above the shop (dead on shut shops).
+                    var head = Pick(rnd, 1);
+                    float hh = 0.62f * scale;
+                    signs.Quad(new Vector3(ux, FloorTop + sh + hh * 0.5f + 0.06f * scale, z - 0.2f), uw - pillar, hh, head.Uv,
+                        shut ? new Color(0.15f, 0.12f, 0.14f) : Color.white * 0.95f);
+                    if (!shut && R() < 0.55f)
+                    {
+                        var aw = _look.SignColors[rnd.Next(_look.SignColors.Length)] * 0.75f;
+                        signs.Quad(new Vector3(ux, FloorTop + sh - 0.1f * scale, z - 0.55f), uw - pillar + 0.1f, 0.32f * scale, WhiteUv, aw);
+                        signs.Quad(new Vector3(ux, FloorTop + sh - 0.3f * scale, z - 0.57f), uw - pillar + 0.1f, 0.08f * scale, WhiteUv, aw * 0.5f);
+                    }
+                    if (!shut) halos.Billboard(new Vector3(ux, FloorTop + sh * 0.45f, z - 1.2f), uw * 1.4f, sh * 1.8f, shop.Tint * 0.07f);
+                }
+            }
+
+            // Facade kit: fire-escape balconies on a side, a drain pipe, roof water tank / antenna / rooftop billboard.
+            if (detail > 0.6f)
+            {
+                if (R() < 0.45f)
+                {
+                    bool left = R() < 0.5f;
+                    float bw = Mathf.Min(w * 0.45f, 3.2f * scale), bx = left ? x + bw * 0.5f + 0.3f : x + w - bw * 0.5f - 0.3f;
+                    for (float by = FloorTop + 4.6f * scale; by < top - 2f; by += 2f * scale)
+                    {
+                        facades.Quad(new Vector3(bx, by, z - 0.6f), bw, 0.08f * scale, PlasterUv, dark);            // floor slat
+                        facades.Quad(new Vector3(bx, by + 0.55f * scale, z - 0.62f), bw, 0.05f * scale, PlasterUv, dark); // rail
+                        for (float rx = bx - bw * 0.5f; rx <= bx + bw * 0.5f + 0.01f; rx += 0.4f * scale)
+                            facades.Quad(new Vector3(rx, by + 0.28f * scale, z - 0.62f), 0.04f * scale, 0.55f * scale, PlasterUv, dark);
+                    }
+                }
+                if (R() < 0.6f)
+                {
+                    float px0 = R() < 0.5f ? x + 0.15f * scale : x + w - 0.15f * scale;
+                    facades.Quad(new Vector3(px0, (FloorTop + sh0(scale) + top) * 0.5f, z - 0.08f), 0.12f * scale, top - FloorTop - sh0(scale), PlasterUv, dark * 1.6f);
+                }
+                double roof = R();
+                if (roof < 0.3f)
+                {
+                    // Water tank on legs.
+                    float tx = x + w * (0.25f + R() * 0.5f), tw = 1.6f * scale;
+                    facades.Quad(new Vector3(tx, top + 1.6f * scale, z + 0.5f), tw, 1.6f * scale, PlasterUv, dark * 1.4f);
+                    facades.Quad(new Vector3(tx - tw * 0.35f, top + 0.45f * scale, z + 0.5f), 0.08f * scale, 0.9f * scale, PlasterUv, dark);
+                    facades.Quad(new Vector3(tx + tw * 0.35f, top + 0.45f * scale, z + 0.5f), 0.08f * scale, 0.9f * scale, PlasterUv, dark);
+                }
+                else if (roof < 0.55f)
+                {
+                    // Antenna mast with a red beacon.
+                    float ax = x + w * (0.2f + R() * 0.6f), ah = (2.5f + R() * 3f) * scale;
+                    facades.Quad(new Vector3(ax, top + ah * 0.5f, z + 0.3f), 0.07f * scale, ah, PlasterUv, dark);
+                    signs.Quad(new Vector3(ax, top + ah, z + 0.25f), 0.18f * scale, 0.18f * scale, WhiteUv, new Color(1.4f, 0.08f, 0.06f));
+                }
+                else if (roof < 0.8f && w > 6f * scale)
+                {
+                    // Rooftop billboard on a scaffold frame (lit or dead).
+                    var cell = Pick(rnd, 1);
+                    float bw2 = w * 0.7f, bh2 = bw2 * 0.25f, by2 = top + 0.9f * scale + bh2 * 0.5f;
+                    for (float lx = x + w * 0.5f - bw2 * 0.4f; lx <= x + w * 0.5f + bw2 * 0.4f + 0.01f; lx += bw2 * 0.4f)
+                        facades.Quad(new Vector3(lx, top + 0.45f * scale, z + 0.2f), 0.08f * scale, 0.9f * scale, PlasterUv, dark);
+                    bool deadBoard = R() < _look.DeadSigns * 1.5f;
+                    signs.Quad(new Vector3(x + w * 0.5f, by2, z + 0.15f), bw2, bh2, cell.Uv, deadBoard ? new Color(0.14f, 0.12f, 0.13f) : Color.white * 0.95f);
+                    if (!deadBoard) halos.Billboard(new Vector3(x + w * 0.5f, by2, z - 0.2f), bw2 * 1.5f, bh2 * 2.5f, cell.Tint * 0.1f);
+                }
             }
 
             // Signs: blades along the building edges, boards across the floors, stacked from the shops to the roof.
@@ -167,6 +247,23 @@ namespace Redline.Game.Render3D
                 var target = R() < 0.15f ? blink : signs;
                 target.Quad(new Vector3(cx, cy, cz), sw, sh, cell.Uv, Color.white * bright);
                 halos.Billboard(new Vector3(cx, cy, cz - 0.3f), sw * 2.2f + 1.5f * scale, sh * 1.6f + 1.5f * scale, cell.Tint * (0.08f + 0.04f * bright));
+            }
+        }
+
+        /// <summary>Height of the ground-floor shop band (shop front + header) at a row scale.</summary>
+        private static float sh0(float scale) => 3.4f * scale;
+
+        /// <summary>A sagging cable from <paramref name="a"/> to <paramref name="b"/> (segments of thin quads).</summary>
+        private static void Cable(UvQuads q, Vector3 a, Vector3 b, float sag, float thick, Color col)
+        {
+            const int N = 8;
+            Vector3 prev = a;
+            for (int i = 1; i <= N; i++)
+            {
+                float t = i / (float)N;
+                var p = Vector3.Lerp(a, b, t) + Vector3.down * (sag * 4f * t * (1f - t));
+                q.Line(prev, p, thick, PlasterUv, col);
+                prev = p;
             }
         }
 
@@ -245,7 +342,7 @@ namespace Redline.Game.Render3D
             var t = new Texture2D(N, N, TextureFormat.RGBA32, true, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Point, name = "streetSigns" };
             var px = new Color[N * N];
             var rnd = new System.Random(seed * 7 + 5);
-            var extra = new[] { new Color(0.3f, 0.85f, 1f), new Color(1f, 1f, 1f), new Color(0.75f, 0.4f, 1f), new Color(1f, 0.55f, 0.15f) };
+            var extra = new[] { new Color(0.3f, 0.85f, 1f), new Color(0.4f, 1f, 0.55f), new Color(0.75f, 0.4f, 1f), new Color(1f, 0.55f, 0.15f) };
             Color PickColor()
             {
                 if (palette != null && palette.Length > 0 && rnd.NextDouble() < 0.72) { var p = palette[rnd.Next(palette.Length)]; return new Color(Mathf.Clamp01(p.r / 1.4f), Mathf.Clamp01(p.g / 1.4f), Mathf.Clamp01(p.b / 1.4f), 1f); }
@@ -253,23 +350,65 @@ namespace Redline.Game.Render3D
             }
             void Fill(int x0, int y0, int w, int h, Color c) { for (int y = y0; y < y0 + h; y++) for (int x = x0; x < x0 + w; x++) if (x >= 0 && y >= 0 && x < N && y < N) px[y * N + x] = c; }
 
+            void Seg(int x0, int y0, int x1, int y1, int th, Color c)
+            {
+                int n = Mathf.Max(Mathf.Abs(x1 - x0), Mathf.Abs(y1 - y0));
+                for (int i = 0; i <= n; i++)
+                {
+                    float t2 = n == 0 ? 0f : i / (float)n;
+                    Fill(Mathf.RoundToInt(Mathf.Lerp(x0, x1, t2)), Mathf.RoundToInt(Mathf.Lerp(y0, y1, t2)), th, th, c);
+                }
+            }
+
+            // One jamo-like consonant in the box (x, y, w, h), y up: ㄱ ㄴ ㄷ ㅁ ㅂ ㅅ ㅇ ㅈ ㄹ ㅎ shapes from thin strokes.
+            void Consonant(int x, int y, int w, int h, int th, Color c)
+            {
+                int r = x + w - th, tp = y + h - th;
+                switch (rnd.Next(10))
+                {
+                    case 0: Fill(x, tp, w, th, c); Fill(r, y, th, h, c); break;                                         // ㄱ
+                    case 1: Fill(x, y, th, h, c); Fill(x, y, w, th, c); break;                                          // ㄴ
+                    case 2: Fill(x, tp, w, th, c); Fill(x, y, th, h, c); Fill(x, y, w, th, c); break;                   // ㄷ
+                    case 3: Fill(x, tp, w, th, c); Fill(x, y, w, th, c); Fill(x, y, th, h, c); Fill(r, y, th, h, c); break; // ㅁ
+                    case 4: Fill(x, y, th, h, c); Fill(r, y, th, h, c); Fill(x, y + h / 2, w, th, c); Fill(x, y, w, th, c); break; // ㅂ
+                    case 5: Seg(x + w / 2, tp, x, y, th, c); Seg(x + w / 2, tp, r, y, th, c); break;                     // ㅅ
+                    case 6: { int cx = x + w / 2, cy = y + h / 2, rr = Mathf.Max(2, Mathf.Min(w, h) / 2 - th / 2); for (int a = 0; a < 32; a++) { float an = a / 32f * 6.283f; Fill(cx + Mathf.RoundToInt(Mathf.Cos(an) * rr) - th / 2, cy + Mathf.RoundToInt(Mathf.Sin(an) * rr) - th / 2, th, th, c); } break; } // ㅇ
+                    case 7: Fill(x, tp, w, th, c); Seg(x + w / 2, tp, x, y, th, c); Seg(x + w / 2, tp - h / 3, r, y, th, c); break; // ㅈ
+                    case 8: Fill(x, tp, w, th, c); Fill(r, y + h / 2, th, h / 2, c); Fill(x, y + h / 2, w, th, c); Fill(x, y, th, h / 2, c); Fill(x, y, w, th, c); break; // ㄹ
+                    default: Fill(x + w / 4, tp, w / 2, th, c); Fill(x, tp - th * 2, w, th, c); { int cx = x + w / 2, cy = y + h / 3, rr = Mathf.Max(2, w / 3); for (int a = 0; a < 24; a++) { float an = a / 24f * 6.283f; Fill(cx + Mathf.RoundToInt(Mathf.Cos(an) * rr), cy + Mathf.RoundToInt(Mathf.Sin(an) * rr * 0.7f), th, th, c); } } break; // ㅎ
+                }
+            }
+
+            // A Hangul-like syllable block: initial consonant + vowel (vertical ㅏㅓㅣ or horizontal ㅗㅜㅡ) + optional final.
             void Glyph(int gx, int gy, int size, Color c)
             {
-                int s = Mathf.Max(1, size / 5), th = Mathf.Max(2, s);
-                int parts = 2 + rnd.Next(2);
-                for (int p = 0; p < parts; p++)
+                int th = Mathf.Max(1, Mathf.RoundToInt(size / 9f));
+                bool final = rnd.NextDouble() < 0.45;
+                int fh = final ? size * 2 / 5 : 0;                     // final consonant band at the bottom
+                int by = gy + fh + (final ? th : 0), bh = size - fh - (final ? th : 0);
+                if (rnd.NextDouble() < 0.6)
                 {
-                    switch (rnd.Next(7))
-                    {
-                        case 0: Fill(gx, gy + s * rnd.Next(0, 5), size, th, c); break;                               // horizontal bar
-                        case 1: Fill(gx + s * (3 + rnd.Next(2)), gy, th, size, c); break;                          // vertical bar (right)
-                        case 2: { int y0 = gy + (rnd.Next(2) == 0 ? 0 : size / 2); Fill(gx, y0, size * 3 / 5, th, c); Fill(gx, y0 + size / 2 - th, size * 3 / 5, th, c); Fill(gx, y0, th, size / 2, c); Fill(gx + size * 3 / 5 - th, y0, th, size / 2, c); break; } // box
-                        case 3: { int cx = gx + size / 3, cy = gy + size / 3, rr = size / 4; for (int a = 0; a < 40; a++) { float an = a / 40f * 6.283f; Fill(cx + Mathf.RoundToInt(Mathf.Cos(an) * rr), cy + Mathf.RoundToInt(Mathf.Sin(an) * rr), th, th, c); } break; } // ring
-                        case 4: Fill(gx, gy + size - th, size * 3 / 5, th, c); Fill(gx + size * 3 / 5 - th, gy + size / 2, th, size / 2, c); break; // corner
-                        case 5: Fill(gx, gy + size / 2, th, size / 2, c); Fill(gx, gy + size / 2, size * 3 / 5, th, c); break;                     // corner
-                        default: Fill(gx + size / 2 - th / 2, gy, th, size, c); break;                              // centre stroke
-                    }
+                    // Vertical vowel on the right.
+                    int cw = size * 3 / 5;
+                    Consonant(gx, by + bh / 8, cw - th, bh * 3 / 4, th, c);
+                    int vx = gx + size - th * 2;
+                    Fill(vx, by, th, bh, c);
+                    int tick = rnd.Next(3);
+                    if (tick == 0) Fill(vx, by + bh / 2, th * 3, th, c);             // ㅏ
+                    else if (tick == 1) Fill(vx - th * 2, by + bh / 2, th * 2, th, c); // ㅓ
                 }
+                else
+                {
+                    // Horizontal vowel under the consonant.
+                    int ch = bh * 3 / 5;
+                    Consonant(gx + size / 6, by + bh - ch, size * 2 / 3, ch - th, th, c);
+                    int vy = by + th;
+                    Fill(gx, vy, size, th, c);
+                    int tick = rnd.Next(3);
+                    if (tick == 0) Fill(gx + size / 2 - th / 2, vy, th, th * 3, c);       // ㅗ
+                    else if (tick == 1) Fill(gx + size / 2 - th / 2, vy - th * 2, th, th * 2, c); // ㅜ
+                }
+                if (final) Consonant(gx + size / 6, gy, size * 2 / 3, fh, th, c);
             }
 
             void Sign(int x0, int y0, int w, int h, bool vertical)
@@ -294,23 +433,45 @@ namespace Redline.Game.Render3D
             for (int i = 0; i < N * N; i++) px[i] = new Color(0f, 0f, 0f, 1f);
             for (int row = 0; row < 2; row++) for (int c = 0; c < 16; c++) Sign(c * 32, row * 128, 32, 128, true);
             for (int row = 0; row < 6; row++) for (int c = 0; c < 4; c++) Sign(c * 128, 256 + row * 32, 128, 32, false);
-            // Shop fronts: warm lit interior, mullions, a header sign strip, dark shelf silhouettes.
-            for (int c = 0; c < 4; c++)
+            // Shop fronts, 64x64 each (one 3.6-unit shop): 0 store, 1 bar, 2 convenience, 3 restaurant, 4 shutter
+            // down, 5 dark closed, 6 glass door. Tint (halo / "is shut") follows the kind: shut kinds are dark.
+            var frame = new Color(0.1f, 0.08f, 0.1f);
+            for (int c = 0; c < 7; c++)
             {
-                int x0 = c * 128, y0 = 448;
-                var head = PickColor();
+                int x0 = c * 64, y0 = 448, kind = c;
+                Color lo, hi, tint;
+                switch (kind)
+                {
+                    case 0: lo = new Color(1f, 0.62f, 0.32f); hi = new Color(1f, 0.92f, 0.7f); tint = new Color(1f, 0.75f, 0.45f); break;
+                    case 1: lo = new Color(0.55f, 0.08f, 0.35f); hi = new Color(1f, 0.35f, 0.7f); tint = new Color(1f, 0.3f, 0.6f); break;
+                    case 2: lo = new Color(0.75f, 0.9f, 0.95f); hi = new Color(0.95f, 1f, 1f); tint = new Color(0.7f, 0.95f, 1f); break;
+                    case 3: lo = new Color(0.6f, 0.12f, 0.08f); hi = new Color(1f, 0.45f, 0.25f); tint = new Color(1f, 0.35f, 0.2f); break;
+                    case 4: lo = new Color(0.32f, 0.3f, 0.34f); hi = new Color(0.42f, 0.4f, 0.44f); tint = new Color(0.2f, 0.2f, 0.2f); break;
+                    case 5: lo = new Color(0.05f, 0.05f, 0.08f); hi = new Color(0.1f, 0.1f, 0.14f); tint = new Color(0.1f, 0.1f, 0.1f); break;
+                    default: lo = new Color(0.9f, 0.7f, 0.45f); hi = new Color(1f, 0.85f, 0.6f); tint = new Color(1f, 0.8f, 0.55f); break;
+                }
                 for (int y = 0; y < 64; y++)
                 {
-                    float v = y / 63f;
-                    var lit = Color.Lerp(new Color(1f, 0.6f, 0.3f), new Color(1f, 0.95f, 0.75f), v);
-                    for (int x = 0; x < 128; x++) px[(y0 + y) * N + x0 + x] = lit;
+                    var g2 = Color.Lerp(lo, hi, y / 63f);
+                    for (int x = 0; x < 64; x++) px[(y0 + y) * N + x0 + x] = g2;
                 }
-                for (int x = 0; x < 128; x += 21) Fill(x0 + x, y0, 3, 52, new Color(0.15f, 0.1f, 0.12f));
-                Fill(x0, y0 + 30, 128, 2, new Color(0.15f, 0.1f, 0.12f));
-                for (int k = 0; k < 6; k++) Fill(x0 + 6 + rnd.Next(110), y0 + 4, 4 + rnd.Next(10), 10 + rnd.Next(14), new Color(0.35f, 0.2f, 0.2f));
-                Fill(x0, y0 + 52, 128, 12, head);
-                for (int x = x0 + 8; x + 8 <= x0 + 120; x += 12) Glyph(x, y0 + 54, 8, new Color(0.08f, 0.04f, 0.08f));
-                cells.Add(new SignCell { Uv = new Rect(x0 / (float)N, y0 / (float)N, 128f / N, 64f / N), Kind = 2, Tint = new Color(1f, 0.75f, 0.45f) });
+                if (kind == 4)
+                {
+                    for (int y = 2; y < 62; y += 4) Fill(x0, y0 + y, 64, 1, new Color(0.2f, 0.19f, 0.22f));   // shutter ribs
+                    for (int k = 0; k < 3; k++) { var tag = PickColor(); Fill(x0 + 6 + rnd.Next(44), y0 + 8 + rnd.Next(30), 6 + rnd.Next(10), 3 + rnd.Next(5), tag * 0.6f); } // graffiti
+                }
+                else if (kind != 5)
+                {
+                    // Shelves / tables / customers as silhouettes, window frame, door.
+                    var sil = Color.Lerp(lo, Color.black, 0.65f);
+                    for (int k = 0; k < 5; k++) Fill(x0 + 4 + rnd.Next(52), y0 + 3, 3 + rnd.Next(7), 8 + rnd.Next(16), sil);
+                    if (kind == 0 || kind == 2) for (int y = 14; y < 50; y += 12) Fill(x0 + 3, y0 + y, 58, 1, sil);
+                    if (kind == 3) for (int k = 0; k < 3; k++) { int lx = x0 + 10 + k * 20; Fill(lx, y0 + 46, 6, 8, new Color(1f, 0.25f, 0.15f)); Fill(lx + 2, y0 + 54, 2, 4, frame); } // lanterns
+                    Fill(x0, y0, 64, 2, frame); Fill(x0, y0 + 62, 64, 2, frame); Fill(x0, y0, 2, 64, frame); Fill(x0 + 62, y0, 2, 64, frame);
+                    int dx = kind == 6 ? 22 : (rnd.Next(2) == 0 ? 6 : 40);
+                    Fill(x0 + dx, y0, 18, 44, Color.Lerp(lo, Color.black, kind == 6 ? 0.2f : 0.45f)); Fill(x0 + dx, y0 + 44, 18, 2, frame); Fill(x0 + dx + 8, y0, 2, 44, frame);
+                }
+                cells.Add(new SignCell { Uv = new Rect(x0 / (float)N, y0 / (float)N, 64f / N, 64f / N), Kind = 2, Tint = tint });
             }
             Fill(504, 504, 8, 8, Color.white);
             t.SetPixels(px);
@@ -336,6 +497,15 @@ namespace Redline.Game.Render3D
             public void Quad(Vector3 c, float w, float h, Rect uv, Color col)
             {
                 Add(c + new Vector3(-w / 2, -h / 2, 0), c + new Vector3(-w / 2, h / 2, 0), c + new Vector3(w / 2, h / 2, 0), c + new Vector3(w / 2, -h / 2, 0), Vector3.back, uv, col);
+            }
+
+            /// <summary>Thin camera-facing strip from <paramref name="a"/> to <paramref name="b"/> (in the XY plane at their z).</summary>
+            public void Line(Vector3 a, Vector3 b, float thick, Rect uv, Color col)
+            {
+                var d = (Vector2)(b - a);
+                if (d.sqrMagnitude < 1e-8f) return;
+                var n = new Vector3(-d.y, d.x, 0f).normalized * (thick * 0.5f);
+                Add(a - n, a + n, b + n, b - n, Vector3.back, uv, col);
             }
 
             /// <summary>Floor quad (normal +y) centred at <paramref name="c"/>, w (x) by d (z).</summary>
