@@ -66,9 +66,9 @@ namespace Redline.Game.Render3D
         /// <summary>Shake decay per second (amount units).</summary>
         public float ShakeDecay = 4f;
         /// <summary>DOF focus distance behind the play plane (focus band is Z 0..+12; this is its optimum).</summary>
-        public float FocusAhead = 5f;
+        public float FocusAhead = 2.5f;
         /// <summary>DOF lens: focal length (mm) and aperture (f-stop). Larger aperture number = sharper.</summary>
-        public float DofFocalLength = 100f, DofAperture = 2.8f;
+        public float DofFocalLength = 150f, DofAperture = 1.4f;   // shallow: the street behind the play plane blurs, the play plane stays sharp
         /// <summary>Texel rows each letterbox bar grows by in cinematic mode (2.39:1 from 2.0:1 at 640x320 = 26; even, the bars move in 2-row steps).</summary>
         public int CinematicExtraTexels = 40;
         /// <summary>Seconds the bars take to move between 2.0:1 and 2.4:1.</summary>
