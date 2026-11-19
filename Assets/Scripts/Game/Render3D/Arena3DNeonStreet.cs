@@ -16,8 +16,6 @@ namespace Redline.Game.Render3D
     public sealed partial class Arena3DRenderer
     {
         private Material _streetFacadeMat, _streetSignMat, _streetBlinkMat;
-        /// <summary>Neon tube signs of the row being built (additive material).</summary>
-        private UvQuads _tubes;
         private readonly List<SignCell> _signCells = new List<SignCell>(64);
 
         private struct SignCell
@@ -40,7 +38,6 @@ namespace Redline.Game.Render3D
             for (int s = 1; s < FacadeStyles; s++)
                 facadeMats[s] = Own(Proto3DMaterials.FxMat("streetFacade" + s, Own(FacadeStyleTexture(_look.Seed, s)), Color.white, 2, 1f));
             _streetBoardMat = Own(Proto3DMaterials.FxMat("streetBoards", Own(BoardAtlas(_look.Seed, _look.SignColors, _boardCells)), Color.white, 2, 0.3f));
-            _streetTubeMat = Own(Proto3DMaterials.FxMat("streetNeonTubes", Own(NeonTubeAtlas(_look.Seed, _look.SignColors, _tubeCells)), Color.white * 1.35f, 0, 0.3f));
             StreetSky();
             _streetSignMat = Own(Proto3DMaterials.FxMat("streetSigns", atlas, Color.white, 2, 0.3f));
             _streetBlinkMat = Own(Proto3DMaterials.FxMat("streetSignsBlink", atlas, Color.white, 2, 0.3f));
@@ -63,7 +60,6 @@ namespace Redline.Game.Render3D
                 bodies[0] = facades;
                 for (int s = 1; s < FacadeStyles; s++) bodies[s] = new UvQuads();
                 var boards = new UvQuads();
-                _tubes = new UvQuads();
                 var signs = new UvQuads();
                 var blink = new UvQuads();
                 var halos = new QuadBatch();
@@ -110,7 +106,6 @@ namespace Redline.Game.Render3D
                 var bodyMeshes = new Mesh[FacadeStyles];
                 for (int s = 1; s < FacadeStyles; s++) if (bodies[s].Count > 0) bodyMeshes[s] = Own(bodies[s].Build("streetBodies" + s + "_" + r));
                 var boardMesh = boards.Count > 0 ? Own(boards.Build("streetBoards" + r)) : null;
-                var tubeMesh = _tubes.Count > 0 ? Own(_tubes.Build("streetTubes" + r)) : null;
                 var facadeMesh = Own(facades.Build("streetFacades" + r));
                 var signMesh = signs.Count > 0 ? Own(signs.Build("streetSigns" + r)) : null;
                 var blinkMesh = blink.Count > 0 ? Own(blink.Build("streetBlink" + r)) : null;
@@ -124,7 +119,6 @@ namespace Redline.Game.Render3D
                     StreetPart("facades", inst, facadeMesh, _streetFacadeMat, r > 0);
                     for (int s = 1; s < FacadeStyles; s++) if (bodyMeshes[s] != null) StreetPart("bodies" + s, inst, bodyMeshes[s], facadeMats[s], r > 0);
                     if (boardMesh != null) StreetPart("boards", inst, boardMesh, _streetBoardMat, r > 0);
-                    if (tubeMesh != null) StreetPart("tubes", inst, tubeMesh, _streetTubeMat, r > 0);
                     if (signMesh != null) StreetPart("signs", inst, signMesh, _streetSignMat, r > 0);
                     if (blinkMesh != null) StreetPart("blink", inst, blinkMesh, _streetBlinkMat, r > 0);
                     if (haloMesh != null) StreetPart("halos", inst, haloMesh, haloMat, true);
@@ -290,23 +284,6 @@ namespace Redline.Game.Render3D
             float yMin = FloorTop + 4f * scale, yMax = top - 1.5f * scale;
             for (int i = 0; i < n && yMax > yMin + 2f; i++)
             {
-                // Neon tube lettering hung on chains (about a third of the signs): no panel, glowing tubes only.
-                if (_tubes != null && _tubeCells.Count > 0 && R() < 0.35f)
-                {
-                    bool vert = R() < 0.45f;
-                    var tc = PickTube(rnd, vert);
-                    float tw = vert ? (0.75f + R() * 0.3f) * scale : Mathf.Min(w - 0.6f * scale, (2.6f + R() * 2f) * scale);
-                    float th = vert ? tw * 4f : tw * 0.25f;
-                    float tx = x + tw * 0.5f + 0.3f * scale + R() * Mathf.Max(0.1f, w - tw - 0.6f * scale);
-                    float ty = yMin + th * 0.5f + R() * Mathf.Max(0.1f, yMax - yMin - th);
-                    float tz = z - 0.5f * scale - i * 0.01f;
-                    if (R() < _look.DeadSigns * 0.5f) continue;   // the odd tube sign is just gone (dark)
-                    _tubes.Quad(new Vector3(tx, ty, tz), tw, th, tc.Uv, Color.white);
-                    for (int s2 = -1; s2 <= 1; s2 += 2)   // chains up to the wall
-                        facades.Line(new Vector3(tx + s2 * tw * 0.35f, ty + th * 0.5f, tz + 0.05f), new Vector3(tx + s2 * tw * 0.2f, ty + th * 0.5f + 0.7f * scale, tz + 0.3f), 0.04f * scale, PlasterUv, new Color(0.25f, 0.22f, 0.26f));
-                    halos.Billboard(new Vector3(tx, ty, tz - 0.3f), tw * 1.8f + 1.2f * scale, th * 1.8f + 1.2f * scale, tc.Tint * 0.16f);
-                    continue;
-                }
                 bool bladeSign = R() < 0.55f;
                 var cell = Pick(rnd, bladeSign ? 0 : 1);
                 float sw, sh, cx;
@@ -489,7 +466,25 @@ namespace Redline.Game.Render3D
                 if (palette != null && palette.Length > 0 && rnd.NextDouble() < 0.72) { var p = palette[rnd.Next(palette.Length)]; return new Color(Mathf.Clamp01(p.r / 1.4f), Mathf.Clamp01(p.g / 1.4f), Mathf.Clamp01(p.b / 1.4f), 1f); }
                 return extra[rnd.Next(extra.Length)];
             }
-            void Fill(int x0, int y0, int w, int h, Color c) { for (int y = y0; y < y0 + h; y++) for (int x = x0; x < x0 + w; x++) if (x >= 0 && y >= 0 && x < N && y < N) px[y * N + x] = c; }
+            // While a glyph skeleton is being captured, Fill records pixels instead of painting them (neon tube letters).
+            List<Vector2Int> skel = null;
+            void Fill(int x0, int y0, int w, int h, Color c)
+            {
+                for (int y = y0; y < y0 + h; y++)
+                for (int x = x0; x < x0 + w; x++)
+                    if (x >= 0 && y >= 0 && x < N && y < N)
+                    {
+                        if (skel != null) skel.Add(new Vector2Int(x, y));
+                        else px[y * N + x] = c;
+                    }
+            }
+            void Disc(float cx, float cy, float r, Color c, float blend = 1f)
+            {
+                for (int y = Mathf.FloorToInt(cy - r); y <= Mathf.CeilToInt(cy + r); y++)
+                for (int x = Mathf.FloorToInt(cx - r); x <= Mathf.CeilToInt(cx + r); x++)
+                    if (x >= 0 && y >= 0 && x < N && y < N && (x - cx) * (x - cx) + (y - cy) * (y - cy) <= r * r)
+                        px[y * N + x] = blend >= 1f ? c : Color.Lerp(px[y * N + x], c, blend);
+            }
 
             void Seg(int x0, int y0, int x1, int y1, int th, Color c)
             {
@@ -521,9 +516,9 @@ namespace Redline.Game.Render3D
             }
 
             // A Hangul-like syllable block: initial consonant + vowel (vertical ㅏㅓㅣ or horizontal ㅗㅜㅡ) + optional final.
-            void Glyph(int gx, int gy, int size, Color c)
+            void Glyph(int gx, int gy, int size, Color c, int thOverride = 0)
             {
-                int th = Mathf.Max(1, Mathf.RoundToInt(size / 9f));
+                int th = thOverride > 0 ? thOverride : Mathf.Max(1, Mathf.RoundToInt(size / 9f));
                 bool final = rnd.NextDouble() < 0.45;
                 int fh = final ? size * 2 / 5 : 0;                     // final consonant band at the bottom
                 int by = gy + fh + (final ? th : 0), bh = size - fh - (final ? th : 0);
@@ -552,23 +547,47 @@ namespace Redline.Game.Render3D
                 if (final) Consonant(gx + size / 6, gy, size * 2 / 3, fh, th, c);
             }
 
+            // A glyph drawn as bent neon tube: the letter's 1 px skeleton, then a soft glow, a coloured tube and a
+            // near-white hot core along it (rounded ends and joints come free with the discs).
+            void TubeGlyph(int gx, int gy, int size, Color c)
+            {
+                float rOut = Mathf.Max(1.4f, size * 0.1f), rCore = rOut * 0.5f;
+                int pad = Mathf.CeilToInt(rOut);
+                skel = new List<Vector2Int>(256);
+                Glyph(gx + pad, gy + pad, size - pad * 2, c, 1);
+                var pts = skel;
+                skel = null;
+                foreach (var p in pts) Disc(p.x, p.y, rOut + 1.6f, c, 0.25f);                     // glow on the backing
+                foreach (var p in pts) Disc(p.x, p.y, rOut, c * 0.85f);                            // tube
+                foreach (var p in pts) Disc(p.x, p.y, rCore, Color.Lerp(c, Color.white, 0.72f)); // hot core
+            }
+
+            // Sign panel with neon tube lettering (as in real neon signs): mostly a dark backing with a thin tube
+            // border and letters alternating two tube colours; some a coloured panel with white tubes.
             void Sign(int x0, int y0, int w, int h, bool vertical)
             {
                 var col = PickColor();
-                bool filled = rnd.NextDouble() < 0.55;
-                var bg = filled ? col : new Color(0.07f, 0.05f, 0.09f);
-                var ink = filled ? (rnd.NextDouble() < 0.6 ? new Color(0.08f, 0.04f, 0.08f) : Color.white) : col;
-                var border = filled ? Color.Lerp(col, Color.white, 0.6f) : col;
-                Fill(x0, y0, w, h, border);
-                Fill(x0 + 2, y0 + 2, w - 4, h - 4, bg);
-                if (!filled && rnd.NextDouble() < 0.5) Fill(x0 + 4, y0 + 4, w - 8, h - 8, Color.Lerp(bg, col, 0.12f));
-                int g = vertical ? w - 10 : h - 10;
-                g = Mathf.Max(5, g);
+                var col2 = rnd.NextDouble() < 0.5 ? new Color(1f, 0.97f, 0.92f) : PickColor();
+                bool filled = rnd.NextDouble() < 0.25;
+                var bg = filled ? col * 0.75f : new Color(0.05f, 0.04f, 0.07f);
+                bg.a = 1f;
+                Fill(x0, y0, w, h, filled ? Color.Lerp(col, Color.black, 0.45f) : new Color(0.12f, 0.1f, 0.14f));
+                Fill(x0 + 1, y0 + 1, w - 2, h - 2, bg);
+                if (!filled && rnd.NextDouble() < 0.6)   // thin tube border
+                {
+                    var bc = col * 0.7f; bc.a = 1f;
+                    Fill(x0 + 2, y0 + 2, w - 4, 1, bc); Fill(x0 + 2, y0 + h - 3, w - 4, 1, bc);
+                    Fill(x0 + 2, y0 + 2, 1, h - 4, bc); Fill(x0 + w - 3, y0 + 2, 1, h - 4, bc);
+                }
+                int g = vertical ? w - 6 : h - 6;
+                g = Mathf.Max(7, g);
+                int k = 0;
+                bool alternate = rnd.NextDouble() < 0.65;
                 if (vertical)
-                    for (int y = y0 + h - 6 - g; y >= y0 + 4; y -= g + 4) Glyph(x0 + (w - g) / 2, y, g, ink);
+                    for (int y = y0 + h - 4 - g; y >= y0 + 3; y -= g + 2, k++) TubeGlyph(x0 + (w - g) / 2, y, g, filled ? Color.white : (alternate && k % 2 == 1 ? col2 : col));
                 else
-                    for (int x = x0 + 6; x + g <= x0 + w - 5; x += g + 4) Glyph(x, y0 + (h - g) / 2, g, ink);
-                cells.Add(new SignCell { Uv = new Rect(x0 / (float)N, y0 / (float)N, w / (float)N, h / (float)N), Kind = vertical ? 0 : 1, Tint = filled ? col : col * 0.6f });
+                    for (int x = x0 + 4; x + g <= x0 + w - 3; x += g + 2, k++) TubeGlyph(x, y0 + (h - g) / 2, g, filled ? Color.white : (alternate && k % 2 == 1 ? col2 : col));
+                cells.Add(new SignCell { Uv = new Rect(x0 / (float)N, y0 / (float)N, w / (float)N, h / (float)N), Kind = vertical ? 0 : 1, Tint = col });
             }
 
             for (int i = 0; i < N * N; i++) px[i] = new Color(0f, 0f, 0f, 1f);
