@@ -23,6 +23,10 @@ namespace Redline.Core
 
         public bool Sliding;
         public float SlideTimer;
+        /// <summary>Full length of the current slide (SlideTimer's start value).</summary>
+        public float SlideLength;
+        /// <summary>Speed tier (1-3) the current slide started at: sets its height, boost and length. 0 when not sliding.</summary>
+        public int SlideTier;
         public float SlideCooldownTimer;
         /// <summary>True once this airtime's air slide is spent; cleared on landing, wall jump and hook attach.</summary>
         public bool AirSlideUsed;

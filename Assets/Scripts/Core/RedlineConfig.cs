@@ -52,8 +52,30 @@ namespace Redline.Core
 
         // --- Slide ---
         /// <summary>Speed added by a slide. Run + slide must stay below tier3Speed: tier 3 is earned.</summary>
-        public float slideBoost = 1.5f;
-        public float slideDuration = 0.45f;
+        public float slideBoost = 1.8f;
+        /// <summary>Longest a ground slide lasts. It also ends early once friction has slowed it to slideStopSpeed.</summary>
+        public float slideDuration = 0.85f;
+        // A ground slide is shaped by the speed tier it starts at: slideHeight/slideBoost/slideDuration
+        // above are tier 2 (a normal run). Tier 1 is a half crouch, tier 3 a full slide low to the ground.
+        /// <summary>Tier 1 slide (started below tier2Speed): half crouch height.</summary>
+        public float slideTier1Height = 1.15f;
+        public float slideTier1Boost = 0.8f;
+        public float slideTier1Duration = 0.55f;
+        /// <summary>Tier 3 slide (started at tier3Speed or faster): body near the ground.</summary>
+        public float slideTier3Height = 0.55f;
+        public float slideTier3Boost = 2.5f;
+        public float slideTier3Duration = 1.0f;
+        /// <summary>Length of a slide started in the air (a short dash).</summary>
+        public float airSlideDuration = 0.45f;
+        /// <summary>Deceleration while sliding on the ground (units/s^2): the slide bleeds speed instead of stopping dead.</summary>
+        public float slideFriction = 4f;
+        /// <summary>
+        /// How long a ground slide holds its full speed before slideFriction starts. Keeps the
+        /// slide-into-wall wall jump able to reach tier 3.
+        /// </summary>
+        public float slideFrictionDelay = 0.4f;
+        /// <summary>A ground slide slower than this stands up (e.g. after hitting a wall).</summary>
+        public float slideStopSpeed = 2.5f;
         public float slideMinSpeed = 5f;
         public float slideCooldown = 0.4f;
         /// <summary>A sliding player hits enemies in its body plus this much reach in front.</summary>
@@ -429,6 +451,20 @@ namespace Redline.Core
             Positive(nameof(kamikazeLungeSpeedX), kamikazeLungeSpeedX);
             Positive(nameof(kamikazeLungeSpeedY), kamikazeLungeSpeedY);
             Positive(nameof(slideDamageMultiplier), slideDamageMultiplier);
+            Positive(nameof(slideDuration), slideDuration);
+            Positive(nameof(airSlideDuration), airSlideDuration);
+            Positive(nameof(slideTier1Height), slideTier1Height);
+            Positive(nameof(slideTier3Height), slideTier3Height);
+            Positive(nameof(slideTier1Duration), slideTier1Duration);
+            Positive(nameof(slideTier3Duration), slideTier3Duration);
+            if (slideTier1Height > playerHeight) errors.Add("slideTier1Height must not exceed playerHeight");
+            if (slideTier3Height > playerHeight) errors.Add("slideTier3Height must not exceed playerHeight");
+            if (!(slideTier1Boost >= 0f)) errors.Add($"slideTier1Boost must be >= 0 (was {slideTier1Boost})");
+            if (!(slideTier3Boost >= 0f)) errors.Add($"slideTier3Boost must be >= 0 (was {slideTier3Boost})");
+            if (!(tier2Speed + slideTier1Boost < tier3Speed)) errors.Add("tier2Speed + slideTier1Boost must stay below tier3Speed (tier 3 is earned)");
+            if (!(slideFriction >= 0f)) errors.Add($"slideFriction must be >= 0 (was {slideFriction})");
+            if (!(slideFrictionDelay >= 0f)) errors.Add($"slideFrictionDelay must be >= 0 (was {slideFrictionDelay})");
+            if (!(slideStopSpeed >= 0f)) errors.Add($"slideStopSpeed must be >= 0 (was {slideStopSpeed})");
             if (!(slideHitReach >= 0f)) errors.Add($"slideHitReach must be >= 0 (was {slideHitReach})");
             Positive(nameof(summonerWidth), summonerWidth);
             Positive(nameof(summonerHeight), summonerHeight);

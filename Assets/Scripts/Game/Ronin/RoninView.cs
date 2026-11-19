@@ -15,6 +15,8 @@ namespace Redline.Game.Ronin
         public float VelocityY;
         /// <summary>Slide attack in progress.</summary>
         public bool Sliding;
+        /// <summary>Speed tier the slide started at (1 half crouch, 2 normal, 3 low full slide); 0 when not sliding.</summary>
+        public int SlideTier;
         /// <summary>Hanging from the hook.</summary>
         public bool Hooked;
         /// <summary>A strike is active. A rising edge or a new <see cref="StrikeId"/> restarts the swing.</summary>
