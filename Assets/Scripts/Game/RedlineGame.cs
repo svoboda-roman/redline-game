@@ -23,7 +23,7 @@ namespace Redline.Game
         /// (levelAdvanceDelay) the next one loads with a fresh, fully healed player; a missing or
         /// invalid level is skipped with a logged warning. After the last one the victory stays.
         /// </summary>
-        private static readonly string[] Levels = { "City01", "Loop01", "Loop02", "Loop03" };   // City01 is endless: the run ends only on death
+        private static readonly string[] Levels = { "City01", "City01B", "Loop01", "Loop02", "Loop03" };   // City01 / City01B (remix) are endless: the run ends only on death
         /// <summary>
         /// Half the view height in tiles: a close camera that follows the player. 6.75 frames the
         /// 40 px-per-tile character art at an exact 2× on a 1080p screen (13.5 tiles × 40 px = 540 px).
@@ -189,6 +189,16 @@ namespace Redline.Game
                 if (_flow == Flow.Playing) Pause();
                 else if (_flow == Flow.Paused) Resume();
             }
+
+            // F2 while playing: jump to the next map (wraps), to try the levels without beating an endless one.
+#if ENABLE_INPUT_SYSTEM
+            var kb = UnityEngine.InputSystem.Keyboard.current;
+            if (_flow == Flow.Playing && kb != null && kb.f2Key.wasPressedThisFrame)
+            {
+                int next = (_levelIndex + 1) % Levels.Length;
+                if (TryLoadLevel(next) || TryLoadLevel(0)) OnLevelChanged();
+            }
+#endif
 
             // The sim steps only in Playing; in menus the presses are dropped so they cannot reach the run.
             bool stepping = _flow == Flow.Playing && !_screen.Visible;

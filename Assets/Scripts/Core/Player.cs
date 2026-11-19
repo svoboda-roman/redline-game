@@ -48,6 +48,8 @@ namespace Redline.Core
         public float HookCooldownTimer;
         /// <summary>Seconds on the current rope (a release only flings after a real swing).</summary>
         public float HookTime;
+        /// <summary>Current rope reel speed (units/s; + reeling in, - letting out). Eases toward the input.</summary>
+        public float HookReelSpeed;
 
         /// <summary>Time left on the speed orb buff (0 when inactive). Read by the HUD.</summary>
         public float SpeedBuffTimer;

@@ -30,7 +30,7 @@ namespace Redline.Tests
             var p = _sim.Player;
             float length = p.HookLength;
             float y = p.Y;
-            Run(_sim, new InputFrame { HookHeld = true, MoveY = 1f }, 0.4f);
+            Run(_sim, new InputFrame { HookHeld = true, MoveY = 1f }, 0.8f);
 
             Assert.IsTrue(p.Hooked);
             Assert.Less(p.HookLength, length - 1.5f);
@@ -44,7 +44,7 @@ namespace Redline.Tests
             var p = _sim.Player;
             Run(_sim, new InputFrame { HookHeld = true }, 0.5f);   // settle under the anchor
             float length = p.HookLength;
-            Run(_sim, new InputFrame { HookHeld = true, MoveY = -1f }, 0.3f);
+            Run(_sim, new InputFrame { HookHeld = true, MoveY = -1f }, 0.6f);
 
             Assert.IsTrue(p.Hooked);
             Assert.Greater(p.HookLength, length + 1f);
