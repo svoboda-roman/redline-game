@@ -172,7 +172,6 @@ namespace Redline.Game.Render3D
             }
             UpdateShadows(camX - _level.localPosition.x);
             StreetUpdate(_time);
-            HazardUpdate(_time);
             for (int i = 0; i < _signalCount; i++)
             {
                 float s = Mathf.Repeat(_time * 0.9f + _signalPhase[i], 1f);
@@ -322,7 +321,7 @@ namespace Redline.Game.Render3D
 
             if (_look.MetalPlatforms)
             {
-                _spikeMesh = Own(new Mesh { name = "spikes" });   // spike tiles become electrified puddles (Arena3DHazards.cs)
+                _spikeMesh = Own(ChromeSpikes());   // 80s chrome spike fields (Arena3DStructure.cs)
             }
             else
             {
@@ -397,8 +396,11 @@ namespace Redline.Game.Render3D
             copy.localPosition = new Vector3(offsetX, 0f, 0f);
             Filled(MeshGo("level", copy, _levelMesh, _fasciaMat, _slabTopMat, _fasciaSideMat));
             Filled(Hidden(MeshGo("deck", copy, _deckMesh, _wallMat, _deckMat)));
-            if (_spikeMesh.vertexCount > 0) Filled(MeshGo("spikes", copy, _spikeMesh, _spikeMat));
-            if (_look.MetalPlatforms) ElectricPuddles(copy);   // Arena3DHazards.cs
+            if (_spikeMesh.vertexCount > 0)
+            {
+                if (_look.MetalPlatforms) Filled(MeshGo("spikes", copy, _spikeMesh, _spikeCollarMat, _spikeMat, _spikeTipMat));
+                else Filled(MeshGo("spikes", copy, _spikeMesh, _spikeMat));
+            }
             DeckReflection(copy);
             if (_postMesh.vertexCount > 0) MeshGo("posts", copy, _postMesh, _postMat, _postMat);
             if (_headMesh.vertexCount > 0) MeshGo("heads", copy, _headMesh, _headMat, _headMat);
