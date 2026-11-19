@@ -280,7 +280,7 @@ namespace Redline.Game.Render3D
             }
 
             // Signs: blades along the building edges, boards across the floors, stacked from the shops to the roof.
-            int n = Mathf.RoundToInt(detail * (9f + R() * 7f) * Mathf.Clamp(w / 7f, 0.6f, 1.6f));
+            int n = Mathf.RoundToInt(detail * (2.5f + R() * 3f) * Mathf.Clamp(w / 7f, 0.6f, 1.6f));   // a few signs per building, not a wall of text
             float yMin = FloorTop + 4f * scale, yMax = top - 1.5f * scale;
             for (int i = 0; i < n && yMax > yMin + 2f; i++)
             {
