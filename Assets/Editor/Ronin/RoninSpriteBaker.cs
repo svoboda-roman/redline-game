@@ -559,21 +559,15 @@ namespace Redline.RoninEditor
             _katana.localPosition = _katanaRestPos;
             _katana.localRotation = _katanaRestRot;
             if (float.IsNaN(_uprightDeg)) return;
-            // The grip is the point of the handle (pommel..guard) nearest the right palm; after the turn it is put
-            // back exactly in the palm, so the hand closes round the handle (no floating sword).
-            Vector3 palm = Palm();
-            Vector3 p = _katana.TransformPoint(_pommelLocal), gd = _katana.TransformPoint(_guardLocal);
-            Vector3 ax = gd - p;
-            float t = ax.sqrMagnitude > 1e-8f ? Mathf.Clamp01(Vector3.Dot(palm - p, ax) / ax.sqrMagnitude) : 0.5f;
-            t = Mathf.Clamp(t, 0.25f, 0.75f);   // hold the handle, not the pommel cap or the guard
-            Vector3 gripLocal = Vector3.Lerp(_pommelLocal, _guardLocal, t);
+            // The katana stays exactly where the model's fist holds it (its authored grip, child of the right hand);
+            // the WRIST turns so the blade points the requested way. The fist wraps the handle, the pommel shows
+            // below the fist and the blade above it: the sword is held, not glued on.
+            var wrist = _katana.parent;
+            if (wrist == null) return;
             Vector3 cur = _katana.TransformDirection(_tipLocal - _guardLocal).normalized;
             float a = _uprightDeg * Mathf.Deg2Rad;
-            Vector3 target = new Vector3(Mathf.Sin(a), Mathf.Cos(a), 0f);   // baked facing +x
-            _katana.rotation = Quaternion.FromToRotation(cur, target) * _katana.rotation;
-            // Grip in the palm, nudged toward the camera so the blade reads in front of the arm and coat (the sword
-            // hand is the near one), not behind the body as if the far hand held it.
-            _katana.position += palm - _katana.TransformPoint(gripLocal) + new Vector3(0f, 0f, -0.12f);
+            Vector3 target = new Vector3(Mathf.Sin(a), Mathf.Cos(a), -0.12f).normalized;   // baked facing +x; a touch toward the camera
+            wrist.rotation = Quaternion.FromToRotation(cur, target) * wrist.rotation;
         }
 
         /// <summary>Standing two-handed guard: both palms on the handle in front of the belly (set per clip while baking).</summary>
@@ -583,7 +577,84 @@ namespace Redline.RoninEditor
         private static bool _rightForward;
 
         /// <summary>Handle centre of the two-handed guard relative to the hips (world units, facing +x; -z is toward the camera).</summary>
-        private static readonly Vector3 GuardOffset = new Vector3(0.2f, 0.02f, -0.15f);   // sword hand at the hip, a little forward, elbow bent at the side
+        private static Vector3 GuardOffset = new Vector3(0.32f, 0.06f, -0.22f);   // sword fist at hip height, forward of the body and on the near side
+
+        /// <summary>
+        /// Batch entry point: renders the standing pose (idle frame 0, ink style) in several sword-holding stances side by
+        /// side into production/qa/evidence/ronin-stances.png, without touching the sheet. For choosing a stance.
+        /// </summary>
+        public static void StanceVariantsFromCommandLine()
+        {
+            try
+            {
+                RoninSetup.EnsureAssets();
+                EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                var assets = RoninAssets.Load();
+                GameObject root = null;
+                try
+                {
+                    SetupCamera();
+                    root = new GameObject("BakeRoot");
+                    _view = RoninView.Create(assets, root.transform);
+                    _view.AutoTick = false;
+                    _view.CameraTurn = Actors3DView.RoninCameraTurn;
+                    _view.SnapFacing(1);
+                    _view.transform.localScale = Vector3.one * Measure(_view.transform, 1.6f * Actors3DView.RoninHeightRatio);
+                    BuildPassMaterials();
+                    // (name, blade degrees from vertical toward facing, guard offset from the hips, two hands, IK)
+                    var v = new (string name, float deg, Vector3 off, bool two, bool ik)[]
+                    {
+                        ("A", 24f, new Vector3(0.2f, 0.02f, -0.15f), false, true),     // hip ready (current)
+                        ("B", 120f, Vector3.zero, false, false),                        // relaxed: blade down-forward by the leg
+                        ("C", -70f, new Vector3(0.12f, 0.42f, -0.18f), false, true),    // resting on the shoulder
+                        ("D", 60f, new Vector3(0.3f, 0.15f, -0.15f), false, true),      // one-hand seigan: tip toward the enemy
+                        ("E", 45f, new Vector3(0.3f, 0.18f, -0.12f), true, true),       // two-hand chudan: tip at eye height
+                        ("F", 0f, new Vector3(0.24f, 0.34f, -0.12f), true, true),       // two-hand hasso: upright by the shoulder
+                    };
+                    var frames = new List<Fr>();
+                    foreach (var s in v)
+                    {
+                        _uprightDeg = s.deg; GuardOffset = s.off; _twoHand = s.two && s.ik; _rightForward = !s.two && s.ik;
+                        _view.transform.position = Vector3.zero;
+                        _view.Model.localPosition = Vector3.zero;
+                        _view.SamplePose(RoninClip.Idle, 0f);
+                        TwoHandGuard();
+                        FixKatana();
+                        _view.ResetSprings();
+                        var f = Snapshot("stance_" + s.name, null);
+                        Clean(f);
+                        if (InkStyle) Ink(f);
+                        frames.Add(f);
+                    }
+                    const int S = 3;
+                    var tex = new Texture2D(CW * frames.Count * S, CH * S, TextureFormat.RGBA32, false);
+                    var bg = new Color32(150, 95, 140, 255);
+                    var px = new Color32[tex.width * tex.height];
+                    for (int i = 0; i < px.Length; i++) px[i] = bg;
+                    for (int n = 0; n < frames.Count; n++)
+                        for (int y = 0; y < CH; y++)
+                        for (int x = 0; x < CW; x++)
+                        {
+                            int k = y * CW + x;
+                            if (!frames[n].Op[k]) continue;
+                            var c = (frames[n].Em[k] & 1) != 0 ? new Color32(120, 220, 255, 255) : frames[n].Col[k];
+                            for (int sy = 0; sy < S; sy++) for (int sx = 0; sx < S; sx++) px[(y * S + sy) * tex.width + (n * CW + x) * S + sx] = c;
+                        }
+                    tex.SetPixels32(px);
+                    tex.Apply();
+                    System.IO.Directory.CreateDirectory(EvidenceDir);
+                    System.IO.File.WriteAllBytes(EvidenceDir + "ronin-stances.png", tex.EncodeToPNG());
+                    UnityEngine.Object.DestroyImmediate(tex);
+                }
+                finally
+                {
+                    if (root != null) UnityEngine.Object.DestroyImmediate(root);
+                    Cleanup();
+                }
+                EditorApplication.Exit(0);
+            }
+            catch (Exception e) { Debug.LogError("RONIN_STANCES_FAIL " + e); EditorApplication.Exit(1); }
+        }
 
         /// <summary>
         /// Two-handed guard: puts both palms on one handle in front of the belly, right hand near the guard, left near
@@ -635,14 +706,6 @@ namespace Redline.RoninEditor
             lo.localRotation = lo.localRotation * r1;
         }
 
-        /// <summary>Centre of the right (sword) palm: from the wrist toward the middle-finger base when the rig has it.</summary>
-        private static Vector3 Palm()
-        {
-            var hand = Bone(HumanBodyBones.RightHand);
-            if (hand == null) return _katana.parent != null ? _katana.parent.position : _katana.position;
-            var mid = Bone(HumanBodyBones.RightMiddleProximal) ?? Bone(HumanBodyBones.RightIndexProximal);
-            return mid != null ? Vector3.Lerp(hand.position, mid.position, 0.6f) : hand.position;
-        }
 
         /// <summary>Guard and tip of the katana in local space (longest mesh-bounds axis; the end nearer the hand is
         /// the pommel, the guard ~29% of the length from it; same rule as <see cref="BladeTrail"/>).</summary>
