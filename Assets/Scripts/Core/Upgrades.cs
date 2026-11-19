@@ -106,8 +106,8 @@ namespace Redline.Core
         public float orbDurationPerLevel = 0.06f;
 
         // --- Random upgrade (spin): pay, a random not-maxed upgrade gains a level; the price grows per spin ---
-        public int spinBaseCost = 30;
-        public float spinCostGrowth = 1.08f;
+        public int spinBaseCost = 50;
+        public float spinCostGrowth = 1.1f;
 
         /// <summary>Price of the next random upgrade after <paramref name="spins"/> spins.</summary>
         public int SpinCost(int spins)

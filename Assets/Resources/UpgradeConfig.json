@@ -27,6 +27,6 @@
     "attackRangePerLevel": 0.06,
     "orbChancePerLevel": 0.012,
     "orbDurationPerLevel": 0.06,
-    "spinBaseCost": 30,
-    "spinCostGrowth": 1.08
+    "spinBaseCost": 50,
+    "spinCostGrowth": 1.1
 }

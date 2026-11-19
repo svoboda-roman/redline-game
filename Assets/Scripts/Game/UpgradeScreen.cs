@@ -48,6 +48,8 @@ namespace Redline.Game
         public static float SpinSeconds = 2.8f;
         private const int ReelLength = 34;
         private const float LineH = 50f;
+        /// <summary>The pixel font sits low in its line box: lift the reel so a name lands centred in the frame.</summary>
+        private const float ReelNudge = -9f;
 
         private UpgradeStore _store;
         private PanelSettings _settings;
@@ -154,7 +156,7 @@ namespace Redline.Game
             _result.text = "";
             _flash = 0f;
             for (int k = 0; k < 3; k++) _reel[k].text = k == 1 ? "?" : "";
-            _reelStrip.style.top = 0f;
+            _reelStrip.style.top = ReelNudge;
             _selected = _store.State.CanSpin(_store.Config) == BuyResult.Ok ? SpinIndex : ContinueIndex;
             _menu.style.display = _menuShown ? DisplayStyle.Flex : DisplayStyle.None;
             Root.style.display = DisplayStyle.Flex;
@@ -205,7 +207,7 @@ namespace Redline.Game
                 int i = Mathf.Clamp(centre - 1 + k, 0, ReelLength - 1);
                 _reel[k].text = Title(_reelKinds[i]);
             }
-            _reelStrip.style.top = -frac * LineH;
+            _reelStrip.style.top = ReelNudge - frac * LineH;
         }
 
         private void AskReset()
