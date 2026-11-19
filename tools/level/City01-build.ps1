@@ -103,8 +103,8 @@ if ($Remix -and $Top) {
     Fill 7 22 25
 
     # ---- the pit right of the spiked shaft (cols 35-45, rows 17-33): was an empty dead end
-    # g) the first stair loses its spikes (it is the way up now); the danger moves to the floor under the stairs
-    Wipe 28 40 42; Fill 33 41 45 '^'
+    # g) the first stair loses its spikes (the floor under the stairs stays clear too)
+    Wipe 28 40 42
     # h) a ledge on the shaft's outer wall: a perch for wall jumps up out of the pit
     Fill 24 35 37
     # i) a floating plate above the pit: hook point / stepping stone toward the bar over the shaft
