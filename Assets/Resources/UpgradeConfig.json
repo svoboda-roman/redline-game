@@ -25,5 +25,7 @@
     "swordCostGrowth": 1.6,
     "attackRangePerLevel": 0.15,
     "orbChancePerLevel": 0.03,
-    "orbDurationPerLevel": 0.15
+    "orbDurationPerLevel": 0.15,
+    "spinBaseCost": 30,
+    "spinCostGrowth": 1.35
 }
