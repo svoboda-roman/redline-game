@@ -147,8 +147,10 @@ namespace Redline.RoninEditor
             // Idle: 1.33 s breathing cycle, 16 frames at 12 fps.
             // Sword held upright in a normal grip (blade up, leaning forward) in every non-attack pose; the slashes,
             // the slide attack and death keep their own blade (see _uprightDeg / FixKatana).
-            _uprightDeg = 12f;   // standing: the right hand forward in front of the body, blade up
-            _rightForward = true;
+            // Standing: classic two-handed high guard (hasso-like): both hands on the hilt at shoulder height in front,
+            // right hand at the guard above the left, blade up and leaning back over the shoulder.
+            _uprightDeg = -14f;
+            _twoHand = true;
             list.Add(SampleClip("idle", RoninClip.Idle, 16f / L(RoninClip.Idle), true, Uniform(16, 0f, L(RoninClip.Idle), true), 0f, false, idleHips, hand));
             // Run and sprint: one stride cycle each (10 and 8 frames). The presenter plays them at
             // speed x duration / stride (the stride is measured here from the planted foot), so the cloth is simulated
@@ -581,7 +583,7 @@ namespace Redline.RoninEditor
         private static bool _rightForward;
 
         /// <summary>Handle centre of the two-handed guard relative to the hips (world units, facing +x; -z is toward the camera).</summary>
-        private static readonly Vector3 GuardOffset = new Vector3(0.3f, 0.14f, -0.1f);
+        private static readonly Vector3 GuardOffset = new Vector3(0.3f, 0.36f, -0.12f);   // high guard: hands at chest height in front, below the hat brim
 
         /// <summary>
         /// Two-handed guard: puts both palms on one handle in front of the belly, right hand near the guard, left near
