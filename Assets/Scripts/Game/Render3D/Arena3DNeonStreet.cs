@@ -33,13 +33,20 @@ namespace Redline.Game.Render3D
             var facadeTex = Own(FacadeTexture(_look.Seed));
             var atlas = Own(SignAtlas(_look.Seed, _look.SignColors, _signCells));
             _streetFacadeMat = Own(Proto3DMaterials.FxMat("streetFacade", facadeTex, Color.white, 2, 1f));
+            var facadeMats = new Material[FacadeStyles];
+            facadeMats[0] = _streetFacadeMat;
+            for (int s = 1; s < FacadeStyles; s++)
+                facadeMats[s] = Own(Proto3DMaterials.FxMat("streetFacade" + s, Own(FacadeStyleTexture(_look.Seed, s)), Color.white, 2, 1f));
+            _streetBoardMat = Own(Proto3DMaterials.FxMat("streetBoards", Own(BoardAtlas(_look.Seed, _look.SignColors, _boardCells)), Color.white, 2, 0.3f));
+            StreetSky();
             _streetSignMat = Own(Proto3DMaterials.FxMat("streetSigns", atlas, Color.white, 2, 0.3f));
             _streetBlinkMat = Own(Proto3DMaterials.FxMat("streetSignsBlink", atlas, Color.white, 2, 0.3f));
             var haloMat = Own(Proto3DMaterials.FxMat("streetHalo", _blob, Color.white, 0, 0.45f));
 
-            _cityRows = new Transform[StreetRows.Length];
-            _cityPeriod = new float[StreetRows.Length];
+            _cityRows = new Transform[StreetRows.Length + 1];
+            _cityPeriod = new float[StreetRows.Length + 1];
             var rnd = new System.Random(_look.Seed * 41 + 17);
+            FarSkyline(rnd, StreetRows.Length);
             for (int r = 0; r < StreetRows.Length; r++)
             {
                 var (z, detail) = StreetRows[r];
@@ -49,6 +56,10 @@ namespace Redline.Game.Render3D
                 _cityPeriod[r] = period;
 
                 var facades = new UvQuads();
+                var bodies = new UvQuads[FacadeStyles];
+                bodies[0] = facades;
+                for (int s = 1; s < FacadeStyles; s++) bodies[s] = new UvQuads();
+                var boards = new UvQuads();
                 var signs = new UvQuads();
                 var blink = new UvQuads();
                 var halos = new QuadBatch();
@@ -58,8 +69,19 @@ namespace Redline.Game.Render3D
                     float scale = 1f + z * 0.012f;
                     float w = Mathf.Min((5.5f + (float)rnd.NextDouble() * 6f) * scale, period - x);
                     if (period - x - w < 3f) w = period - x;   // no sliver at the seam
-                    float top = FloorTop + (22f + (float)rnd.NextDouble() * 26f) * scale + z * 0.25f;
-                    StreetBuilding(rnd, facades, signs, blink, halos, x, w, top, z, detail, scale, r == 0);
+                    // Mixed heights: low walk-ups, mid blocks, tall towers (the sky shows between and above them).
+                    // Near row mostly low (rooftop billboards and the sky read over it), towers further back.
+                    double hr = rnd.NextDouble();
+                    float q = (float)rnd.NextDouble();
+                    // Low skyline so the night sky, the moon and the far city show above the street.
+                    // Heights in world units, kept under the camera's view top at each depth (seen from the street:
+                    // ~14 at z 16, ~18 at z 29, ~23 at z 48, ~31 at z 80) so a band of night sky is always visible.
+                    float hu = r == 0 ? (hr < 0.75 ? 5f + q * 4f : 9f + q * 3f)
+                             : r == 1 ? (hr < 0.75 ? 6.5f + q * 5f : 11.5f + q * 3f)
+                             : r == 2 ? (hr < 0.75 ? 8f + q * 7f : 15f + q * 4f)
+                             : (hr < 0.75 ? 10f + q * 9f : 19f + q * 5f);
+                    float top = FloorTop + hu;
+                    StreetBuilding(rnd, facades, bodies, boards, signs, blink, halos, x, w, top, z, detail, scale, r == 0);
                     // Power / telecom cables sagging between neighbouring buildings (the two nearest rows).
                     if (r <= 1 && x > 0f)
                     {
@@ -69,14 +91,21 @@ namespace Redline.Game.Render3D
                             float ya = FloorTop + (5f + (float)rnd.NextDouble() * 14f) * scale, yb = ya + ((float)rnd.NextDouble() - 0.5f) * 3f * scale;
                             var a = new Vector3(x - (1f + (float)rnd.NextDouble() * 3f) * scale, ya, z - 1.4f * scale);
                             var b = new Vector3(x + (1f + (float)rnd.NextDouble() * 4f) * scale, yb, z - 1.4f * scale);
-                            Cable(facades, a, b, (0.4f + (float)rnd.NextDouble() * 0.8f) * scale, 0.06f * scale, new Color(0.05f, 0.04f, 0.06f));
+                            // Some cables are strings of coloured bulbs (festival lights across the street).
+                            Cable(facades, a, b, (0.4f + (float)rnd.NextDouble() * 0.8f) * scale, 0.06f * scale, new Color(0.05f, 0.04f, 0.06f),
+                                rnd.NextDouble() < 0.5 ? signs : null, _look.SignColors, rnd, scale);
                         }
                     }
                     x += w;
+                    // The odd alley: a gap through which the next row (and the sky) shows.
+                    if (r < StreetRows.Length - 1 && x < period - 6f * scale && rnd.NextDouble() < 0.22) x += (1.5f + (float)rnd.NextDouble() * 2f) * scale;
                 }
                 // Street floor between the deck's back edge and the nearest fronts (no void under the signs).
                 if (r == 0) facades.Floor(new Vector3(period * 0.5f, FloorTop - 0.02f, (_look.DeckFar + z) * 0.5f), period, z - _look.DeckFar + 0.4f, PlasterUv, new Color(0.18f, 0.12f, 0.16f));
 
+                var bodyMeshes = new Mesh[FacadeStyles];
+                for (int s = 1; s < FacadeStyles; s++) if (bodies[s].Count > 0) bodyMeshes[s] = Own(bodies[s].Build("streetBodies" + s + "_" + r));
+                var boardMesh = boards.Count > 0 ? Own(boards.Build("streetBoards" + r)) : null;
                 var facadeMesh = Own(facades.Build("streetFacades" + r));
                 var signMesh = signs.Count > 0 ? Own(signs.Build("streetSigns" + r)) : null;
                 var blinkMesh = blink.Count > 0 ? Own(blink.Build("streetBlink" + r)) : null;
@@ -88,6 +117,8 @@ namespace Redline.Game.Render3D
                     inst.localPosition = new Vector3(c * period, 0f, 0f);
                     // The nearest row is mirrored by the wet floor; the far rows are not (cost).
                     StreetPart("facades", inst, facadeMesh, _streetFacadeMat, r > 0);
+                    for (int s = 1; s < FacadeStyles; s++) if (bodyMeshes[s] != null) StreetPart("bodies" + s, inst, bodyMeshes[s], facadeMats[s], r > 0);
+                    if (boardMesh != null) StreetPart("boards", inst, boardMesh, _streetBoardMat, r > 0);
                     if (signMesh != null) StreetPart("signs", inst, signMesh, _streetSignMat, r > 0);
                     if (blinkMesh != null) StreetPart("blink", inst, blinkMesh, _streetBlinkMat, r > 0);
                     if (haloMesh != null) StreetPart("halos", inst, haloMesh, haloMat, true);
@@ -111,18 +142,54 @@ namespace Redline.Game.Render3D
             _streetBlinkMat.SetColor("_Color", off ? new Color(0.12f, 0.12f, 0.12f, 1f) : Color.white);
         }
 
-        private void StreetBuilding(System.Random rnd, UvQuads facades, UvQuads signs, UvQuads blink, QuadBatch halos,
+        private void StreetBuilding(System.Random rnd, UvQuads facades, UvQuads[] bodies, UvQuads boards, UvQuads signs, UvQuads blink, QuadBatch halos,
             float x, float w, float top, float z, float detail, float scale, bool near)
         {
             float R() => (float)rnd.NextDouble();
             float bottom = near ? FloorTop - 0.5f : -40f;
-            // Facade: tiled window texture (8 units per tile), tinted per building (warm, never black).
+            // Building type: towers are glass offices or ribbed concrete; the rest plaster walk-ups, panel blocks or brick.
+            bool tower = top - FloorTop > 11f + z * 0.12f;
+            int style = tower ? (R() < 0.55f ? 3 : 4) : new[] { 0, 1, 1, 2, 2, 0 }[rnd.Next(6)];
+            // Facade: tiled texture (8 units per tile), tinted per building (warm, never black; glass stays cool).
             var tints = new[] { new Color(0.85f, 0.62f, 0.7f), new Color(0.7f, 0.6f, 0.85f), new Color(0.9f, 0.7f, 0.6f), new Color(0.75f, 0.55f, 0.6f), new Color(0.6f, 0.55f, 0.75f) };
-            var tint = tints[rnd.Next(tints.Length)] * (0.7f + R() * 0.35f) * Mathf.Lerp(0.75f, 1f, detail);
+            var tint = (style == 3 ? new Color(0.9f, 0.9f, 1f) : tints[rnd.Next(tints.Length)]) * (0.75f + R() * 0.3f) * Mathf.Lerp(0.75f, 1f, detail);
             tint.a = 1f;
             float u0 = R(), v0 = R();
-            facades.Quad(new Vector3(x + w * 0.5f, (bottom + top) * 0.5f, z), w, top - bottom,
+            bodies[style].Quad(new Vector3(x + w * 0.5f, (bottom + top) * 0.5f, z), w, top - bottom,
                 new Rect(u0, v0, w / (8f * scale), (top - bottom) / (8f * scale)), tint);
+            // Roof clutter on every building: AC boxes, vent stacks, a satellite dish.
+            if (detail > 0.4f)
+            {
+                var kit = new Color(0.24f, 0.2f, 0.27f);
+                int nk = 1 + rnd.Next(3);
+                for (int k = 0; k < nk; k++)
+                {
+                    float kx = x + 0.6f * scale + R() * Mathf.Max(0.1f, w - 1.2f * scale);
+                    switch (rnd.Next(3))
+                    {
+                        case 0: { float kw = (0.8f + R() * 0.6f) * scale, kh = (0.5f + R() * 0.4f) * scale; facades.Quad(new Vector3(kx, top + 0.5f * scale + kh * 0.5f, z + 0.3f), kw, kh, PlasterUv, kit); facades.Quad(new Vector3(kx, top + 0.5f * scale + kh * 0.5f, z + 0.25f), kw * 0.5f, kh * 0.5f, PlasterUv, kit * 0.6f); break; }
+                        case 1: { float kh = (1f + R() * 1.4f) * scale; facades.Quad(new Vector3(kx, top + 0.5f * scale + kh * 0.5f, z + 0.3f), 0.22f * scale, kh, PlasterUv, kit * 1.2f); facades.Quad(new Vector3(kx, top + 0.5f * scale + kh, z + 0.28f), 0.36f * scale, 0.12f * scale, PlasterUv, kit); break; }
+                        default: { float ds = (0.5f + R() * 0.3f) * scale; facades.Line(new Vector3(kx - ds * 0.5f, top + 0.6f * scale + ds, z + 0.3f), new Vector3(kx + ds * 0.4f, top + 0.6f * scale, z + 0.3f), ds * 0.7f, PlasterUv, kit * 1.4f); facades.Quad(new Vector3(kx, top + 0.55f * scale + ds * 0.25f, z + 0.32f), 0.08f * scale, ds * 0.5f, PlasterUv, kit); break; }
+                    }
+                }
+            }
+
+            // Big wall billboards on taller buildings (brands; some dead).
+            if (detail > 0.55f && top - FloorTop > 9.5f * scale && R() < 0.5f)
+            {
+                int nb = R() < 0.3f ? 2 : 1;
+                for (int k = 0; k < nb; k++)
+                {
+                    var cell = PickBoard(rnd);
+                    float bw = Mathf.Min(w * 0.8f, (4f + R() * 3f) * scale), bh = bw * 0.5f;
+                    float by = FloorTop + 6f * scale + bh * 0.5f + R() * Mathf.Max(0.1f, top - FloorTop - 8f * scale - bh);
+                    float bx = x + w * 0.5f + (R() - 0.5f) * Mathf.Max(0f, w - bw);
+                    bool deadB = R() < _look.DeadSigns;
+                    facades.Quad(new Vector3(bx, by, z - 0.2f), bw + 0.3f * scale, bh + 0.3f * scale, PlasterUv, new Color(0.15f, 0.13f, 0.17f));   // frame
+                    boards.Quad(new Vector3(bx, by, z - 0.25f), bw, bh, cell.Uv, deadB ? new Color(0.16f, 0.14f, 0.16f) : Color.white * 0.95f);
+                    if (!deadB) halos.Billboard(new Vector3(bx, by, z - 0.6f), bw * 1.6f, bh * 2.2f, cell.Tint * 0.09f);
+                }
+            }
             // Roof parapet line and the odd LED outline.
             facades.Quad(new Vector3(x + w * 0.5f, top + 0.25f * scale, z - 0.05f), w, 0.5f * scale, PlasterUv, tint * 0.6f);
             if (R() < 0.45f * detail)
@@ -201,13 +268,13 @@ namespace Redline.Game.Render3D
                 }
                 else if (roof < 0.8f && w > 6f * scale)
                 {
-                    // Rooftop billboard on a scaffold frame (lit or dead).
-                    var cell = Pick(rnd, 1);
-                    float bw2 = w * 0.7f, bh2 = bw2 * 0.25f, by2 = top + 0.9f * scale + bh2 * 0.5f;
+                    // Rooftop billboard on a scaffold frame (a brand; lit or dead).
+                    var cell = PickBoard(rnd);
+                    float bw2 = Mathf.Min(w * 0.75f, 8f * scale), bh2 = bw2 * 0.5f, by2 = top + 0.9f * scale + bh2 * 0.5f;
                     for (float lx = x + w * 0.5f - bw2 * 0.4f; lx <= x + w * 0.5f + bw2 * 0.4f + 0.01f; lx += bw2 * 0.4f)
                         facades.Quad(new Vector3(lx, top + 0.45f * scale, z + 0.2f), 0.08f * scale, 0.9f * scale, PlasterUv, dark);
                     bool deadBoard = R() < _look.DeadSigns * 1.5f;
-                    signs.Quad(new Vector3(x + w * 0.5f, by2, z + 0.15f), bw2, bh2, cell.Uv, deadBoard ? new Color(0.14f, 0.12f, 0.13f) : Color.white * 0.95f);
+                    boards.Quad(new Vector3(x + w * 0.5f, by2, z + 0.15f), bw2, bh2, cell.Uv, deadBoard ? new Color(0.14f, 0.12f, 0.13f) : Color.white * 0.95f);
                     if (!deadBoard) halos.Billboard(new Vector3(x + w * 0.5f, by2, z - 0.2f), bw2 * 1.5f, bh2 * 2.5f, cell.Tint * 0.1f);
                 }
             }
@@ -253,17 +320,68 @@ namespace Redline.Game.Render3D
         /// <summary>Height of the ground-floor shop band (shop front + header) at a row scale.</summary>
         private static float sh0(float scale) => 3.4f * scale;
 
-        /// <summary>A sagging cable from <paramref name="a"/> to <paramref name="b"/> (segments of thin quads).</summary>
-        private static void Cable(UvQuads q, Vector3 a, Vector3 b, float sag, float thick, Color col)
+        /// <summary>
+        /// A sagging cable from <paramref name="a"/> to <paramref name="b"/> (segments of thin quads); with
+        /// <paramref name="bulbs"/>, a string of coloured light bulbs hangs along it.
+        /// </summary>
+        private static void Cable(UvQuads q, Vector3 a, Vector3 b, float sag, float thick, Color col,
+            UvQuads bulbs = null, Color[] palette = null, System.Random rnd = null, float scale = 1f)
         {
-            const int N = 8;
+            int n = Mathf.Max(8, Mathf.RoundToInt((b - a).magnitude / (0.55f * scale)));
             Vector3 prev = a;
-            for (int i = 1; i <= N; i++)
+            for (int i = 1; i <= n; i++)
             {
-                float t = i / (float)N;
+                float t = i / (float)n;
                 var p = Vector3.Lerp(a, b, t) + Vector3.down * (sag * 4f * t * (1f - t));
                 q.Line(prev, p, thick, PlasterUv, col);
+                if (bulbs != null && palette != null && rnd != null && i < n)
+                {
+                    var bc = palette[rnd.Next(palette.Length)];
+                    float s = 0.13f * scale;
+                    bulbs.Quad(p + new Vector3(0f, -s * 0.8f, -0.02f), s, s, WhiteUv, bc * (rnd.NextDouble() < 0.12 ? 0.15f : 1f));
+                }
                 prev = p;
+            }
+        }
+
+        /// <summary>
+        /// The far city on the horizon (row <paramref name="index"/>, z 135): dark violet tower silhouettes of mixed
+        /// height with sparse lit window dots and red aviation beacons, unlit and lightly fogged.
+        /// </summary>
+        private void FarSkyline(System.Random rnd, int index)
+        {
+            const float z = 135f;
+            float period = Mathf.Ceil((PlaneDistance + z) * 1.2f / 8f) * 8f;
+            var row = new GameObject("FarSkyline").transform;
+            row.SetParent(_follow, false);
+            _cityRows[index] = row;
+            _cityPeriod[index] = period;
+            var q = new UvQuads();
+            float x = 0f;
+            while (x < period - 3f)
+            {
+                float w = Mathf.Min(6f + (float)rnd.NextDouble() * 12f, period - x);
+                float h = rnd.NextDouble() < 0.15 ? 34f + (float)rnd.NextDouble() * 12f : 12f + (float)rnd.NextDouble() * 18f;
+                var body = new Color(0.12f, 0.09f, 0.22f) * (0.8f + (float)rnd.NextDouble() * 0.4f);
+                body.a = 1f;
+                q.Quad(new Vector3(x + w * 0.5f, (h - 30f) * 0.5f, z), w, h + 30f, WhiteUv, body);
+                for (float wy = 2f; wy < h - 2f; wy += 2.2f)
+                for (float wx = x + 1f; wx < x + w - 1f; wx += 1.8f)
+                    if (rnd.NextDouble() < 0.22)
+                    {
+                        var wc = rnd.NextDouble() < 0.7 ? new Color(1f, 0.75f, 0.45f) : new Color(0.7f, 0.85f, 1f);
+                        q.Quad(new Vector3(wx, wy, z - 0.1f), 0.7f, 0.9f, WhiteUv, wc * 0.75f);
+                    }
+                if (h > 30f) q.Quad(new Vector3(x + w * 0.5f, h + 0.6f, z - 0.1f), 0.9f, 0.9f, WhiteUv, new Color(1.4f, 0.1f, 0.08f));
+                x += w + (rnd.NextDouble() < 0.3 ? 2f + (float)rnd.NextDouble() * 6f : 0f);
+            }
+            var mesh = Own(q.Build("farSkyline"));
+            for (int c = -1; c <= 1; c++)
+            {
+                var inst = new GameObject("Strip " + c).transform;
+                inst.SetParent(row, false);
+                inst.localPosition = new Vector3(c * period, 0f, 0f);
+                StreetPart("skyline", inst, mesh, _streetSignMat, true);
             }
         }
 
