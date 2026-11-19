@@ -79,6 +79,8 @@ namespace Redline.Game.Render3D.Integration
         private readonly MeshRenderer _rope, _ropeGlow, _anchor, _anchorCore;
         private readonly MaterialPropertyBlock _mpb = new MaterialPropertyBlock();
         private int _tier = -1;
+        /// <summary>The tier colour last applied (a cosmetic accent can change it without a tier change).</summary>
+        private Color _tierColor = Color.clear;
         private int _lastHp = int.MinValue;
         private float _hurt;
         private float _stretch = 1f;
@@ -327,7 +329,7 @@ namespace Redline.Game.Render3D.Integration
             {
                 _lastFeet = feet;
                 _hasLast = true;
-                if (tier != _tier) { _tier = tier; _baked.SetTierColor(TierColor(tier)); }   // RedlineGame.TierColors, follows Sim.PlayerTier
+                if (tier != _tier || TierColor(tier) != _tierColor) { _tier = tier; _tierColor = TierColor(tier); _baked.SetTierColor(_tierColor); }   // RedlineGame.TierColors, follows Sim.PlayerTier
                 _baked.Tick(input, feet, dt);
                 // The camera moved before the actors this frame (RedlineGame.UpdateCamera3D); re-place it on the sprite's
                 // snap so the followed sprite keeps a constant texel offset (no ±1 back-and-forth while running).
@@ -347,9 +349,10 @@ namespace Redline.Game.Render3D.Integration
                 _ronin.SnapFacing(_ronin.Input.Facing);
                 _ronin.ResetSprings();
             }
-            if (tier != _tier)
+            if (tier != _tier || TierColor(tier) != _tierColor)
             {
                 _tier = tier;
+                _tierColor = TierColor(tier);
                 _ronin.SetTierColor(TierColor(tier) * TierHdr);
             }
         }
