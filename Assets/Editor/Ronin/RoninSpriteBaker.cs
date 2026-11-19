@@ -102,6 +102,7 @@ namespace Redline.RoninEditor
         {
             _katana = null;
             _uprightDeg = float.NaN;
+            _twoHand = false;
             if (_cam != null)
             {
                 _cam.targetTexture = null;
@@ -145,11 +146,13 @@ namespace Redline.RoninEditor
             // Idle: 1.33 s breathing cycle, 16 frames at 12 fps.
             // Sword held upright in a normal grip (blade up, leaning forward) in every non-attack pose; the slashes,
             // the slide attack and death keep their own blade (see _uprightDeg / FixKatana).
-            _uprightDeg = 48f;   // standing: blade forward and up, clear of the arm and hat (like the run pose)
+            _uprightDeg = 30f;   // standing: two-handed guard, blade up and forward in front of the body
+            _twoHand = true;
             list.Add(SampleClip("idle", RoninClip.Idle, 16f / L(RoninClip.Idle), true, Uniform(16, 0f, L(RoninClip.Idle), true), 0f, false, idleHips, hand));
             // Run and sprint: one stride cycle each (10 and 8 frames). The presenter plays them at
             // speed x duration / stride (the stride is measured here from the planted foot), so the cloth is simulated
             // in the real time one cycle takes at the speed each represents (run 9 u/s = the sim's run speed, sprint 18).
+            _twoHand = false;
             _uprightDeg = 35f;
             list.Add(Loco("run", RoninClip.Run, 10, 9f, idleHips, hand));
             _uprightDeg = 55f;
@@ -452,6 +455,7 @@ namespace Redline.RoninEditor
                     float dy = Bone(HumanBodyBones.Hips).position.y - _view.transform.position.y - hipsY;
                     _view.Model.localPosition = new Vector3(0f, -dy / scale, 0f);
                 }
+                TwoHandGuard();
                 FixKatana();
             }
             void Advance(float from, float to, float seconds)
@@ -566,6 +570,56 @@ namespace Redline.RoninEditor
             // Grip in the palm, nudged toward the camera so the blade reads in front of the arm and coat (the sword
             // hand is the near one), not behind the body as if the far hand held it.
             _katana.position += palm - _katana.TransformPoint(gripLocal) + new Vector3(0f, 0f, -0.12f);
+        }
+
+        /// <summary>Standing two-handed guard: both palms on the handle in front of the belly (set per clip while baking).</summary>
+        private static bool _twoHand;
+
+        /// <summary>Handle centre of the two-handed guard relative to the hips (world units, facing +x; -z is toward the camera).</summary>
+        private static readonly Vector3 GuardOffset = new Vector3(0.3f, 0.14f, -0.1f);
+
+        /// <summary>
+        /// Two-handed guard: puts both palms on one handle in front of the belly, right hand near the guard, left near
+        /// the pommel, the handle along the blade direction (<see cref="_uprightDeg"/>), by a two-bone IK on each arm.
+        /// Called after the clip pose and before <see cref="FixKatana"/> (which then seats the katana in the right palm).
+        /// </summary>
+        private static void TwoHandGuard()
+        {
+            if (!_twoHand || float.IsNaN(_uprightDeg)) return;
+            var hips = Bone(HumanBodyBones.Hips);
+            if (hips == null) return;
+            float a = _uprightDeg * Mathf.Deg2Rad;
+            var dir = new Vector3(Mathf.Sin(a), Mathf.Cos(a), 0f);
+            Vector3 centre = hips.position + GuardOffset;   // world units (the baked model is already at game scale)
+            ArmTo(HumanBodyBones.RightUpperArm, HumanBodyBones.RightLowerArm, HumanBodyBones.RightHand, HumanBodyBones.RightMiddleProximal, centre + dir * 0.06f);
+            ArmTo(HumanBodyBones.LeftUpperArm, HumanBodyBones.LeftLowerArm, HumanBodyBones.LeftHand, HumanBodyBones.LeftMiddleProximal, centre - dir * 0.07f);
+        }
+
+        /// <summary>Two-bone IK: rotates the upper and lower arm so the palm (not the wrist) lands on <paramref name="palmTarget"/>.</summary>
+        private static void ArmTo(HumanBodyBones upperB, HumanBodyBones lowerB, HumanBodyBones handB, HumanBodyBones midB, Vector3 palmTarget)
+        {
+            Transform up = Bone(upperB), lo = Bone(lowerB), hd = Bone(handB);
+            if (up == null || lo == null || hd == null) return;
+            var mid = Bone(midB);
+            Vector3 palmOff = mid != null ? (Vector3.Lerp(hd.position, mid.position, 0.6f) - hd.position) : Vector3.zero;
+            Vector3 t = palmTarget - palmOff;
+            Vector3 pa = up.position, pb = lo.position, pc = hd.position;
+            float lab = (pb - pa).magnitude, lcb = (pc - pb).magnitude;
+            const float eps = 1e-3f;
+            float lat = Mathf.Clamp((t - pa).magnitude, eps, lab + lcb - eps);
+            float Ang(Vector3 u, Vector3 v) => Mathf.Acos(Mathf.Clamp(Vector3.Dot(u.normalized, v.normalized), -1f, 1f));
+            float acab0 = Ang(pc - pa, pb - pa), babc0 = Ang(pa - pb, pc - pb), acat0 = Ang(pc - pa, t - pa);
+            float acab1 = Mathf.Acos(Mathf.Clamp((lcb * lcb - lab * lab - lat * lat) / (-2f * lab * lat), -1f, 1f));
+            float babc1 = Mathf.Acos(Mathf.Clamp((lat * lat - lab * lab - lcb * lcb) / (-2f * lab * lcb), -1f, 1f));
+            Vector3 axis0 = Vector3.Cross(pc - pa, pb - pa);
+            if (axis0.sqrMagnitude < 1e-8f) axis0 = Vector3.Cross(pc - pa, Vector3.down + Vector3.left);   // straight arm: bend the elbow down-back
+            axis0.Normalize();
+            Vector3 axis1 = Vector3.Cross(pc - pa, t - pa);
+            Quaternion r2 = axis1.sqrMagnitude > 1e-8f ? Quaternion.AngleAxis(acat0 * Mathf.Rad2Deg, Quaternion.Inverse(up.rotation) * axis1.normalized) : Quaternion.identity;
+            Quaternion r0 = Quaternion.AngleAxis((acab1 - acab0) * Mathf.Rad2Deg, Quaternion.Inverse(up.rotation) * axis0);
+            Quaternion r1 = Quaternion.AngleAxis((babc1 - babc0) * Mathf.Rad2Deg, Quaternion.Inverse(lo.rotation) * axis0);
+            up.localRotation = up.localRotation * (r0 * r2);
+            lo.localRotation = lo.localRotation * r1;
         }
 
         /// <summary>Centre of the right (sword) palm: from the wrist toward the middle-finger base when the rig has it.</summary>
