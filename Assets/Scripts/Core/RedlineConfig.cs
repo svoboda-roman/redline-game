@@ -52,6 +52,10 @@ namespace Redline.Core
 
         /// <summary>Seconds after leaving a wall in the air during which a jump still wall-jumps (forgiving timing).</summary>
         public float wallCoyoteTime = 0.12f;
+        /// <summary>Double jump: upward speed of the one air jump per airtime (u/s).</summary>
+        public float doubleJumpSpeed = 13f;
+        /// <summary>Lowest speed tier at which the double jump is available.</summary>
+        public int doubleJumpMinTier = 2;
 
         // --- Slide ---
         /// <summary>Speed added by a slide. Run + slide must stay below tier3Speed: tier 3 is earned.</summary>
@@ -381,6 +385,7 @@ namespace Redline.Core
             Positive(nameof(hookRange), hookRange);
             if (hookReelSpeed < 0f) errors.Add("hookReelSpeed must be >= 0");
             if (wallCoyoteTime < 0f) errors.Add("wallCoyoteTime must be >= 0");
+            if (doubleJumpSpeed < 0f) errors.Add("doubleJumpSpeed must be >= 0");
             Positive(nameof(attackRange), attackRange);
             if (strikeDownReach < 0f) errors.Add("strikeDownReach must be >= 0");
             Positive(nameof(attackCooldown), attackCooldown);

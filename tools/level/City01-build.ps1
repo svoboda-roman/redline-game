@@ -109,6 +109,9 @@ if ($Remix -and $Top) {
     Fill 24 35 37
     # i) a floating plate above the pit: hook point / stepping stone toward the bar over the shaft
     Fill 20 39 42
+
+    # j) no spikes on the left half of the long right ledge (the player asked)
+    Wipe 23 64 65
 }
 
 $g[($H - 2), 4] = 'P'                                  # start bottom left (the S in the drawing)
