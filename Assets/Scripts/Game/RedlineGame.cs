@@ -554,9 +554,9 @@ namespace Redline.Game
             _levelThumbs = new Texture2D[Levels.Length];
             var box = new UnityEngine.UIElements.VisualElement { pickingMode = UnityEngine.UIElements.PickingMode.Ignore };
             box.style.position = UnityEngine.UIElements.Position.Absolute;
-            box.style.right = new UnityEngine.UIElements.Length(5f, UnityEngine.UIElements.LengthUnit.Percent);
-            box.style.top = new UnityEngine.UIElements.Length(24f, UnityEngine.UIElements.LengthUnit.Percent);
-            box.style.width = new UnityEngine.UIElements.Length(46f, UnityEngine.UIElements.LengthUnit.Percent);
+            box.style.right = new UnityEngine.UIElements.Length(3f, UnityEngine.UIElements.LengthUnit.Percent);
+            box.style.top = new UnityEngine.UIElements.Length(30f, UnityEngine.UIElements.LengthUnit.Percent);
+            box.style.width = new UnityEngine.UIElements.Length(38f, UnityEngine.UIElements.LengthUnit.Percent);
             _levelPreview = new UnityEngine.UIElements.Image { scaleMode = ScaleMode.ScaleToFit, pickingMode = UnityEngine.UIElements.PickingMode.Ignore };
             _levelPreview.style.width = new UnityEngine.UIElements.Length(100f, UnityEngine.UIElements.LengthUnit.Percent);
             _levelPreview.style.height = 360f;
