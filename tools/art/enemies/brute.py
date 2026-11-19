@@ -1,57 +1,74 @@
-"""Brute: armoured sumo-mass juggernaut (body 1.5 x 2.1). Slab pauldrons, a riveted gunmetal
-breastplate, a head sunk between the shoulders behind an amber visor.
+"""Brute: tentacled mutant juggernaut (body 1.5 x 2.1). Bloated flesh held together by a chrome harness plate and leg
+braces, a small sunken head with three red eyes and a toothed maw, bio-luminescent nodules on the hump and four
+tentacles off the back and near shoulder that sway per animation (rise and light up in windup/charge, trail
+in the charge, go limp when crashed and on death).
 
-States: idle, walk, windup (head lowers, visor + vents flare), charge, crashed (breastplate split open
-on a glowing core, sparks), hurt, death.  Visibility groups: intact (closed plate), flare, crack,
-spark0..2.
-Run:  blender -b --factory-startup -P brute.py -- --out brute.blend   (see tools/art/common/make_char.sh)
+States: idle, walk, windup, charge, crashed (harness torn open on a glowing heart, sparks), hurt, death.
+Visibility groups: intact (closed plate), flare (eyes + tentacle tips), crack, spark0..2.
+Run:  blender -b --factory-startup -P brute.py -- --out brute.blend   (see tools/art/common/make_char.ps1)
 """
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'common'))
 import kit  # noqa: E402
+import cyber  # noqa: E402
 from kit import part, cat, box, tube, ellipsoid, ecyl, shell, lathe, extrude2d, S, C, TAU  # noqa: E402
+import math  # noqa: E402
+
+# Tentacles: chain of n joints off the chest at `at` (chest frame), segment length seg, root radius r,
+# rest angle `base` (screen-plane degrees, 0 = straight up, + = toward the front), wave phase.
+TENTS = [dict(name='tA', at=(-0.24, -0.20, 0.16), base=-62, n=6, seg=0.16, r=0.095, phase=0.0),
+         dict(name='tB', at=(-0.30, 0.16, 0.12), base=-100, n=6, seg=0.15, r=0.09, phase=1.7),
+         dict(name='tC', at=(-0.18, -0.04, 0.27), base=-28, n=7, seg=0.13, r=0.085, phase=3.1),
+         dict(name='tD', at=(0.02, -0.34, 0.10), base=70, n=5, seg=0.14, r=0.08, phase=4.4)]
 
 
 def build():
     rp = kit.humanoid(thigh=0.45, shin=0.41, ankle=0.11, hip_w=0.18, spine=0.20, chest=0.30, neck=0.17, head=0.04,
                       sh_w=0.36, sh_z=0.06, upper=0.32, fore=0.30)
     kit.set_rig(rp)
-    kit.legs(thigh_mat='olive', shin_mat='gunmetal', r=(0.15, 0.12, 0.11, 0.095), boot=(0.30, 0.17, 0.11),
-             knee_mat='gunmetal', shin_guard='gunmetal')
-    kit.arms({'R': ('olive', 'gunmetal'), 'L': ('olive', 'gunmetal')}, r=(0.10, 0.09, 0.11, 0.10),
-             hand=(0.15, 0.13, 0.13), hand_mat='gunmetal')
-    # gauntlet strips (tech light) on both forearms
+    kit.legs(thigh_mat='flesh', shin_mat='flesh_dk', boot_mat='flesh_dk', r=(0.15, 0.12, 0.11, 0.095), boot=(0.30, 0.17, 0.11),
+             knee_mat='chrome', shin_guard=None)
+    for s in 'RL':  # chrome leg braces bolted into the meat
+        part('brace_' + s, 'kn_' + s, 'kn_' + s, 'chrome', cat(tube((0.11, 0, -0.03), (0.11, 0, -0.36), 0.02, 0.02, 6),
+                                                              ecyl((0, 0), -0.2, -0.16, 0.125, 0.125, 14)))
+    # arms: swollen flesh, chrome bracers, hooked claws
+    kit.arms({'R': ('flesh', 'flesh'), 'L': ('flesh', 'flesh_dk')}, r=(0.11, 0.10, 0.12, 0.11),
+             hand=(0.15, 0.13, 0.13), hand_mat='flesh_dk')
     for s in 'RL':
-        part('gstrip_' + s, 'el_' + s, 'el_' + s, 'strip', box((0.105, -0.03, -0.15), (0.012, 0.03, 0.12)))
-    # mass: belly + chest
-    part('hips', 'pelvis_geo', 'pelvis', 'olive', ellipsoid((0.02, 0, 0.0), (0.32, 0.30, 0.19)))
-    part('mawashi', 'pelvis_geo', 'pelvis', 'helmet', ecyl((0.02, 0), -0.08, 0.07, 0.33, 0.32, 22))
-    part('tassets', 'pelvis_geo', 'pelvis', 'gunmetal', shell((0, 0), -110, 110, [(-0.02, 0.34, 0.33), (-0.34, 0.39, 0.38)], 12))
-    part('belly', 'spine_geo', 'spine', 'olive', ellipsoid((0.10, 0, 0.10), (0.42, 0.36, 0.30)))
-    part('chest_m', 'chest_geo', 'chest', 'gunmetal', ellipsoid((0.04, 0, 0.0), (0.38, 0.38, 0.27)))
-    # breastplate: intact vs cracked open
-    plate = lambda x0: [(x0, -0.24), (x0 + 0.02, 0.18), (x0 - 0.02, 0.24)]
-    part('plate', 'chest_geo', 'chest', 'gunmetal', box((0.36, 0, -0.06), (0.12, 0.44, 0.40), (0, -8, 0)), bevel=0.03, group='intact')
-    part('plate_rivets', 'chest_geo', 'chest', 'helmet', cat(box((0.43, 0, 0.06), (0.02, 0.42, 0.03), (0, -8, 0)),
-                                                         box((0.43, 0, -0.14), (0.02, 0.42, 0.03), (0, -8, 0))), group='intact')
-    part('core_strip', 'chest_geo', 'chest', 'strip', box((0.43, -0.12, -0.04), (0.02, 0.06, 0.12), (0, -8, 0)), group='intact')
-    part('plate_top', 'chest_geo', 'chest', 'gunmetal', box((0.40, 0, 0.07), (0.11, 0.44, 0.20), (0, -26, 0)), bevel=0.025, group='crack')
-    part('plate_bot', 'chest_geo', 'chest', 'gunmetal', box((0.41, 0, -0.22), (0.11, 0.44, 0.16), (0, 22, 0)), bevel=0.025, group='crack')
-    part('core', 'chest_geo', 'chest', 'glow', ellipsoid((0.40, 0, -0.07), (0.07, 0.17, 0.09)), group='crack')
-    # pauldrons: slab shoulders that tower over the head
-    for s, sy in (('R', -1), ('L', 1)):
-        part('pauldron_' + s, 'sh_' + s, 'sh_' + s, 'gunmetal', cat(
-            ellipsoid((0.0, sy * 0.06, 0.0), (0.24, 0.17, 0.16)),
-            shell((0.0, sy * 0.06), 0, 360, [(-0.02, 0.25, 0.19), (-0.17, 0.28, 0.22)], 20)), bevel=0.0)
-        part('vent_' + s, 'sh_' + s, 'sh_' + s, 'strip', box((0.17, sy * 0.06, 0.09), (0.05, 0.08, 0.03), (0, -30, 0)))
-        part('ventflare_' + s, 'sh_' + s, 'sh_' + s, 'glow', box((0.19, sy * 0.06, 0.11), (0.09, 0.12, 0.08), (0, -30, 0)), group='flare')
-    # head: sunk, armoured, amber visor
+        part('bracer_' + s, 'el_' + s, 'el_' + s, 'chrome', ecyl((0, 0), -0.24, -0.12, 0.125, 0.125, 16))
+        part('bracer_light_' + s, 'el_' + s, 'el_' + s, 'strip', box((0.125, -0.03, -0.18), (0.012, 0.03, 0.08)))
+        part('claws_' + s, 'wr_' + s, 'wr_' + s, 'steel', cat(*[tube((0.06, y, -0.12), (0.13, y, -0.24), 0.022, 0.004, 6)
+                                                               for y in (-0.045, 0.0, 0.045)]))
+    # mass: bloated belly and chest, bio-luminescent nodules, chrome spine rods
+    part('hips', 'pelvis_geo', 'pelvis', 'flesh_dk', ellipsoid((0.02, 0, 0.0), (0.32, 0.30, 0.19)))
+    part('belt', 'pelvis_geo', 'pelvis', 'gunmetal', ecyl((0.02, 0), -0.04, 0.05, 0.33, 0.32, 22))
+    part('belly', 'spine_geo', 'spine', 'flesh', ellipsoid((0.10, 0, 0.10), (0.42, 0.36, 0.30)))
+    part('belly_veins', 'spine_geo', 'spine', 'flesh_dk', cat(box((0.42, -0.1, 0.08), (0.03, 0.02, 0.3), (0, 0, 0)),
+                                                            box((0.40, 0.08, 0.14), (0.03, 0.02, 0.22), (0, 20, 0))))
+    part('chest_m', 'chest_geo', 'chest', 'flesh', ellipsoid((0.04, 0, 0.0), (0.38, 0.38, 0.27)))
+    part('hump', 'chest_geo', 'chest', 'flesh_dk', ellipsoid((-0.2, 0, 0.12), (0.26, 0.32, 0.24)))
+    part('nodules', 'chest_geo', 'chest', 'strip', cat(*[ellipsoid(c, (0.035, 0.035, 0.035)) for c in
+                                                       ((-0.36, -0.12, 0.16), (-0.4, 0.05, 0.02), (-0.3, -0.2, -0.05), (-0.42, -0.02, 0.24))]))
+    part('spine_rods', 'chest_geo', 'chest', 'chrome', cat(*[tube((-0.38, y, -0.1), (-0.30, y, 0.32), 0.016, 0.016, 6) for y in (-0.08, 0.08)]))
+    # chest harness: intact plate vs torn open on the glowing heart (crashed / death)
+    part('plate', 'chest_geo', 'chest', 'gunmetal', box((0.36, 0, -0.06), (0.10, 0.40, 0.34), (0, -8, 0)), bevel=0.03, group='intact')
+    part('plate_rivets', 'chest_geo', 'chest', 'chrome', cat(box((0.42, 0, 0.06), (0.02, 0.38, 0.03), (0, -8, 0)),
+                                                            box((0.42, 0, -0.14), (0.02, 0.38, 0.03), (0, -8, 0))), group='intact')
+    part('core_strip', 'chest_geo', 'chest', 'strip', box((0.42, -0.12, -0.04), (0.02, 0.06, 0.12), (0, -8, 0)), group='intact')
+    part('plate_top', 'chest_geo', 'chest', 'gunmetal', box((0.40, 0, 0.07), (0.10, 0.40, 0.18), (0, -26, 0)), bevel=0.025, group='crack')
+    part('plate_bot', 'chest_geo', 'chest', 'gunmetal', box((0.41, 0, -0.22), (0.10, 0.40, 0.14), (0, 22, 0)), bevel=0.025, group='crack')
+    part('core', 'chest_geo', 'chest', 'glow', ellipsoid((0.40, 0, -0.07), (0.08, 0.17, 0.10)), group='crack')
+    # head: a small mutated head sunk in the meat, three red eyes and a toothed maw
     H = 'head_geo'
-    part('head_m', H, 'head', 'helmet', ellipsoid((0.05, 0, 0.08), (0.15, 0.14, 0.14)))
-    part('brow', H, 'head', 'gunmetal', box((0.14, 0, 0.15), (0.14, 0.27, 0.06), (0, -15, 0)), bevel=0.015)
-    part('jaw', H, 'head', 'gunmetal', box((0.15, 0, 0.0), (0.12, 0.22, 0.10), (0, 10, 0)), bevel=0.015)
-    part('visor', H, 'head', 'eye', box((0.205, 0, 0.085), (0.03, 0.20, 0.035)))
-    part('visorflare', H, 'head', 'eye', box((0.215, 0, 0.085), (0.05, 0.24, 0.07)), group='flare')
+    part('head_m', H, 'head', 'flesh', ellipsoid((0.06, 0, 0.06), (0.16, 0.15, 0.13)))
+    part('head_lump', H, 'head', 'flesh_dk', ellipsoid((-0.02, 0.05, 0.13), (0.11, 0.1, 0.08)))
+    part('eyes', H, 'head', 'eye', cat(ellipsoid((0.2, -0.06, 0.1), (0.025, 0.03, 0.026)), ellipsoid((0.19, 0.03, 0.12), (0.022, 0.026, 0.022)),
+                                       ellipsoid((0.16, -0.1, 0.16), (0.018, 0.02, 0.018))))
+    part('eyes_flare', H, 'head', 'eye', cat(ellipsoid((0.21, -0.06, 0.1), (0.04, 0.045, 0.04)), ellipsoid((0.2, 0.03, 0.12), (0.035, 0.04, 0.035)),
+                                             ellipsoid((0.17, -0.1, 0.16), (0.03, 0.032, 0.03))), group='flare')
+    part('maw', H, 'head', 'flesh_dk', box((0.19, -0.02, -0.01), (0.07, 0.18, 0.06)))
+    part('teeth', H, 'head', 'steel', cat(*[box((0.215, y, 0.015), (0.02, 0.012, 0.03)) for y in (-0.08, -0.04, 0.0, 0.04)],
+                                         *[box((0.215, y, -0.04), (0.02, 0.012, 0.03)) for y in (-0.06, -0.02, 0.02)]))
     # sparks (crashed): three alternating sets of short bright streaks
     sp = [[((0.50, -0.1, 0.02), 30), ((0.52, -0.05, -0.15), -20), ((0.25, -0.3, 0.2), 60)],
           [((0.55, -0.1, -0.05), -40), ((0.38, -0.2, 0.18), 15), ((0.56, -0.05, 0.09), 70)],
@@ -59,6 +76,26 @@ def build():
     for k, st in enumerate(sp):
         part('spark%d' % k, 'chest_geo', 'chest', 'spark',
              cat(*[box(c, (0.09, 0.02, 0.018), (0, -a, 0)) for c, a in st]), smooth=False, group='spark%d' % k)
+    # tentacles: joint chains off the chest (rest = straight up), swung per frame by tentacles() below
+    for T in TENTS:
+        prev = 'chest'
+        loc = T['at']
+        for k in range(T['n']):
+            jn = '%s%d' % (T['name'], k)
+            kit.joint(jn, prev, loc)
+            f = 1.0 - k / T['n']
+            r0, r1 = T['r'] * (0.25 + 0.75 * f), T['r'] * (0.25 + 0.75 * (f - 1.0 / T['n']))
+            last = k == T['n'] - 1
+            part(jn, jn, jn, 'flesh', cat(ellipsoid((0, 0, 0), (r0 * 1.05,) * 3),
+                                          tube((0, 0, 0), (0, 0, T['seg']), r0, max(r1, 0.012), 10)))
+            if k % 2 == 1:  # suckers along the underside
+                part(jn + '_suck', jn, jn, 'flesh_dk', ellipsoid((r0 * 0.85, 0, T['seg'] * 0.5), (r0 * 0.35, r0 * 0.5, r0 * 0.45)))
+            if last:
+                tip = (0, 0, T['seg'])
+                part(jn + '_tip', jn, jn, 'flesh_dk', ellipsoid(tip, (0.025, 0.025, 0.035)))
+                part(jn + '_glow', jn, jn, 'glow', ellipsoid(tip, (0.045, 0.045, 0.055)), group='flare')
+            prev = jn
+            loc = (0, 0, T['seg'])
     return rp
 
 
@@ -156,19 +193,47 @@ def DEATH_POSES():
               shR=100, elR=30, shL=96, elL=25, show=['crack'])]
 
 
+# Tentacle motion per animation, t = frame / count in [0, 1): (root offset, wave amplitude, per-segment curl,
+# wave cycles over the animation). Looping anims use whole cycles so they loop seamlessly.
+TMODE = {
+    'idle':    lambda t: (0.0, 12.0, 17.0, 1),
+    'walk':    lambda t: (-8.0, 14.0, 15.0, 1),
+    'windup':  lambda t: (25.0 * t + 10.0, 8.0, 10.0, 1),          # rear up, tips light up (flare group)
+    'charge':  lambda t: (-45.0, 10.0, -6.0, 2),                    # streamed back by the sprint
+    'crashed': lambda t: (-95.0, 4.0, 14.0, 1),                    # hanging limp
+    'hurt':    lambda t: (-30.0 * (1 - t), 16.0 * (1 - t), 6.0, 1),
+    'death':   lambda t: (-40.0 - 90.0 * t, 10.0 * (1 - t), 10.0 * (1 - t), 1),
+}
+
+
+def tentacles(mode, fn):
+    """Wraps a pose function: adds the tentacle joint swings (pose 'rot' keys) for this animation."""
+    def pose(i, n):
+        p = fn(i, n)
+        off, amp, curl, cyc = TMODE[mode](i / max(1, n))
+        rot = dict(p.get('rot', {}))
+        for T in TENTS:
+            for k in range(T['n']):
+                wave = amp * math.sin(TAU * cyc * i / max(1, n) + T['phase'] - 0.8 * k)
+                rot['%s%d' % (T['name'], k)] = (T['base'] + off if k == 0 else curl) + wave
+        p['rot'] = rot
+        return p
+    return pose
+
+
 ANIMS = [
-    dict(name='idle', n=8, fps=7, loop=True, pose=idle),
-    dict(name='walk', n=WALK_N, fps=WALK_FPS, loop=True, pose=walk),
-    dict(name='windup', n=5, fps=10, loop=False, pose=lambda i, n: WINDUP_POSES()[i]),
-    dict(name='charge', n=CH_N, fps=CH_FPS, loop=True, pose=charge),
-    dict(name='crashed', n=6, fps=10, loop=True, pose=crashed),
-    dict(name='hurt', n=4, fps=16, loop=False, pose=lambda i, n: HURT_POSES()[i]),
-    dict(name='death', n=7, fps=10, loop=False, pose=lambda i, n: DEATH_POSES()[i]),
+    dict(name='idle', n=8, fps=7, loop=True, pose=tentacles('idle', idle)),
+    dict(name='walk', n=WALK_N, fps=WALK_FPS, loop=True, pose=tentacles('walk', walk)),
+    dict(name='windup', n=5, fps=10, loop=False, pose=tentacles('windup', lambda i, n: WINDUP_POSES()[i])),
+    dict(name='charge', n=CH_N, fps=CH_FPS, loop=True, pose=tentacles('charge', charge)),
+    dict(name='crashed', n=6, fps=10, loop=True, pose=tentacles('crashed', crashed)),
+    dict(name='hurt', n=4, fps=16, loop=False, pose=tentacles('hurt', lambda i, n: HURT_POSES()[i])),
+    dict(name='death', n=7, fps=10, loop=False, pose=tentacles('death', lambda i, n: DEATH_POSES()[i])),
 ]
 
 META = dict(cell_w=4.4, cell_h=3.2, pad_bottom=0.25,
             pivot_note='feet centre = bottom-centre of the 1.5 x 2.1 collision body; sprites face right',
-            emissive_encoding='R = attack glow: shoulder-vent flare (windup/charge) + exposed core (crashed, death) + sparks (crashed), G = visor (wider flare in windup/charge), B = amber light strips (gauntlets, shoulder vents, breastplate); A = 255 where any mask is set')
+            emissive_encoding='R = attack glow: tentacle tips (windup/charge) + exposed heart (crashed, death) + sparks (crashed), G = three red eyes (wider flare in windup/charge), B = bio-luminescent nodules, bracer and harness lights; A = 255 where any mask is set')
 
 if __name__ == '__main__':
     a = kit.args()
