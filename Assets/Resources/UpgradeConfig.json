@@ -4,28 +4,29 @@
     "pointsPerLevelCleared": 25,
     "pointsForHighestTier": [0, 5, 15],
 
-    "maxHpMaxLevel": 4,
+    "maxHpMaxLevel": 10,
     "maxHpBaseCost": 40,
     "maxHpCostGrowth": 1.6,
     "maxHpPerLevel": 1,
+    "maxHpLevelsPerHp": 2,
 
-    "speedMaxLevel": 3,
+    "speedMaxLevel": 10,
     "speedBaseCost": 50,
     "speedCostGrowth": 1.7,
-    "speedMultiplierPerLevel": 0.04,
+    "speedMultiplierPerLevel": 0.012,
 
-    "hookMaxLevel": 4,
+    "hookMaxLevel": 10,
     "hookBaseCost": 35,
     "hookCostGrowth": 1.6,
-    "hookRangePerLevel": 1.0,
-    "hookReleaseBoostPerLevel": 1.0,
+    "hookRangePerLevel": 0.4,
+    "hookReleaseBoostPerLevel": 0.4,
 
-    "swordMaxLevel": 4,
+    "swordMaxLevel": 10,
     "swordBaseCost": 45,
     "swordCostGrowth": 1.6,
-    "attackRangePerLevel": 0.15,
-    "orbChancePerLevel": 0.03,
-    "orbDurationPerLevel": 0.15,
+    "attackRangePerLevel": 0.06,
+    "orbChancePerLevel": 0.012,
+    "orbDurationPerLevel": 0.06,
     "spinBaseCost": 30,
-    "spinCostGrowth": 1.35
+    "spinCostGrowth": 1.08
 }

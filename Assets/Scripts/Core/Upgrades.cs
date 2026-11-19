@@ -66,14 +66,16 @@ namespace Redline.Core
         public int[] pointsForHighestTier = { 0, 5, 15 };
 
         // --- MaxHp ---
-        public int maxHpMaxLevel = 4;
+        public int maxHpMaxLevel = 10;
         public int maxHpBaseCost = 40;
         public float maxHpCostGrowth = 1.6f;
         /// <summary>Max HP added per level.</summary>
         public int maxHpPerLevel = 1;
+        /// <summary>Levels per maxHpPerLevel step: 2 = +1 max HP every second level.</summary>
+        public int maxHpLevelsPerHp = 2;
 
         // --- Speed ---
-        public int speedMaxLevel = 3;
+        public int speedMaxLevel = 10;
         public int speedBaseCost = 50;
         public float speedCostGrowth = 1.7f;
         /// <summary>
@@ -81,31 +83,31 @@ namespace Redline.Core
         /// runSpeed * (1 + max bonus) + slideBoost below tier3Speed: tier 3 stays earned
         /// (<see cref="ValidateAgainst"/> checks it).
         /// </summary>
-        public float speedMultiplierPerLevel = 0.04f;
+        public float speedMultiplierPerLevel = 0.012f;
 
         // --- Hook ---
-        public int hookMaxLevel = 4;
+        public int hookMaxLevel = 10;
         public int hookBaseCost = 35;
         public float hookCostGrowth = 1.6f;
         /// <summary>Hook range added per level (tiles).</summary>
-        public float hookRangePerLevel = 1f;
+        public float hookRangePerLevel = 0.4f;
         /// <summary>Release fling boost (hookReleaseBoost) added per level.</summary>
-        public float hookReleaseBoostPerLevel = 1f;
+        public float hookReleaseBoostPerLevel = 0.4f;
 
         // --- SwordAndOrbs ---
-        public int swordMaxLevel = 4;
+        public int swordMaxLevel = 10;
         public int swordBaseCost = 45;
         public float swordCostGrowth = 1.6f;
         /// <summary>Sword reach (attackRange) added per level (tiles).</summary>
-        public float attackRangePerLevel = 0.15f;
+        public float attackRangePerLevel = 0.06f;
         /// <summary>Added to every enemy's orb drop chance per level (capped at 1).</summary>
-        public float orbChancePerLevel = 0.03f;
+        public float orbChancePerLevel = 0.012f;
         /// <summary>Added to the orb buff duration multiplier per level (0.15 = +15% Speed and Hook orb time).</summary>
-        public float orbDurationPerLevel = 0.15f;
+        public float orbDurationPerLevel = 0.06f;
 
         // --- Random upgrade (spin): pay, a random not-maxed upgrade gains a level; the price grows per spin ---
         public int spinBaseCost = 30;
-        public float spinCostGrowth = 1.35f;
+        public float spinCostGrowth = 1.08f;
 
         /// <summary>Price of the next random upgrade after <paramref name="spins"/> spins.</summary>
         public int SpinCost(int spins)
@@ -357,7 +359,7 @@ namespace Redline.Core
             if (state == null) return c;
 
             int hp = state.LevelOf(UpgradeKind.MaxHp);
-            c.playerMaxHp += cfg.maxHpPerLevel * hp;
+            c.playerMaxHp += cfg.maxHpPerLevel * (hp / Math.Max(1, cfg.maxHpLevelsPerHp));
 
             int speed = state.LevelOf(UpgradeKind.Speed);
             float speedMul = 1f + cfg.speedMultiplierPerLevel * speed;

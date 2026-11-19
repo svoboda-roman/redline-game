@@ -36,7 +36,7 @@ namespace Redline.Game
         private static readonly Color Bone = UiTheme.Bone;
         private static readonly Color Danger = MenuKit.Danger;
         private static readonly Color Neon = new Color(0.36f, 0.8f, 1f);
-        private static readonly Color NeonOff = new Color(0.36f, 0.8f, 1f, 0.16f);
+        private static readonly Color NeonOff = new Color(0.36f, 0.8f, 1f, 0.35f);
 
         private const int SpinIndex = 0;
         private const int ResetIndex = 1;
@@ -352,7 +352,10 @@ namespace Redline.Game
                 {
                     bool on = b < level;
                     bool fresh = wonCol && b == level - 1;
-                    bars[b].style.backgroundColor = fresh ? (pulse ? Color.white : Neon) : on ? Neon : NeonOff;
+                    // owned = solid neon bar, not owned = an empty outline (reads at a glance)
+                    var col = fresh ? (pulse ? Color.white : Neon) : Neon;
+                    bars[b].style.backgroundColor = on ? col : Color.clear;
+                    MenuKit.Border(bars[b], 2f, on ? col : NeonOff);
                 }
                 MenuKit.Border(_colBox[i], 3f, wonCol ? (pulse ? Color.white : Neon) : UiTheme.Faint);
             }
@@ -363,10 +366,10 @@ namespace Redline.Game
             var c = _store.Config;
             switch (kind)
             {
-                case UpgradeKind.MaxHp: return "+" + c.maxHpPerLevel + " MAX HP";
-                case UpgradeKind.Speed: return "+" + Pct(c.speedMultiplierPerLevel) + " SPEED";
-                case UpgradeKind.Hook: return "+" + Num(c.hookRangePerLevel) + " HOOK RANGE";
-                case UpgradeKind.SwordAndOrbs: return "+" + Num(c.attackRangePerLevel) + " REACH, ORBS";
+                case UpgradeKind.MaxHp: return "+" + c.maxHpPerLevel + " HP / " + Mathf.Max(1, c.maxHpLevelsPerHp) + " LV";
+                case UpgradeKind.Speed: return "+" + (c.speedMultiplierPerLevel * 100f).ToString("0.#", CultureInfo.InvariantCulture) + "% SPEED / LV";
+                case UpgradeKind.Hook: return "+" + Num(c.hookRangePerLevel) + " HOOK / LV";
+                case UpgradeKind.SwordAndOrbs: return "+" + Num(c.attackRangePerLevel) + " REACH / LV";
                 default: return "";
             }
         }
@@ -415,7 +418,6 @@ namespace Redline.Game
             cols.style.marginTop = 4f * MenuKit.T;
             cols.style.flexShrink = 0;
             page.Add(cols);
-            float[] wobble = { 1f, 0.82f, 0.95f, 0.74f, 0.9f, 0.7f };
             for (int i = 0; i < UpgradeState.Kinds.Length; i++)
             {
                 var kind = UpgradeState.Kinds[i];
@@ -431,9 +433,9 @@ namespace Redline.Game
                 for (int b = 0; b < max; b++)
                 {
                     var bar = new VisualElement { pickingMode = PickingMode.Ignore };
-                    bar.style.height = 18f;
-                    bar.style.width = 220f * wobble[(b + i) % wobble.Length] - 12f * b;
-                    bar.style.marginTop = 10f;
+                    bar.style.height = 12f;
+                    bar.style.width = 200f;                                  // every bar the same: clean
+                    bar.style.marginTop = 7f;
                     bar.style.flexShrink = 0;
                     MenuKit.Round(bar, 0);
                     stack.Add(bar);
