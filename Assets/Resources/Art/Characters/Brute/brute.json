@@ -19,7 +19,7 @@
   "emissive": "brute_emissive.png"
  },
  "normal_encoding": "view-space normal: R=+X right, G=+Y up, B=toward camera; transparent texels (128,128,255,0)",
- "emissive_encoding": "R = attack glow: shoulder-vent flare (windup/charge) + exposed core (crashed, death) + sparks (crashed), G = visor (wider flare in windup/charge), B = amber light strips (gauntlets, shoulder vents, breastplate); A = 255 where any mask is set",
+ "emissive_encoding": "R = attack glow: tentacle tips (windup/charge) + exposed heart (crashed, death) + sparks (crashed), G = three red eyes (wider flare in windup/charge), B = bio-luminescent nodules, bracer and harness lights; A = 255 where any mask is set",
  "animations": [
   {
    "name": "idle",

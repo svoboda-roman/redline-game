@@ -18,6 +18,14 @@ def build():
     part('hull', B, B, 'gunmetal', ellipsoid((0.0, 0, 0.0), (0.24, 0.20, 0.16)))
     part('belly', B, B, 'helmet', ellipsoid((0.0, 0, -0.08), (0.18, 0.16, 0.10)))
     part('band', B, B, 'strip', ecyl((0, 0), 0.015, 0.035, 0.235, 0.195, 24))
+    # cyberpunk reskin: a living brain riding on top, in a chrome cage, wired into the hull
+    part('brain', B, B, 'flesh', ellipsoid((-0.02, 0, 0.17), (0.19, 0.15, 0.12)))
+    part('brain_folds', B, B, 'flesh_dk', cat(box((-0.02, -0.06, 0.2), (0.22, 0.02, 0.02)), box((-0.04, -0.09, 0.16), (0.18, 0.02, 0.02)),
+                                              box((0.0, -0.03, 0.235), (0.14, 0.02, 0.015))))
+    part('brain_cage', B, B, 'chrome', cat(*[box((x, 0, 0.17), (0.012, 0.26, 0.012), (0, 0, 0)) for x in (-0.12, -0.04, 0.04)],
+                                           box((-0.04, 0, 0.255), (0.2, 0.012, 0.012))))
+    part('brain_wires', B, B, 'cable', cat(tube((0.08, -0.05, 0.12), (0.14, -0.08, 0.05), 0.012, 0.012, 6),
+                                           tube((-0.12, -0.05, 0.12), (-0.18, -0.08, 0.05), 0.012, 0.012, 6)))
     part('eye_ring', B, B, 'helmet', tube((0.17, 0, -0.01), (0.25, 0, -0.01), 0.10, 0.09, 18))
     part('eye', B, B, 'red', ellipsoid((0.25, 0, -0.01), (0.03, 0.07, 0.07)))
     part('eyeflare', B, B, 'red', ellipsoid((0.27, 0, -0.01), (0.05, 0.11, 0.11)), group='flare')

@@ -1,13 +1,12 @@
-"""Summoner: robed cyber-monk / onmyoji (body 0.9 x 1.7). Tall eboshi-style gunmetal cap with an amber
-visor, long olive robe with wide sleeves, three holo-talismans floating behind the shoulders.
+"""Summoner: techno-priest cyborg (body 0.9 x 1.7). Robe with a neon hem, a half chrome skull crowned with data cables
+ending in glowing plugs, chrome machine fingers; holo talismans orbit the back and a glyph ring flares on the cast.
 
-States: idle, flee (run), cast (arms raised, glyph ring + talismans flare), hurt, death.
-Visibility groups: talis (floating talismans), glyph (cast ring), flare.
-Run:  blender -b --factory-startup -P summoner.py -- --out summoner.blend   (see tools/art/common/make_char.sh)
+Run:  blender -b --factory-startup -P summoner.py -- --out summoner.blend   (see tools/art/common/make_char.ps1)
 """
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'common'))
 import kit  # noqa: E402
+import cyber  # noqa: E402
 from kit import part, cat, box, tube, ellipsoid, ecyl, shell, lathe, extrude2d, S, C, TAU, D  # noqa: E402
 import math  # noqa: E402
 
@@ -20,27 +19,38 @@ def build():
     kit.set_rig(rp)
     kit.legs(thigh_mat='cloth', shin_mat='cloth', r=(0.06, 0.05, 0.045, 0.036), boot=(0.15, 0.07, 0.06))
     for s, sy in (('R', -1), ('L', 1)):
-        part('upper_' + s, 'sh_' + s, 'sh_' + s, 'olive', cat(ellipsoid((0, 0, 0), (0.05,) * 3),
-                                                              tube((0, 0, 0), (0, 0, -0.25), 0.05, 0.06)))
-        part('sleeve_' + s, 'el_' + s, 'el_' + s, 'olive', tube((0, 0, 0.02), (0, 0, -0.22), 0.06, 0.10, 14))
+        part('upper_' + s, 'sh_' + s, 'sh_' + s, 'suit', cat(ellipsoid((0, 0, 0), (0.05,) * 3),
+                                                             tube((0, 0, 0), (0, 0, -0.25), 0.05, 0.06)))
+        part('sleeve_' + s, 'el_' + s, 'el_' + s, 'suit', tube((0, 0, 0.02), (0, 0, -0.22), 0.06, 0.10, 14))
         part('cuff_' + s, 'el_' + s, 'el_' + s, 'strip', tube((0, 0, -0.205), (0, 0, -0.225), 0.102, 0.102, 14))
-        part('hand_' + s, 'wr_' + s, 'wr_' + s, 'cyber', box((0.01, 0, -0.04), (0.05, 0.045, 0.07)), bevel=0.01)
-    # robe: rigid skirt on the pelvis reaching the shins, open at the front
-    part('robe', 'pelvis_geo', 'pelvis', 'olive', shell((0, 0), -150, 150, [(0.06, 0.13, 0.14), (-0.30, 0.20, 0.21), (-0.62, 0.27, 0.28)], 16))
-    part('robe_hem', 'pelvis_geo', 'pelvis', 'helmet', shell((0, 0), -150, 150, [(-0.58, 0.268, 0.278), (-0.64, 0.275, 0.285)], 16))
+        # long chrome machine fingers
+        part('hand_' + s, 'wr_' + s, 'wr_' + s, 'chrome', cat(box((0.01, 0, -0.04), (0.05, 0.045, 0.07)),
+                                                             box((0.02, 0, -0.10), (0.02, 0.04, 0.07))), bevel=0.008)
+    # robe: rigid skirt on the pelvis reaching the shins, open at the front, neon hem
+    part('robe', 'pelvis_geo', 'pelvis', 'suit', shell((0, 0), -150, 150, [(0.06, 0.13, 0.14), (-0.30, 0.20, 0.21), (-0.62, 0.27, 0.28)], 16))
+    part('robe_hem', 'pelvis_geo', 'pelvis', 'strip', shell((0, 0), -150, 150, [(-0.58, 0.268, 0.278), (-0.64, 0.275, 0.285)], 16))
     part('hips', 'pelvis_geo', 'pelvis', 'cloth', ellipsoid((0, 0, -0.02), (0.11, 0.12, 0.09)))
-    part('belly', 'spine_geo', 'spine', 'olive', ellipsoid((0.0, 0, 0.06), (0.11, 0.12, 0.10)))
-    part('sash', 'spine_geo', 'spine', 'helmet', ecyl((0, 0), -0.02, 0.05, 0.115, 0.125, 18))
-    part('torso', 'chest_geo', 'chest', 'olive', ellipsoid((0.02, 0, 0.04), (0.13, 0.15, 0.15)))
-    part('stole', 'chest_geo', 'chest', 'gunmetal', shell((0, 0), 30, 330, [(0.08, 0.15, 0.16), (0.20, 0.10, 0.11)], 14))
+    part('belly', 'spine_geo', 'spine', 'suit', ellipsoid((0.0, 0, 0.06), (0.11, 0.12, 0.10)))
+    part('sash', 'spine_geo', 'spine', 'gunmetal', ecyl((0, 0), -0.02, 0.05, 0.115, 0.125, 18))
+    part('torso', 'chest_geo', 'chest', 'suit', ellipsoid((0.02, 0, 0.04), (0.13, 0.15, 0.15)))
+    part('stole', 'chest_geo', 'chest', 'chrome', shell((0, 0), 30, 330, [(0.08, 0.15, 0.16), (0.20, 0.10, 0.11)], 14))
     part('spine_strip', 'chest_geo', 'chest', 'strip', box((-0.14, 0, 0.0), (0.012, 0.025, 0.2)))
+    cyber.spine_cables(x=-0.15, z0=0.05, z1=0.3, n=3, spread=0.04)
     H = 'head_geo'
-    part('neck_m', H, 'head', 'cloth', tube((0, 0, -0.10), (0, 0, 0.0), 0.04, 0.04))
-    part('face', H, 'head', 'helmet', ellipsoid((0.01, 0, 0.04), (0.08, 0.075, 0.085)))
-    part('visor', H, 'head', 'eye', shell((0.01, 0), -50, 50, [(0.04, 0.082, 0.077), (0.055, 0.082, 0.077)], 10))
-    part('eboshi', H, 'head', 'gunmetal', extrude2d([(-0.08, 0.07), (0.07, 0.07), (0.05, 0.20), (-0.04, 0.33), (-0.10, 0.30)], 0, 0.13), smooth=False)
-    part('eboshi_band', H, 'head', 'helmet', ecyl((-0.005, 0), 0.06, 0.095, 0.085, 0.08, 18))
-    # floating talismans: each on its own chest-child joint so it can bob (loc) independently
+    part('neck_m', H, 'head', 'cable', tube((0, 0, -0.10), (0, 0, 0.0), 0.04, 0.04, 10))
+    cyber.half_face(H, r=0.085, c=(0.01, 0.0, 0.04), mohawk=False, jaw=True)
+    # crown of data cables arching back from the skull, glowing plugs at the ends
+    crown = []
+    tips = []
+    for k, (a, l) in enumerate(((-20, 0.24), (5, 0.30), (30, 0.26), (55, 0.2))):
+        ang = math.radians(a)
+        p0 = (-0.02, -0.03 + 0.02 * k, 0.11)
+        p1 = (p0[0] - l * math.sin(ang + 0.6), p0[1], p0[2] + l * math.cos(ang + 0.6))
+        crown.append(tube(p0, p1, 0.013, 0.009, 6))
+        tips.append(ellipsoid(p1, (0.016, 0.016, 0.016)))
+    part('crown', H, 'head', 'cable', cat(*crown))
+    part('crown_tips', H, 'head', 'strip', cat(*tips))
+    # floating talismans (holo cards): each on its own chest-child joint so it can bob (loc) independently
     for k, (x, z) in enumerate(TALIS):
         kit.joint('talis%d' % k, 'chest', (x, 0.05, z))
         part('talis%d' % k, 'talis%d' % k, 'talis%d' % k, 'talisman', box((0, 0, 0), (0.07, 0.01, 0.15), (0, 8 - 8 * k, 0)), smooth=False)

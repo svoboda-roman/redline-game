@@ -23,6 +23,11 @@
     {"id": 13, "name": "charge",   "ramp": ["#ff3346"], "outline": "crimson", "priority": 2, "emissive": "r"},
     {"id": 14, "name": "talisman", "ramp": ["#ffc874"], "outline": "amber", "priority": 5, "emissive": "b"},
     {"id": 15, "name": "spark",    "ramp": ["#ffe2a0"], "outline": "amber", "priority": 0, "emissive": "r"},
-    {"id": 16, "name": "blur",     "ramp": ["#393d42", "#565c63"], "outline": "cool", "flat_band": 0}
+    {"id": 16, "name": "blur",     "ramp": ["#393d42", "#565c63"], "outline": "cool", "flat_band": 0},
+    {"id": 17, "name": "skin",     "ramp": ["#4a3530", "#6e5048", "#8f6c60"], "outline": "crimson"},
+    {"id": 18, "name": "flesh",    "ramp": ["#3a1a24", "#5a2a38", "#7a3c4c"], "outline": "crimson"},
+    {"id": 19, "name": "flesh_dk", "ramp": ["#1e0d14", "#2e1520", "#42202e"], "outline": "crimson"},
+    {"id": 20, "name": "cable",    "ramp": ["#101114", "#1a1b20", "#26282e"], "outline": "cool"},
+    {"id": 21, "name": "chrome",   "ramp": ["#3a3f48", "#6a717c", "#a4acb8"], "outline": "steel"}
   ]
 }

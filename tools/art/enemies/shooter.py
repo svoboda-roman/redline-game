@@ -1,13 +1,12 @@
-"""Shooter: corporate rifleman (body 0.9 x 1.5) with a long-barrelled rail rifle. Tall narrow silhouette,
-olive long coat, gunmetal helmet with a single amber monocle, rifle longer than the body is wide.
+"""Shooter: cyberpunk half-human marksman (body 0.9 x 1.6). Trench coat with a neon hem, half chrome skull under a
+long-range optic and antenna, human trigger arm and a machine support arm, rail rifle.
 
-States: idle, walk, aim (windup: barrel rails glow), fire (muzzle flash + recoil), hurt, death.
-Visibility groups: charge (barrel glow), flash.
-Run:  blender -b --factory-startup -P shooter.py -- --out shooter.blend   (see tools/art/common/make_char.sh)
+Run:  blender -b --factory-startup -P shooter.py -- --out shooter.blend   (see tools/art/common/make_char.ps1)
 """
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'common'))
 import kit  # noqa: E402
+import cyber  # noqa: E402
 from kit import part, cat, box, tube, ellipsoid, ecyl, shell, lathe, extrude2d, S, C, TAU  # noqa: E402
 
 
@@ -16,20 +15,28 @@ def build():
                       sh_w=0.16, sh_z=0.13, upper=0.24, fore=0.22)
     kit.set_rig(rp)
     kit.weapon('rifle', 'R', 'wp')
-    kit.legs(thigh_mat='olive', shin_mat='cloth', r=(0.068, 0.052, 0.048, 0.038), boot=(0.17, 0.08, 0.07), shin_guard='gunmetal')
-    kit.arms({'R': ('olive', 'olive'), 'L': ('olive', 'olive')}, r=(0.044, 0.038, 0.04, 0.034), hand=(0.06, 0.05, 0.07))
-    part('hips', 'pelvis_geo', 'pelvis', 'olive', ellipsoid((0, 0, -0.02), (0.11, 0.12, 0.09)))
-    part('coat_skirt', 'pelvis_geo', 'pelvis', 'olive', shell((0, 0), -150, 150, [(0.05, 0.12, 0.13), (-0.30, 0.17, 0.18)], 14))
-    part('belly', 'spine_geo', 'spine', 'cloth', ellipsoid((0.0, 0, 0.06), (0.10, 0.12, 0.10)))
-    part('vest', 'chest_geo', 'chest', 'gunmetal', ellipsoid((0.02, 0, 0.04), (0.13, 0.155, 0.15)))
+    kit.legs(thigh_mat='suit', shin_mat='cloth', r=(0.068, 0.052, 0.048, 0.038), boot=(0.17, 0.08, 0.07), shin_guard='gunmetal')
+    # human trigger arm, machine support arm
+    cyber.human_arm('R', sleeve='cloth', r=(0.044, 0.038, 0.04, 0.034), hand=(0.06, 0.05, 0.07))
+    cyber.robo_arm('L', r=(0.036, 0.03, 0.032, 0.026), hand=(0.055, 0.05, 0.065))
+    part('hips', 'pelvis_geo', 'pelvis', 'cloth', ellipsoid((0, 0, -0.02), (0.11, 0.12, 0.09)))
+    # long street trench coat with a neon hem
+    part('coat_skirt', 'pelvis_geo', 'pelvis', 'cloth', shell((0, 0), -150, 150, [(0.05, 0.12, 0.13), (-0.30, 0.17, 0.18), (-0.42, 0.19, 0.2)], 14))
+    part('coat_hem', 'pelvis_geo', 'pelvis', 'strip', shell((0, 0), -150, 150, [(-0.40, 0.192, 0.202), (-0.43, 0.195, 0.205)], 14))
+    part('belly', 'spine_geo', 'spine', 'suit', ellipsoid((0.0, 0, 0.06), (0.10, 0.12, 0.10)))
+    part('vest', 'chest_geo', 'chest', 'cloth', ellipsoid((0.02, 0, 0.04), (0.13, 0.155, 0.15)))
+    part('collar', 'chest_geo', 'chest', 'cloth', shell((0, 0), 20, 340, [(0.14, 0.11, 0.13), (0.27, 0.13, 0.15)], 14))
     part('pack', 'chest_geo', 'chest', 'helmet', box((-0.15, 0, 0.04), (0.08, 0.2, 0.2)), bevel=0.015)
     part('pack_strip', 'chest_geo', 'chest', 'strip', box((-0.19, -0.06, 0.04), (0.012, 0.03, 0.12)))
+    cyber.spine_cables(x=-0.17, z0=0.10, z1=0.26, n=2)
     H = 'head_geo'
-    part('neck_m', H, 'head', 'cloth', tube((0, 0, -0.10), (0, 0, 0.0), 0.04, 0.04))
-    part('helm', H, 'head', 'gunmetal', ellipsoid((0.0, 0, 0.05), (0.09, 0.085, 0.09)))
-    part('helm_brim', H, 'head', 'helmet', box((0.06, 0, 0.09), (0.09, 0.17, 0.02), (0, -8, 0)))
-    part('face', H, 'head', 'helmet', box((0.06, 0, 0.02), (0.07, 0.13, 0.08)), bevel=0.01)
-    part('monocle', H, 'head', 'eye', tube((0.08, -0.03, 0.045), (0.12, -0.03, 0.045), 0.024, 0.024, 10))
+    part('neck_m', H, 'head', 'cable', tube((0, 0, -0.10), (0, 0, 0.0), 0.04, 0.04, 10))
+    cyber.half_face(H, r=0.092, c=(0.0, 0.0, 0.05), mohawk=False, jaw=True)
+    # long-range optic over the chrome eye + antenna
+    part('monocle', H, 'head', 'gunmetal', tube((0.07, -0.04, 0.075), (0.13, -0.04, 0.075), 0.034, 0.03, 12))
+    part('lens', H, 'head', 'eye', tube((0.13, -0.04, 0.075), (0.14, -0.04, 0.075), 0.03, 0.03, 12))
+    part('antenna', H, 'head', 'chrome', tube((-0.04, -0.05, 0.12), (-0.10, -0.05, 0.27), 0.007, 0.004, 6))
+    part('antenna_tip', H, 'head', 'strip', ellipsoid((-0.10, -0.05, 0.275), (0.012, 0.012, 0.012)))
     # rail rifle along +X of the rifle joint (held at the grip)
     part('stock', 'rifle', 'rifle', 'helmet', box((-0.16, 0, -0.02), (0.18, 0.04, 0.07)), bevel=0.01)
     part('receiver', 'rifle', 'rifle', 'gunmetal', box((0.06, 0, 0.01), (0.30, 0.05, 0.08)), bevel=0.01)

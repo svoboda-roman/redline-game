@@ -1,13 +1,12 @@
-"""Shield: riot heavy (body 1.1 x 1.6) behind a tall tower shield carried on its FRONT (+X, facing right).
-Gunmetal slab shield with a smoked view slit and an amber emissive rim; heavy shoulders, amber visor.
+"""Shield: riot cyborg (body 1.1 x 1.6). Two heavy machine arms, chrome shins, a half chrome skull with a red eye and
+neon mohawk; the tower shield rides on the near forearm with a red sensor slit.
 
-States: idle, walk, turn (body yaws toward camera; the game flips the sprite after the last frame),
-block (shield braced forward, rim flares), hurt, death.  Visibility groups: flare.
-Run:  blender -b --factory-startup -P shield.py -- --out shield.blend   (see tools/art/common/make_char.sh)
+Run:  blender -b --factory-startup -P shield.py -- --out shield.blend   (see tools/art/common/make_char.ps1)
 """
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'common'))
 import kit  # noqa: E402
+import cyber  # noqa: E402
 from kit import part, cat, box, tube, ellipsoid, ecyl, shell, lathe, extrude2d, S, C, TAU  # noqa: E402
 
 
@@ -15,21 +14,22 @@ def build():
     rp = kit.humanoid(thigh=0.35, shin=0.34, ankle=0.08, hip_w=0.11, spine=0.12, chest=0.19, neck=0.17, head=0.06,
                       sh_w=0.21, sh_z=0.13, upper=0.25, fore=0.23)
     kit.set_rig(rp)
-    kit.legs(thigh_mat='olive', shin_mat='gunmetal', r=(0.085, 0.065, 0.065, 0.052), boot=(0.20, 0.10, 0.08),
+    kit.legs(thigh_mat='suit', shin_mat='chrome', r=(0.085, 0.065, 0.065, 0.052), boot=(0.20, 0.10, 0.08),
              knee_mat='gunmetal', shin_guard='gunmetal')
-    kit.arms({'R': ('olive', 'gunmetal'), 'L': ('olive', 'gunmetal')}, r=(0.055, 0.048, 0.052, 0.046), hand=(0.075, 0.065, 0.08))
-    part('hips', 'pelvis_geo', 'pelvis', 'olive', ellipsoid((0, 0, -0.02), (0.15, 0.17, 0.11)))
-    part('tassets', 'pelvis_geo', 'pelvis', 'gunmetal', shell((0, 0), -120, 120, [(0.02, 0.17, 0.19), (-0.20, 0.20, 0.22)], 12))
-    part('belly', 'spine_geo', 'spine', 'olive', ellipsoid((0.0, 0, 0.07), (0.14, 0.16, 0.13)))
+    # both arms are heavy machine arms (riot cyborg)
+    cyber.robo_arm('R', r=(0.05, 0.044, 0.048, 0.042), hand=(0.075, 0.065, 0.08))
+    cyber.robo_arm('L', r=(0.05, 0.044, 0.048, 0.042), hand=(0.075, 0.065, 0.08))
+    part('hips', 'pelvis_geo', 'pelvis', 'suit', ellipsoid((0, 0, -0.02), (0.15, 0.17, 0.11)))
+    part('tassets', 'pelvis_geo', 'pelvis', 'gunmetal', shell((0, 0), -120, 120, [(0.02, 0.17, 0.19), (-0.16, 0.20, 0.22)], 12))
+    part('belly', 'spine_geo', 'spine', 'suit', ellipsoid((0.0, 0, 0.07), (0.14, 0.16, 0.13)))
     part('cuirass', 'chest_geo', 'chest', 'gunmetal', ellipsoid((0.03, 0, 0.05), (0.19, 0.22, 0.19)))
-    part('collar', 'chest_geo', 'chest', 'gunmetal', shell((0, 0), 40, 320, [(0.16, 0.13, 0.15), (0.30, 0.16, 0.18)], 14))
+    part('cuirass_lights', 'chest_geo', 'chest', 'strip', cat(box((0.2, -0.07, 0.08), (0.012, 0.025, 0.1)), box((0.2, 0.07, 0.08), (0.012, 0.025, 0.1))))
     for s, sy in (('R', -1), ('L', 1)):
-        part('pauldron_' + s, 'sh_' + s, 'sh_' + s, 'gunmetal', ellipsoid((0.0, sy * 0.04, 0.0), (0.13, 0.11, 0.10)))
+        part('pauldron_' + s, 'sh_' + s, 'sh_' + s, 'chrome', ellipsoid((0.0, sy * 0.04, 0.02), (0.12, 0.10, 0.09)))
+    cyber.spine_cables(x=-0.18, z0=0.0, z1=0.28, n=3, spread=0.05)
     H = 'head_geo'
-    part('neck_m', H, 'head', 'cloth', tube((0, 0, -0.10), (0, 0, 0.0), 0.05, 0.05))
-    part('helm', H, 'head', 'helmet', ellipsoid((0.01, 0, 0.05), (0.10, 0.095, 0.10)))
-    part('helm_ridge', H, 'head', 'gunmetal', box((0.0, 0, 0.14), (0.20, 0.03, 0.04)), bevel=0.01)
-    part('visor', H, 'head', 'eye', shell((0.01, 0), -55, 55, [(0.045, 0.102, 0.097), (0.07, 0.102, 0.097)], 10))
+    part('neck_m', H, 'head', 'cable', tube((0, 0, -0.10), (0, 0, 0.0), 0.05, 0.05, 10))
+    cyber.half_face(H, r=0.1, c=(0.01, 0.0, 0.05), mohawk=True, jaw=True)
     # the shield rides on the near forearm, standing in FRONT (+X) of the body
     kit.joint('shield', 'wr_R', (0.0, 0, 0.0))
     kit.WEAPONS.append(('shield', 'R', 'sa'))
@@ -45,7 +45,8 @@ def build():
     spart('shield_slab', 'shield', 'shield', 'gunmetal', box((X, 0, Z), (T, W, Hh)), bevel=0.02)
     spart('shield_ribs', 'shield', 'shield', 'helmet', cat(box((F, 0, Z + 0.33), (0.02, W - 0.06, 0.05)),
                                                          box((F, 0, Z - 0.30), (0.02, W - 0.06, 0.05))))
-    spart('shield_slit', 'shield', 'shield', 'helmet', box((F, 0, Z + 0.20), (0.02, W * 0.6, 0.05)))
+    spart('shield_slit', 'shield', 'shield', 'cable', box((F, 0, Z + 0.20), (0.02, W * 0.6, 0.05)))
+    spart('shield_eye', 'shield', 'shield', 'eye', box((F + 0.004, 0, Z + 0.20), (0.02, W * 0.18, 0.03)))
     rim = [box((F, -W / 2 + 0.012, Z), (0.016, 0.024, Hh)), box((F, W / 2 - 0.012, Z), (0.016, 0.024, Hh)),
            box((F, 0, Z + Hh / 2 - 0.012), (0.016, W, 0.024)), box((F, 0, Z - Hh / 2 + 0.012), (0.016, W, 0.024))]
     spart('shield_rim', 'shield', 'shield', 'strip', cat(*rim))
