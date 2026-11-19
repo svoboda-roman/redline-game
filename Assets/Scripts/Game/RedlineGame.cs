@@ -23,7 +23,12 @@ namespace Redline.Game
         /// (levelAdvanceDelay) the next one loads with a fresh, fully healed player; a missing or
         /// invalid level is skipped with a logged warning. After the last one the victory stays.
         /// </summary>
-        private static readonly string[] Levels = { "City01B", "City01", "Loop01", "Loop02", "Loop03" };   // City01B (main, remix) / City01 (as drawn) are endless: the run ends only on death
+        private static readonly string[] Levels = { "City01B", "City02", "City01", "Loop01", "Loop02", "Loop03" };   // the City maps are endless: the run ends only on death
+        /// <summary>Names shown in LEVEL SELECT, one per entry of <see cref="Levels"/>.</summary>
+        private static readonly string[] LevelTitles = { "1  NEON STREET", "2  RAIL YARD", "3  NEON STREET (DRAWN)", "4  LOOP I", "5  LOOP II", "6  LOOP III" };
+        /// <summary>Level a run starts at: 0 from PLAY, the picked one from LEVEL SELECT (restarts keep it).</summary>
+        private int _startLevel;
+        private MenuScreen _levelMenu;
         /// <summary>
         /// Half the view height in tiles: a close camera that follows the player. 6.75 frames the
         /// 40 px-per-tile character art at an exact 2× on a 1080p screen (13.5 tiles × 40 px = 540 px).
@@ -394,7 +399,7 @@ namespace Redline.Game
         private void PrepareRun()
         {
             BeginRunState();
-            if (!TryLoadLevel(0)) throw new InvalidOperationException("Redline: no playable level in Resources.");
+            if (!TryLoadLevel(_startLevel) && !TryLoadLevel(0)) throw new InvalidOperationException("Redline: no playable level in Resources.");
             OnLevelChanged();
         }
 
@@ -482,7 +487,18 @@ namespace Redline.Game
 
             _mainMenu = gameObject.AddComponent<MenuScreen>();
             _mainMenu.Init("MainMenu", 90f, "REDLINE", true);
-            _mainMenu.AddItem("PLAY", StartRun);
+            _mainMenu.AddItem("PLAY", () => { _startLevel = 0; StartRun(); });
+            _mainMenu.AddItem("LEVEL SELECT", OpenLevelSelect);
+
+            _levelMenu = gameObject.AddComponent<MenuScreen>();
+            _levelMenu.Init("LevelMenu", 90f, "LEVEL SELECT", true);
+            for (int i = 0; i < Levels.Length; i++)
+            {
+                int level = i;
+                _levelMenu.AddItem(i < LevelTitles.Length ? LevelTitles[i] : Levels[i], () => { _levelMenu.Hide(); _startLevel = level; StartRun(); });
+            }
+            _levelMenu.AddItem("BACK", CloseLevelSelect);
+            _levelMenu.Cancelled = CloseLevelSelect;
             _mainMenu.AddItem("TUTORIAL", StartTraining);
             _mainMenu.AddItem("UPGRADES", OpenUpgradesFromMenu);
             _mainMenu.AddItem("SETTINGS", () => OpenSettings(_mainMenu));
@@ -520,6 +536,20 @@ namespace Redline.Game
             _mainMenu.SetNotice(notice);
             _mainMenu.Show();
             SetFlow(Flow.Menu);
+        }
+
+        private void OpenLevelSelect()
+        {
+            _mainMenu.Hide();
+            _levelMenu.Show();
+            SetFlow(_flow); // the Enter that opened it must not also pick the first level
+        }
+
+        private void CloseLevelSelect()
+        {
+            _levelMenu.Hide();
+            _mainMenu.Show();
+            SetFlow(_flow);
         }
 
         private void OpenUpgradesFromMenu()

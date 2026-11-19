@@ -10,6 +10,7 @@ namespace Redline.Tests
     {
         [TestCase("City01")]
         [TestCase("City01B")]
+        [TestCase("City02")]
         public void City01_ParsesAsEndlessRandomSpawnLevel(string level)
         {
             var map = TileMap.Parse(Resources.Load<TextAsset>(level).text);
