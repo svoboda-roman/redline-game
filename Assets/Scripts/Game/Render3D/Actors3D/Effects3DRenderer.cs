@@ -153,49 +153,43 @@ namespace Redline.Game.Render3D.Actors3D
             }
         }
 
-        private static readonly Color BloodColor = new Color(0.42f, 0.015f, 0.03f, 1f);
-        private static readonly Color BloodDark = new Color(0.22f, 0.01f, 0.02f, 1f);
+        /// <summary>Neon blood: hot red (HDR, additive) so it blooms like the street's neon.</summary>
+        private static readonly Color NeonBlood = new Color(1.9f, 0.06f, 0.16f, 1f);
+        private static readonly Color NeonBloodHot = new Color(2.6f, 0.5f, 0.6f, 1f);
 
         /// <summary>
-        /// A kill's blood (alpha-blended, never glowing): a spray of droplets from the wound thrown away from the
-        /// killer along <paramref name="dirX"/> in an arc, stretched along their flight and falling, a dark red mist
-        /// puff, and splatters lying flat on the floor at <paramref name="floorY"/> that stay a few seconds and fade.
-        /// <paramref name="amount"/> 1 = a normal kill, 2+ = a heavy one (brute, tier 3).
+        /// A kill's neon blood splash (additive, glowing, small): a short burst of hot red droplets thrown away from the
+        /// killer along <paramref name="dirX"/> in an arc, a red glow puff at the wound, and a brief glowing red
+        /// splat on the floor at <paramref name="floorY"/>. Goes with the white cut-flash lines (the impact frame).
+        /// <paramref name="amount"/> 1 = a normal kill, more = a heavy one (brute, tier 3).
         /// </summary>
         public void Blood(Vector2 at, float dirX, float floorY, float amount)
         {
             float side = dirX >= 0f ? 1f : -1f;
-            int drops = Mathf.RoundToInt(22 * amount);
+            int drops = Mathf.RoundToInt(12 * amount);
             for (int i = 0; i < drops; i++)
             {
-                float spd = Random.Range(2.5f, 8.5f) * Mathf.Lerp(1f, 1.25f, amount - 1f);
-                var dir = new Vector2(side * Random.Range(0.25f, 1f), Random.Range(-0.15f, 0.95f)).normalized;
-                var c = Color.Lerp(BloodColor, BloodDark, Random.value * 0.6f);
-                float s = Random.Range(0.035f, 0.085f);
-                Spawn(Solid, null, at + Random.insideUnitCircle * 0.12f, Random.Range(-0.3f, 0.2f), dir * spd, c, new Vector2(s, s * 0.8f),
-                    Random.Range(0.45f, 0.85f), 24f, 0.6f, 0f, 0f, true, false, 0.4f);
+                float spd = Random.Range(3f, 8f);
+                var dir = new Vector2(side * Random.Range(0.3f, 1f), Random.Range(-0.1f, 0.9f)).normalized;
+                var c = i % 4 == 0 ? NeonBloodHot : NeonBlood;
+                float s = Random.Range(0.035f, 0.07f);
+                Spawn(Solid, null, at + Random.insideUnitCircle * 0.1f, Random.Range(-0.3f, 0.2f), dir * spd, c, new Vector2(s, s * 0.8f),
+                    Random.Range(0.3f, 0.55f), 20f, 1f, 0f, 0f, true, true, 0.3f);
             }
-            // A few fat drops that fall short.
-            for (int i = 0; i < Mathf.RoundToInt(5 * amount); i++)
+            // Red glow puff at the wound.
+            var puff = NeonBlood * 0.9f;
+            puff.a = 0.8f;
+            Spawn(Glow, null, at + new Vector2(side * 0.15f, 0f), -0.2f, new Vector2(side * 0.6f, 0.2f), puff,
+                new Vector2(0.55f, 0.55f) * amount, 0.25f, 0f, 3f, 0f, 1.6f, false, true, 0.3f);
+            // A brief glowing splat on the floor, strung out away from the killer.
+            for (int i = 0; i < 2 + Mathf.RoundToInt(amount); i++)
             {
-                var v = new Vector2(side * Random.Range(0.5f, 2.5f), Random.Range(0.5f, 3f));
-                float s = Random.Range(0.09f, 0.14f);
-                Spawn(Solid, null, at, -0.15f, v, BloodDark, new Vector2(s, s), Random.Range(0.4f, 0.6f), 26f, 0.3f, 0f, 0f, false, false, 0.4f);
-            }
-            // Mist puff.
-            var mist = new Color(BloodColor.r * 0.8f, 0.02f, 0.03f, 0.45f);
-            Spawn(Glow, null, at + new Vector2(side * 0.2f, 0f), -0.2f, new Vector2(side * 0.8f, 0.3f), mist,
-                new Vector2(0.6f, 0.6f) * amount, 0.5f, 0f, 2f, 0f, 1.8f, false, false, 0.4f);
-            // Splatters on the floor, strung out away from the killer.
-            int splats = 3 + Mathf.RoundToInt(2 * amount);
-            for (int i = 0; i < splats; i++)
-            {
-                float dx = side * Random.Range(0f, 1.6f) * amount;
-                float w = Random.Range(0.35f, 0.8f) * (i == 0 ? 1.4f : 1f), d = w * Random.Range(0.35f, 0.6f);
-                var c = Color.Lerp(BloodColor, BloodDark, Random.Range(0.3f, 0.8f));
-                c.a = 0.9f;
-                Spawn(Glow, null, new Vector2(at.x + dx, floorY + 0.012f + i * 0.001f), Random.Range(-0.8f, 0.8f), Vector2.zero, c,
-                    new Vector2(w, d), Random.Range(6f, 8f), 0f, 0f, 0f, 0.15f, false, false, 0.5f, true);
+                float dx = side * Random.Range(0.1f, 1.2f) * amount;
+                float w = Random.Range(0.3f, 0.6f), d = w * Random.Range(0.35f, 0.55f);
+                var c = NeonBlood * 0.7f;
+                c.a = 0.8f;
+                Spawn(Glow, null, new Vector2(at.x + dx, floorY + 0.012f + i * 0.001f), Random.Range(-0.6f, 0.6f), Vector2.zero, c,
+                    new Vector2(w, d), Random.Range(1.2f, 1.8f), 0f, 0f, 0f, 0.2f, false, true, 0.4f, true);
             }
         }
 
