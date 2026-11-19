@@ -28,7 +28,7 @@ namespace Redline.Game
         /// Half the view height in tiles: a close camera that follows the player. 6.75 frames the
         /// 40 px-per-tile character art at an exact 2× on a 1080p screen (13.5 tiles × 40 px = 540 px).
         /// </summary>
-        private const float CameraSize = 6.75f;
+        private const float CameraSize = 10.1f;   // classic 2D view; zoomed out 50% with the 3D view (Pixel3DCamera.FitScreen)
         /// <summary>Seconds of the player's velocity the camera looks ahead by.</summary>
         private const float Lookahead = 0.35f;
         private static readonly Color Background = new Color(0.01f, 0.01f, 0.04f);
@@ -893,11 +893,33 @@ namespace Redline.Game
             _actors.Squash(1.2f);
         }
 
+        /// <summary>Slide start feedback, scaled by the tier the slide started at (tier 1 a puff, tier 3 a burst).</summary>
         private void OnSlide(Color color)
         {
             var p = Sim.Player;
-            _effects.Dust(ToDraw(new Vector2(p.X, p.Y)), 8, p.Vx);
-            _effects.Sparks(ToDraw(new Vector2(p.X, p.Y + 0.1f)), color, 5, 4f);
+            int tier = Mathf.Clamp(p.SlideTier, 1, 3);
+            var tierColor = TierColors[tier - 1];
+            var feet = ToDraw(new Vector2(p.X, p.Y));
+            _effects.Dust(feet, tier == 1 ? 4 : tier == 2 ? 8 : 16, p.Vx);
+            if (tier >= 2) _effects.Sparks(ToDraw(new Vector2(p.X, p.Y + 0.1f)), tierColor, tier == 3 ? 16 : 6, tier == 3 ? 9f : 4f);
+            if (tier == 3) _shake = Mathf.Max(_shake, 0.18f);
+            _slideTrailTimer = 0f;
+        }
+
+        private float _slideTrailTimer;
+
+        /// <summary>While sliding on the ground: a floor trail in the slide's tier colour (none at tier 1, sparse at 2, dense at 3).</summary>
+        private void SpawnSlideTrail(float dt)
+        {
+            var p = Sim.Player;
+            if (!p.Sliding || !p.Grounded || p.SlideTier < 2 || Sim.State == SimState.GameOver) return;
+            _slideTrailTimer -= dt;
+            if (_slideTrailTimer > 0f) return;
+            bool t3 = p.SlideTier == 3;
+            _slideTrailTimer = t3 ? 0.03f : 0.08f;
+            var at = ToDraw(new Vector2(p.X - Mathf.Sign(p.Vx) * p.Width * 0.4f, p.Y + 0.05f));
+            _effects.Dust(at, t3 ? 3 : 1, p.Vx * 0.3f);
+            if (t3) _effects.Sparks(at, TierColors[2], 2, 3f);
         }
 
         private void OnLanded(float fallSpeed)
@@ -920,6 +942,7 @@ namespace Redline.Game
         private void SpawnSpeedTrail(float dt)
         {
             if (Sim.State == SimState.GameOver) return;
+            SpawnSlideTrail(dt);
             if (_render3D) { SpawnSpeedTrail3D(dt); return; }
             var p = Sim.Player;
             int tier = Sim.PlayerTier;
