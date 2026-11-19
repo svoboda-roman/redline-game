@@ -112,6 +112,15 @@ namespace Redline.Game.Render3D
         // --- Neon street backdrop (Arena3DNeonStreet) -------------------------------------------------------
         /// <summary>Replaces the industrial city, ruins and rooftop props with a dense neon-sign street (variant A).</summary>
         public bool NeonStreet;
+        /// <summary>Fraction of street signs that are dead: dark, unlit, no halo (0..1).</summary>
+        public float DeadSigns = 0.2f;
+        /// <summary>
+        /// Platforms as black metal scaffolding: dark metallic fascia, slab tops, supports, crates and spikes, thin
+        /// scaffold bracing, and pale steel edge lines on every solid box so hookable surfaces read at a glance.
+        /// </summary>
+        public bool MetalPlatforms;
+        /// <summary>Colour of the platform edge lines (emissive; read against the neon street).</summary>
+        public Color EdgeLine = new Color(0.55f, 0.68f, 0.85f);
 
         // --- Sunset backdrop (Arena3DSunset) --------------------------------------------------------------
         /// <summary>Builds the sunset backdrop: a big striped sun setting behind the city, its halo, and neon signs on the city.</summary>
@@ -247,10 +256,11 @@ namespace Redline.Game.Render3D
             l.Ambient = new Color(0.16f, 0.1f, 0.16f);
             l.Moon = new Color(0.85f, 0.55f, 0.9f);
             l.MoonIntensity = 1.6f;
-            l.Sodium = new Color(1.2f, 0.78f, 0.5f);
-            l.LampSpotIntensity = 90f;
+            l.Sodium = new Color(1.35f, 0.1f, 0.08f);   // red street lamps: red heads, red light, red reflections
+            l.LampSpotIntensity = 120f;
             l.DeckColor = new Color(0.3f, 0.24f, 0.3f);
-            l.WallColor = new Color(0.26f, 0.2f, 0.26f);
+            l.WallColor = new Color(0.1f, 0.095f, 0.11f); // platforms: black metal
+            l.MetalPlatforms = true;
             l.FrontFill = new Color(1f, 0.55f, 0.75f);
             l.FrontFillIntensity = 0.45f;
             l.ShaftStrength = 0f;
@@ -262,11 +272,11 @@ namespace Redline.Game.Render3D
             l.PuddleReflect = 0.95f;
             l.ReflectionIntensity = 2.4f;
             l.Exposure = 0.7f;
-            l.Contrast = 20f;
-            l.Saturation = 22f;
-            l.BloomThreshold = 0.95f;
-            l.BloomIntensity = 1.1f;
-            l.BloomScatter = 0.72f;
+            l.Contrast = 22f;
+            l.Saturation = 38f;          // saturated colour rather than glow
+            l.BloomThreshold = 1.0f;
+            l.BloomIntensity = 0.6f;
+            l.BloomScatter = 0.65f;
             l.BloomTint = new Color(1f, 0.85f, 0.95f);
             l.Vignette = 0.2f;
             l.SignColors = redder

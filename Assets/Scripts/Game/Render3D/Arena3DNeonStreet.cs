@@ -115,7 +115,7 @@ namespace Redline.Game.Render3D
             facades.Quad(new Vector3(x + w * 0.5f, top + 0.25f * scale, z - 0.05f), w, 0.5f * scale, PlasterUv, tint * 0.6f);
             if (R() < 0.45f * detail)
             {
-                var led = _look.SignColors[rnd.Next(_look.SignColors.Length)] * 2.2f;
+                var led = _look.SignColors[rnd.Next(_look.SignColors.Length)] * 1.1f;
                 signs.Quad(new Vector3(x + w * 0.5f, top + 0.55f * scale, z - 0.1f), w, 0.14f * scale, WhiteUv, led);
                 signs.Quad(new Vector3(x + 0.07f * scale, (FloorTop + 4f + top) * 0.5f, z - 0.1f), 0.14f * scale, top - FloorTop - 4f, WhiteUv, led);
             }
@@ -125,10 +125,11 @@ namespace Redline.Game.Render3D
             {
                 var shop = Pick(rnd, 2);
                 float sh = 3.2f * scale;
-                signs.Quad(new Vector3(x + w * 0.5f, FloorTop + sh * 0.5f, z - 0.15f), w - 0.5f, sh, shop.Uv, Color.white * 0.95f);
+                bool shopDead = R() < _look.DeadSigns * 0.6f;   // the odd closed, dark shop
+                signs.Quad(new Vector3(x + w * 0.5f, FloorTop + sh * 0.5f, z - 0.15f), w - 0.5f, sh, shop.Uv, shopDead ? new Color(0.12f, 0.1f, 0.11f) : Color.white * 0.8f);
                 var aw = _look.SignColors[rnd.Next(_look.SignColors.Length)] * 1.3f;
                 signs.Quad(new Vector3(x + w * 0.5f, FloorTop + sh + 0.25f * scale, z - 0.5f), w - 0.3f, 0.5f * scale, WhiteUv, aw);
-                halos.Billboard(new Vector3(x + w * 0.5f, FloorTop + sh * 0.5f, z - 1.2f), w * 1.3f, sh * 2.2f, shop.Tint * 0.12f);
+                if (!shopDead) halos.Billboard(new Vector3(x + w * 0.5f, FloorTop + sh * 0.5f, z - 1.2f), w * 1.3f, sh * 2.2f, shop.Tint * 0.08f);
             }
 
             // Signs: blades along the building edges, boards across the floors, stacked from the shops to the roof.
@@ -153,12 +154,19 @@ namespace Redline.Game.Render3D
                 }
                 float cy = yMin + sh * 0.5f + R() * Mathf.Max(0.1f, yMax - yMin - sh);
                 float cz = z - (bladeSign ? 0.9f : 0.35f) * scale - i * 0.01f;
-                float bright = 1.05f + R() * 0.45f;   // just over the bloom threshold: glows but keeps its colour
-                var target = R() < 0.18f ? blink : signs;
-                target.Quad(new Vector3(cx, cy, cz), sw, sh, cell.Uv, Color.white * bright);
                 if (bladeSign) // bracket to the wall
                     facades.Quad(new Vector3(cx, cy + sh * 0.5f + 0.12f * scale, cz + 0.4f * scale), sw * 0.9f, 0.12f * scale, PlasterUv, tint * 0.4f);
-                halos.Billboard(new Vector3(cx, cy, cz - 0.3f), sw * 2.6f + 2f * scale, sh * 1.8f + 2f * scale, cell.Tint * (0.2f + 0.06f * bright));
+                if (R() < _look.DeadSigns)
+                {
+                    // Dead sign: the same panel, unlit and grimy, no halo (it casts no light).
+                    var dead = new Color(0.16f, 0.13f, 0.15f, 1f) * (0.8f + R() * 0.5f);
+                    signs.Quad(new Vector3(cx, cy, cz), sw, sh, cell.Uv, dead);
+                    continue;
+                }
+                float bright = 0.85f + R() * 0.3f;   // around the bloom threshold: rich colour, little glow
+                var target = R() < 0.15f ? blink : signs;
+                target.Quad(new Vector3(cx, cy, cz), sw, sh, cell.Uv, Color.white * bright);
+                halos.Billboard(new Vector3(cx, cy, cz - 0.3f), sw * 2.2f + 1.5f * scale, sh * 1.6f + 1.5f * scale, cell.Tint * (0.08f + 0.04f * bright));
             }
         }
 
