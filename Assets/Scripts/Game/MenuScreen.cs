@@ -81,8 +81,12 @@ namespace Redline.Game
             _notice.style.display = DisplayStyle.None;
             column.Add(_notice);
 
+            // Pause menu: a darker band under the text column so the items read over the busy live scene.
+            if (!neonTitle) MenuKit.ApplyScrim(Root, 0.9f, 0.15f, 0.42f, 0.8f);
+
+            // Buttons stretch to the widest label (no fixed width that clips "QUIT TO MENU").
             _list = new VisualElement();
-            _list.style.alignItems = Align.FlexStart;
+            _list.style.alignItems = Align.Stretch;
             _list.pickingMode = PickingMode.Ignore;
             column.Add(_list);
 
@@ -103,6 +107,10 @@ namespace Redline.Game
             }
             int index = _buttons.Count;
             var b = MenuKit.MakeButton(() => { Select(index); Activate(index); }, () => Time.frameCount != _openedFrame, 90f * MenuKit.T, MenuKit.RowHeight);
+            b.style.width = StyleKeyword.Auto;
+            b.style.minWidth = 90f * MenuKit.T;
+            b.style.whiteSpace = WhiteSpace.NoWrap;
+            b.style.flexShrink = 0f;
             b.RegisterCallback<PointerEnterEvent>(_ => Select(index));
             _buttons.Add(b);
             _labels.Add(label);
