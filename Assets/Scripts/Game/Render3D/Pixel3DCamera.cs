@@ -57,17 +57,20 @@ namespace Redline.Game.Render3D
         public float Pitch = 3f;
         /// <summary>Play-plane units visible vertically (Height / <see cref="TexelsPerUnit"/> = 320 / 48). Smaller = closer =
         /// bigger characters; change it only together with <see cref="Height"/> or the sprite bake PPU.</summary>
-        public float FramingHeight = 320f / TexelsPerUnit;
+        public float FramingHeight = DefaultHeight / TexelsPerUnit;
+        /// <summary>Default low-res target: 960x480 (2.0:1) = 20 x 10 units of play plane at 48 texels per unit. Zoomed out
+        /// from the original 640x320 (13.3 x 6.7 units) while keeping sprites 1:1; x2 fills the width at 1920x1080.</summary>
+        public const int DefaultWidth = 960, DefaultHeight = 480;
         /// <summary>The most recently built rig (null once destroyed); lets the actor view lock the texel snap to the ronin.</summary>
         public static Pixel3DCamera Latest { get; private set; }
         /// <summary>Shake decay per second (amount units).</summary>
         public float ShakeDecay = 4f;
         /// <summary>DOF focus distance behind the play plane (focus band is Z 0..+12; this is its optimum).</summary>
-        public float FocusAhead = 5f;
+        public float FocusAhead = 2.5f;
         /// <summary>DOF lens: focal length (mm) and aperture (f-stop). Larger aperture number = sharper.</summary>
-        public float DofFocalLength = 100f, DofAperture = 2.8f;
+        public float DofFocalLength = 150f, DofAperture = 1.4f;   // shallow: the street behind the play plane blurs, the play plane stays sharp
         /// <summary>Texel rows each letterbox bar grows by in cinematic mode (2.39:1 from 2.0:1 at 640x320 = 26; even, the bars move in 2-row steps).</summary>
-        public int CinematicExtraTexels = 26;
+        public int CinematicExtraTexels = 40;
         /// <summary>Seconds the bars take to move between 2.0:1 and 2.4:1.</summary>
         public float CinematicSeconds = 0.4f;
         /// <summary>World units of offset per unit of shake amount.</summary>
@@ -80,9 +83,9 @@ namespace Redline.Game.Render3D
         /// <summary>The low-res RenderTexture (Width+2 × Height+2, point filtered).</summary>
         public RenderTexture Target { get; private set; }
         /// <summary>Visible render width in texels.</summary>
-        public int Width { get; private set; } = 640;
+        public int Width { get; private set; } = DefaultWidth;
         /// <summary>Visible render height in texels.</summary>
-        public int Height { get; private set; } = 320;
+        public int Height { get; private set; } = DefaultHeight;
         /// <summary>Height of the top letterbox bar in pixels of the present camera's current output (screen or capture
         /// texture). Prefer <see cref="PictureFraction"/>, which also covers the side bars.</summary>
         public float LetterboxPixels { get; private set; }
@@ -130,7 +133,26 @@ namespace Redline.Game.Render3D
         private float _calmT, _tierF = 1f;
         private float _keyBase = 2f, _vigBase = 0.25f, _satBase = -20f, _lastKey = -1f;
 
-        private void Awake() { Latest = this; Build(); }
+        private void Awake() { Latest = this; FitScreen(); Build(); }
+
+        /// <summary>Target rows the screen is divided into: the play view is about this many texels tall (10-11 units).</summary>
+        public static int TargetRows = 540;
+
+        /// <summary>
+        /// Sizes the low-res target to fill the whole screen with no bars: an integer number of screen pixels per texel
+        /// (screen height / <see cref="TargetRows"/>, rounded), the target the screen divided by it, and the framing kept at
+        /// <see cref="TexelsPerUnit"/> so sprites stay 1:1. 1920x1080 -> 960x540, 2560x1440 -> 853x480, 3840x2160 -> 960x540.
+        /// </summary>
+        public void FitScreen()
+        {
+            int sw = Screen.width, sh = Screen.height;
+            if (sw < 16 || sh < 9) return;
+            int k = Mathf.Max(1, Mathf.RoundToInt(sh / (float)TargetRows));
+            Width = Mathf.Max(16, sw / k);
+            Height = Mathf.Max(9, sh / k);
+            FramingHeight = Height / TexelsPerUnit;
+            if (_built) CreateTarget();
+        }
 
         /// <summary>Changes the low-res resolution (visible texels). Recreates the RenderTexture.</summary>
         public void SetResolution(int width, int height)

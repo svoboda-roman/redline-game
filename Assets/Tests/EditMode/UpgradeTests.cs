@@ -200,7 +200,7 @@ namespace Redline.Tests
                 (UpgradeKind.Hook, 1), (UpgradeKind.SwordAndOrbs, 4));
             var c = Upgrades.Apply(_base, _ucfg, s);
 
-            Assert.AreEqual(_base.playerMaxHp + 2 * _ucfg.maxHpPerLevel, c.playerMaxHp);
+            Assert.AreEqual(_base.playerMaxHp + 2 / _ucfg.maxHpLevelsPerHp * _ucfg.maxHpPerLevel, c.playerMaxHp);
             float sm = 1f + 3 * _ucfg.speedMultiplierPerLevel;
             Assert.AreEqual(_base.runSpeed * sm, c.runSpeed, 1e-4f);
             Assert.AreEqual(_base.maxSpeed * sm, c.maxSpeed, 1e-4f);
@@ -247,7 +247,7 @@ namespace Redline.Tests
         {
             var s = StateWith(_ucfg, 0, (UpgradeKind.MaxHp, 3));
             var sim = new RedlineSim(Upgrades.Apply(NoWaves(), _ucfg, s), Box(30, 10));
-            Assert.AreEqual(new RedlineConfig().playerMaxHp + 3 * _ucfg.maxHpPerLevel, sim.Player.Hp);
+            Assert.AreEqual(new RedlineConfig().playerMaxHp + 3 / _ucfg.maxHpLevelsPerHp * _ucfg.maxHpPerLevel, sim.Player.Hp);
         }
 
         // ------------------------------------------------------------------ save

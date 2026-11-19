@@ -44,6 +44,18 @@ namespace Redline.Core
             var sb = new StringBuilder(128);
             sb.Append("{\"version\":").Append(CurrentVersion.ToString(CultureInfo.InvariantCulture));
             sb.Append(",\"points\":").Append(state.Points.ToString(CultureInfo.InvariantCulture));
+            sb.Append(",\"spins\":").Append(state.Spins.ToString(CultureInfo.InvariantCulture));
+            sb.Append(",\"cosmetics\":").Append(state.CosmeticsOwned.ToString(CultureInfo.InvariantCulture));
+            sb.Append(",\"equipped\":").Append(((int)state.Equipped).ToString(CultureInfo.InvariantCulture));
+            sb.Append(",\"best\":{");
+            bool firstBest = true;
+            foreach (var kv in state.BestWaves)
+            {
+                if (!firstBest) sb.Append(',');
+                firstBest = false;
+                sb.Append('"').Append(kv.Key.Replace("\"", "")).Append("\":").Append(kv.Value.ToString(CultureInfo.InvariantCulture));
+            }
+            sb.Append('}');
             sb.Append(",\"levels\":{");
             for (int i = 0; i < UpgradeState.Kinds.Length; i++)
             {
@@ -102,6 +114,17 @@ namespace Redline.Core
                 state.SetPoints(points);
             else
                 repaired = true;
+            // Optional (older saves have no spins: the random upgrade price starts at its base).
+            if (root.TryGetValue("spins", out var sp) && TryInt(sp, out int spins) && spins >= 0)
+                state.SetSpins(spins);
+            // Optional: cosmetics and per-level best waves (older saves have neither).
+            int owned = 1, equipped = 0;
+            if (root.TryGetValue("cosmetics", out var co) && TryInt(co, out int ow)) owned = ow;
+            if (root.TryGetValue("equipped", out var eq) && TryInt(eq, out int e)) equipped = e;
+            state.SetCosmetics(owned, equipped);
+            if (root.TryGetValue("best", out var b) && b is Dictionary<string, object> best)
+                foreach (var kv in best)
+                    if (TryInt(kv.Value, out int wave) && wave > 0) state.RecordWave(kv.Key, wave);
 
             if (root.TryGetValue("levels", out var l) && l is Dictionary<string, object> levels)
             {

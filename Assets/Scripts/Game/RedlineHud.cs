@@ -118,6 +118,7 @@ namespace Redline.Game
             BuildBanner();
             BuildToasts(cfg);
             BuildMarkers();
+            BuildExtras();
 
             _overTop = Mathf.Max(cfg.airMaxSpeed, cfg.maxSpeed) * cfg.orbSpeedMultiplier;
             _speedTexts = new string[Mathf.CeilToInt(_overTop * 1.25f * 2f) + 1];
@@ -526,6 +527,7 @@ namespace Redline.Game
             if (!training) UpdateBanner(sim); else if (!_shownTraining || _bannerBox.resolvedStyle.display != DisplayStyle.None) HideBanner();
             _shownTraining = training;
             UpdateMarkers(sim, k);
+            UpdateCallout(dt);
         }
 
         private bool _zonesInit;
@@ -690,7 +692,7 @@ namespace Redline.Game
             if (sim.CurrentWave != _shownWave || sim.State == SimState.Victory)
             {
                 _shownWave = sim.CurrentWave;
-                _waveValue.text = sim.CurrentWave + "/" + sim.WaveCount;
+                _waveValue.text = sim.Endless ? sim.CurrentWave.ToString() : sim.CurrentWave + "/" + sim.WaveCount;
             }
             if (sim.EnemiesAlive != _shownEnemies)
             {
@@ -714,7 +716,7 @@ namespace Redline.Game
                 if (countdown != _shownCountdown)
                 {
                     _shownCountdown = countdown;
-                    _banner.text = (sim.CurrentWave == sim.WaveCount ? "FINAL WAVE - " : "GET READY - ") + countdown;
+                    _banner.text = (!sim.Endless && sim.CurrentWave == sim.WaveCount ? "FINAL WAVE - " : "GET READY - ") + countdown;
                 }
             }
             if (_prompt.text.Length > 0)
@@ -734,7 +736,7 @@ namespace Redline.Game
             {
                 case SimState.WaveBreak:
                     _shownBannerWave = sim.CurrentWave;
-                    SetBanner("", sim.CurrentWave == sim.WaveCount ? "WAVE " + sim.CurrentWave + "/" + sim.WaveCount : "WAVE " + sim.CurrentWave + "/" + sim.WaveCount, "");
+                    SetBanner("", sim.Endless ? "WAVE " + sim.CurrentWave : "WAVE " + sim.CurrentWave + "/" + sim.WaveCount, "");
                     break;
                 case SimState.GameOver:
                     SetBanner("RUN ENDED", "WAVE " + sim.CurrentWave + " - " + sim.Kills + " KILLS",
@@ -890,6 +892,59 @@ namespace Redline.Game
         }
 
         /// <summary>A label in the terminal font, sized tUnits * T (rescaled by the layout pass).</summary>
+        // ------------------------------------------------------------------ extras: callout + objectives
+
+        private Label _callout;
+        private float _calloutAge = 99f;
+        private Label _objectives;
+        private const float CalloutLife = 1.6f;
+
+        private void BuildExtras()
+        {
+            _callout = Lbl("", 14, UiTheme.Bone);
+            _callout.style.position = Position.Absolute;
+            _callout.style.left = 0; _callout.style.right = 0;
+            _callout.style.unityTextAlign = TextAnchor.MiddleCenter;
+            _callout.style.display = DisplayStyle.None;
+            _pic.Add(_callout);
+            _objectives = Lbl("", 6, UiTheme.Bone);
+            _objectives.style.whiteSpace = WhiteSpace.Normal;
+            _objectives.style.unityTextAlign = TextAnchor.UpperRight;
+            _objectives.style.marginTop = 4f;
+            _objectives.style.opacity = 0.85f;
+            _tr.Add(_objectives);
+        }
+
+        /// <summary>A big centred line for a moment (combo up, challenge done, perk taken, boss).</summary>
+        public void ShowCallout(string text, Color color)
+        {
+            if (_callout == null) return;
+            _callout.text = text;
+            _callout.style.color = color;
+            _callout.style.display = DisplayStyle.Flex;
+            _calloutAge = 0f;
+        }
+
+        /// <summary>The run's challenges and perks under the wave counter (empty hides it).</summary>
+        public void SetObjectives(string text)
+        {
+            if (_objectives == null) return;
+            _objectives.text = text ?? "";
+            _objectives.style.display = string.IsNullOrEmpty(text) ? DisplayStyle.None : DisplayStyle.Flex;
+        }
+
+        private void UpdateCallout(float dt)
+        {
+            if (_callout == null || _calloutAge >= CalloutLife) return;
+            _calloutAge += Mathf.Max(dt, 0f);
+            if (_calloutAge >= CalloutLife) { _callout.style.display = DisplayStyle.None; return; }
+            float h = _pic.resolvedStyle.height;
+            if (float.IsNaN(h) || h <= 0f) return;
+            float rise = UiTheme.ReducedMotion ? 0f : _calloutAge * 0.04f;
+            _callout.style.top = h * (0.26f - rise);
+            _callout.style.opacity = _calloutAge > CalloutLife - 0.4f ? (CalloutLife - _calloutAge) / 0.4f : 1f;
+        }
+
         private Label Lbl(string text, int tUnits, Color color)
         {
             var label = new Label(text) { pickingMode = PickingMode.Ignore };

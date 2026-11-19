@@ -66,10 +66,21 @@ namespace Redline.Core
     {
         public EnemyKind Kind { get; }
         public float Hp;
-        public float MaxHp { get; }
+        public float MaxHp { get; private set; }
+        /// <summary>A wave boss (every bossEveryWaves-th wave in endless levels): far more HP, drawn bigger.</summary>
+        public bool IsBoss { get; private set; }
+
+        /// <summary>Turns this enemy into a boss: <paramref name="hpMultiplier"/> times the HP, one more contact damage.</summary>
+        public void MakeBoss(float hpMultiplier)
+        {
+            IsBoss = true;
+            MaxHp *= hpMultiplier;
+            Hp = MaxHp;
+            ContactDamage += 1;
+        }
         /// <summary>Lowest player tier that can damage this enemy when its armor is up.</summary>
         public int MinTier { get; }
-        public int ContactDamage { get; }
+        public int ContactDamage { get; private set; }
         public float Speed { get; }
         public float JumpSpeed { get; }
         /// <summary>While above 0 the enemy does not steer and deals no contact damage.</summary>

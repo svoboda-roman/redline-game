@@ -191,7 +191,8 @@ namespace Redline.Game
             Overlay(_arm, EmissiveChannel.B, frame, flip, SamuraiLook.Arm, alpha);
 
             // Squash/stretch about the feet; tilt about the body centre.
-            float s = p.Sliding || dead ? 1f : _stretch;
+            // A slide's height follows the tier it started at: tier 1 a taller half crouch, tier 3 pressed low.
+            float s = dead ? 1f : p.Sliding ? (p.SlideTier == 1 ? 1.3f : p.SlideTier == 3 ? 0.65f : 1f) : _stretch;
             float tilt = dead ? 0f : PlayerTilt(p, sim.Map);
             var rot = Quaternion.Euler(0f, 0f, tilt);
             var half = new Vector3(0f, p.Height * 0.5f, 0f);

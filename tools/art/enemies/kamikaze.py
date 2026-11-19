@@ -1,13 +1,12 @@
-"""Kamikaze: small hunched runner (body 0.9 x 1.0) strapped with glowing red charges. Gas-mask hood
-with amber eyes, a rack of red canisters on the back and a belt of charges across the chest.
+"""Kamikaze: cyber bomber (body 0.8 x 1.1). Charges wired straight into a half chrome skull, a neon mohawk, a chrome
+rebreather, one machine arm; the red canisters are still the read of this enemy.
 
-States: idle (twitchy), rush (fast run), lunge (leap), fuse (trembling, red glow pulsing), death.
-Visibility groups: fuse (enlarged charge glow), spark0/spark1.
-Run:  blender -b --factory-startup -P kamikaze.py -- --out kamikaze.blend   (see tools/art/common/make_char.sh)
+Run:  blender -b --factory-startup -P kamikaze.py -- --out kamikaze.blend   (see tools/art/common/make_char.ps1)
 """
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'common'))
 import kit  # noqa: E402
+import cyber  # noqa: E402
 from kit import part, cat, box, tube, ellipsoid, ecyl, shell, lathe, extrude2d, S, C, TAU  # noqa: E402
 
 
@@ -15,29 +14,33 @@ def build():
     rp = kit.humanoid(thigh=0.24, shin=0.24, ankle=0.06, hip_w=0.07, spine=0.09, chest=0.13, neck=0.12, head=0.05,
                       sh_w=0.14, sh_z=0.10, upper=0.19, fore=0.18)
     kit.set_rig(rp)
-    kit.legs(thigh_mat='cloth', shin_mat='cloth', r=(0.06, 0.048, 0.045, 0.035), boot=(0.15, 0.07, 0.06), shin_guard='olive')
-    kit.arms({'R': ('cloth', 'cloth'), 'L': ('cloth', 'cloth')}, r=(0.04, 0.034, 0.036, 0.03), hand=(0.055, 0.05, 0.06))
+    kit.legs(thigh_mat='cloth', shin_mat='chrome', r=(0.06, 0.048, 0.045, 0.035), boot=(0.15, 0.07, 0.06), shin_guard='gunmetal')
+    cyber.robo_arm('R', r=(0.032, 0.026, 0.028, 0.022), hand=(0.05, 0.045, 0.055))
+    cyber.human_arm('L', sleeve='cloth', r=(0.04, 0.034, 0.036, 0.03), hand=(0.055, 0.05, 0.06))
     part('hips', 'pelvis_geo', 'pelvis', 'cloth', ellipsoid((0, 0, -0.01), (0.10, 0.11, 0.08)))
-    part('belly', 'spine_geo', 'spine', 'olive', ellipsoid((0.0, 0, 0.05), (0.10, 0.11, 0.09)))
-    part('torso', 'chest_geo', 'chest', 'olive', ellipsoid((0.0, 0, 0.03), (0.12, 0.14, 0.12)))
+    part('belly', 'spine_geo', 'spine', 'skin', ellipsoid((0.0, 0, 0.05), (0.10, 0.11, 0.09)))
+    part('belly_seam', 'spine_geo', 'spine', 'cable', box((0.095, -0.02, 0.05), (0.012, 0.012, 0.12)))
+    part('torso', 'chest_geo', 'chest', 'suit', ellipsoid((0.0, 0, 0.03), (0.12, 0.14, 0.12)))
     part('harness', 'chest_geo', 'chest', 'helmet', cat(ecyl((0, 0), -0.05, -0.02, 0.125, 0.145, 18),
                                                       box((0.05, -0.06, 0.03), (0.2, 0.025, 0.03), (0, 50, 0))))
-    # charges: back rack (3 canisters) + chest belt (2) — the red read of this enemy
+    # charges: back rack (3 canisters) + chest belt (2), the red read of this enemy
     rack = [tube((-0.16, y, -0.08), (-0.16, y, 0.16), 0.042, 0.042, 12) for y in (-0.07, 0.0, 0.07)]
     part('rack_frame', 'chest_geo', 'chest', 'gunmetal', box((-0.12, 0, 0.04), (0.03, 0.22, 0.26)))
     part('charges_back', 'chest_geo', 'chest', 'charge', cat(*rack))
-    part('rack_caps', 'chest_geo', 'chest', 'gunmetal', cat(*[ecyl((-0.16, y), 0.15, 0.19, 0.046, 0.046, 12) for y in (-0.07, 0.0, 0.07)]))
+    part('rack_caps', 'chest_geo', 'chest', 'chrome', cat(*[ecyl((-0.16, y), 0.15, 0.19, 0.046, 0.046, 12) for y in (-0.07, 0.0, 0.07)]))
     part('charges_front', 'chest_geo', 'chest', 'charge', cat(box((0.12, -0.05, -0.02), (0.04, 0.05, 0.08)),
                                                             box((0.11, 0.05, -0.02), (0.04, 0.05, 0.08))))
     part('fuse_glow', 'chest_geo', 'chest', 'charge', cat(ellipsoid((-0.17, 0, 0.04), (0.08, 0.16, 0.17)),
                                                         ellipsoid((0.13, 0, -0.02), (0.05, 0.10, 0.08))), group='fuse')
     part('wire', 'chest_geo', 'chest', 'strip', tube((-0.14, -0.08, 0.17), (0.02, -0.1, 0.22), 0.008, 0.008, 6))
+    # wires from the charges straight into the skull
+    part('head_wires', 'chest_geo', 'chest', 'cable', cat(tube((-0.16, -0.04, 0.18), (-0.07, -0.03, 0.36), 0.01, 0.01, 6),
+                                                         tube((-0.16, 0.04, 0.18), (-0.08, 0.03, 0.35), 0.01, 0.01, 6)))
     H = 'head_geo'
-    part('neck_m', H, 'head', 'cloth', tube((0, 0, -0.08), (0, 0, 0.0), 0.035, 0.035))
-    part('hood', H, 'head', 'cloth', ellipsoid((-0.01, 0, 0.04), (0.085, 0.08, 0.085)))
-    part('mask', H, 'head', 'gunmetal', ellipsoid((0.04, 0, 0.02), (0.06, 0.065, 0.06)))
-    part('filter', H, 'head', 'helmet', tube((0.08, -0.01, -0.02), (0.13, -0.01, -0.04), 0.028, 0.024, 10))
-    part('eyes', H, 'head', 'eye', cat(box((0.09, -0.03, 0.04), (0.02, 0.025, 0.022)), box((0.09, 0.03, 0.04), (0.02, 0.025, 0.022))))
+    part('neck_m', H, 'head', 'cable', tube((0, 0, -0.08), (0, 0, 0.0), 0.035, 0.035, 10))
+    cyber.half_face(H, r=0.082, c=(0.0, 0.0, 0.04), mohawk=True, jaw=False)
+    part('filter', H, 'head', 'chrome', tube((0.07, -0.01, -0.02), (0.12, -0.01, -0.04), 0.03, 0.026, 10))
+    part('filter_grill', H, 'head', 'cable', tube((0.12, -0.01, -0.04), (0.13, -0.01, -0.045), 0.026, 0.026, 10))
     sp = [[((-0.2, -0.15, 0.22), 60), ((0.15, -0.1, 0.1), 20)], [((-0.1, -0.15, 0.25), 110), ((0.18, -0.1, -0.05), -30)]]
     for k, st in enumerate(sp):
         part('spark%d' % k, 'chest_geo', 'chest', 'spark', cat(*[box(c, (0.07, 0.02, 0.016), (0, -a, 0)) for c, a in st]),

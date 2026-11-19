@@ -76,7 +76,7 @@ namespace Redline.Tests
             Teleport(_sim, 10f, 17f);
             _sim.Player.Vx = _cfg.runSpeed;
             _sim.Step(SlideRight(), Dt);
-            Run(_sim, Hold(1f), _cfg.slideDuration + _cfg.slideCooldown + 0.05f);
+            Run(_sim, Hold(1f), _cfg.airSlideDuration + _cfg.slideCooldown + 0.05f);
             Assert.IsFalse(_sim.Player.Sliding);
             Assert.IsFalse(_sim.Player.Grounded, "still falling");
 

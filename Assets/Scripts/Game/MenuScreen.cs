@@ -81,8 +81,12 @@ namespace Redline.Game
             _notice.style.display = DisplayStyle.None;
             column.Add(_notice);
 
+            // Pause menu: a darker band under the text column so the items read over the busy live scene.
+            if (!neonTitle) MenuKit.ApplyScrim(Root, 0.9f, 0.15f, 0.42f, 0.8f);
+
+            // Buttons stretch to the widest label (no fixed width that clips "QUIT TO MENU").
             _list = new VisualElement();
-            _list.style.alignItems = Align.FlexStart;
+            _list.style.alignItems = Align.Stretch;
             _list.pickingMode = PickingMode.Ignore;
             column.Add(_list);
 
@@ -103,6 +107,10 @@ namespace Redline.Game
             }
             int index = _buttons.Count;
             var b = MenuKit.MakeButton(() => { Select(index); Activate(index); }, () => Time.frameCount != _openedFrame, 90f * MenuKit.T, MenuKit.RowHeight);
+            b.style.width = StyleKeyword.Auto;
+            b.style.minWidth = 90f * MenuKit.T;
+            b.style.whiteSpace = WhiteSpace.NoWrap;
+            b.style.flexShrink = 0f;
             b.RegisterCallback<PointerEnterEvent>(_ => Select(index));
             _buttons.Add(b);
             _labels.Add(label);
@@ -113,6 +121,14 @@ namespace Redline.Game
 
         /// <summary>Replaces the 8 T hint line under the list.</summary>
         public void SetHint(string text) => _hint.text = text;
+
+        /// <summary>Changes an item's label (perk offers, prices, lock marks).</summary>
+        public void SetItemLabel(int index, string label)
+        {
+            if (index < 0 || index >= _labels.Count) return;
+            _labels[index] = label;
+            Refresh();
+        }
 
         /// <summary>Sets (or clears, with null/empty) the notice line under the title.</summary>
         public void SetNotice(string text)
@@ -173,10 +189,14 @@ namespace Redline.Game
             Refresh();
         }
 
+        /// <summary>Called with the selected index whenever the selection is drawn (open, move, hover).</summary>
+        public Action<int> SelectionChanged;
+
         private void Refresh()
         {
             for (int i = 0; i < _buttons.Count; i++)
                 MenuKit.StyleButton(_buttons[i], _labels[i], MenuKit.Steel, i == _selected, i == _selected);
+            SelectionChanged?.Invoke(_selected);
         }
 
         private void OnDestroy()

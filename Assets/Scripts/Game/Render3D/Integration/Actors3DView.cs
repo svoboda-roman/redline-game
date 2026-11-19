@@ -76,9 +76,11 @@ namespace Redline.Game.Render3D.Integration
         private readonly float _roninScale = 1f;
         private readonly List<MeshRenderer> _shots = new List<MeshRenderer>(8);
         private readonly List<MeshRenderer> _shotGlows = new List<MeshRenderer>(8);
-        private readonly MeshRenderer _rope, _ropeGlow, _anchor;
+        private readonly MeshRenderer _rope, _ropeGlow, _anchor, _anchorCore;
         private readonly MaterialPropertyBlock _mpb = new MaterialPropertyBlock();
         private int _tier = -1;
+        /// <summary>The tier colour last applied (a cosmetic accent can change it without a tier change).</summary>
+        private Color _tierColor = Color.clear;
         private int _lastHp = int.MinValue;
         private float _hurt;
         private float _stretch = 1f;
@@ -102,6 +104,7 @@ namespace Redline.Game.Render3D.Integration
             _rig = Pixel3DCamera.Latest;
             try { _baked = new BakedRoninView(_root); }
             catch (System.Exception e) { Debug.LogWarning("Redline: baked ronin unavailable, using the live 3D model. " + e.Message); }
+            if (_baked != null) AddBakedLights(_baked.Root, playerHeight * RoninHeightRatio);
 
             var assets = RoninAssets.Load();
             if (assets == null) Debug.LogError("Redline: Resources/" + RoninAssets.ResourcePath + " is missing; the 3D player is not drawn.");
@@ -143,10 +146,47 @@ namespace Redline.Game.Render3D.Integration
             }
 
             _ropeGlow = Actors3DAssets.CreateQuad("RopeGlow", _root, Actors3DAssets.FxAdditive, false, false);
-            _rope = Actors3DAssets.CreateQuad("Rope", _root, Actors3DAssets.FxAdditive, false, false);
+            _rope = Actors3DAssets.CreateQuad("Rope", _root, Actors3DAssets.FxSolid, false, false);   // opaque: in the depth texture, so DOF keeps it sharp
+            _anchorCore = Actors3DAssets.CreateQuad("AnchorCore", _root, Actors3DAssets.FxSolid, false, false);
             _anchor = Actors3DAssets.CreateQuad("Anchor", _root, Actors3DAssets.FxAdditive, false, false);
             _playerBlob = Actors3DAssets.CreateQuad("PlayerContactShadow", _root, Actors3DAssets.FxAlpha, false, false);
             _playerBlobCore = Actors3DAssets.CreateQuad("PlayerContactShadowCore", _root, Actors3DAssets.FxAlpha, false, false);
+        }
+
+        /// <summary>Neutral-warm front light on the baked ronin sprite (characters only): keeps the samurai in his own colours
+        /// against the cool neon level so he reads apart from the background.</summary>
+        public static Color BakedFillColor = new Color(1f, 0.93f, 0.85f);
+        /// <summary>Intensity of <see cref="BakedFillColor"/>.</summary>
+        public static float BakedFillIntensity = 4.5f;
+        /// <summary>Warm back rim on the baked ronin sprite (characters only): a warm edge against the cool background.</summary>
+        public static Color BakedRimColor = new Color(1f, 0.7f, 0.42f);
+        /// <summary>Intensity of <see cref="BakedRimColor"/>.</summary>
+        public static float BakedRimIntensity = 24f;
+
+        private static void AddBakedLights(Transform root, float h)
+        {
+            var mask = (RenderingLayerMask)(1u << Arena3DRenderer.CharacterRenderingLayer);
+            var fillGo = new GameObject("BakedRoninFill");
+            fillGo.transform.SetParent(root, false);
+            fillGo.transform.localPosition = new Vector3(0f, h * 0.8f, -h * 1.4f);
+            var fill = fillGo.AddComponent<Light>();
+            fill.type = LightType.Point;
+            fill.color = BakedFillColor;
+            fill.intensity = BakedFillIntensity;
+            fill.range = h * 2.8f;
+            fill.shadows = LightShadows.None;
+            fill.GetUniversalAdditionalLightData().renderingLayers = mask;
+
+            var rimGo = new GameObject("BakedRoninRim");
+            rimGo.transform.SetParent(root, false);
+            rimGo.transform.localPosition = new Vector3(0f, h * 0.95f, h * 0.5f);
+            var rim = rimGo.AddComponent<Light>();
+            rim.type = LightType.Point;
+            rim.color = BakedRimColor;
+            rim.intensity = BakedRimIntensity;
+            rim.range = h * 2.2f;
+            rim.shadows = LightShadows.None;
+            rim.GetUniversalAdditionalLightData().renderingLayers = mask;
         }
 
         private readonly MeshRenderer _playerBlob, _playerBlobCore;
@@ -277,6 +317,7 @@ namespace Redline.Game.Render3D.Integration
                 Grounded = p.Grounded,
                 VelocityY = p.Vy,
                 Sliding = p.Sliding,
+                SlideTier = p.SlideTier,
                 Hooked = p.Hooked,
                 Attacking = p.Attacking,
                 StrikeId = p.StrikeId,
@@ -288,7 +329,7 @@ namespace Redline.Game.Render3D.Integration
             {
                 _lastFeet = feet;
                 _hasLast = true;
-                if (tier != _tier) { _tier = tier; _baked.SetTierColor(TierColor(tier)); }   // RedlineGame.TierColors, follows Sim.PlayerTier
+                if (tier != _tier || TierColor(tier) != _tierColor) { _tier = tier; _tierColor = TierColor(tier); _baked.SetTierColor(_tierColor); }   // RedlineGame.TierColors, follows Sim.PlayerTier
                 _baked.Tick(input, feet, dt);
                 // The camera moved before the actors this frame (RedlineGame.UpdateCamera3D); re-place it on the sprite's
                 // snap so the followed sprite keeps a constant texel offset (no ±1 back-and-forth while running).
@@ -308,9 +349,10 @@ namespace Redline.Game.Render3D.Integration
                 _ronin.SnapFacing(_ronin.Input.Facing);
                 _ronin.ResetSprings();
             }
-            if (tier != _tier)
+            if (tier != _tier || TierColor(tier) != _tierColor)
             {
                 _tier = tier;
+                _tierColor = TierColor(tier);
                 _ronin.SetTierColor(TierColor(tier) * TierHdr);
             }
         }
@@ -319,7 +361,7 @@ namespace Redline.Game.Render3D.Integration
         {
             var p = sim.Player;
             bool show = p.Hooked && sim.State != SimState.GameOver;
-            _rope.enabled = _ropeGlow.enabled = _anchor.enabled = show;
+            _rope.enabled = _ropeGlow.enabled = _anchor.enabled = _anchorCore.enabled = show;
             if (!show) return;
             Vector3 from3 = UseBakedRonin && _baked != null
                 ? new Vector3(feet.x + _baked.HandOffset.x, feet.y + _baked.HandOffset.y, 0f)
@@ -330,9 +372,10 @@ namespace Redline.Game.Render3D.Integration
             var mid = (from + to) * 0.5f;
             var rot = Quaternion.Euler(0f, 0f, Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg);
             float z = from3.z * 0.5f;
-            Place(_rope, new Vector3(mid.x, mid.y, z), rot, new Vector2(d.magnitude, 0.05f), RopeCore * RopeHdr, Solid);
+            Place(_rope, new Vector3(mid.x, mid.y, z), rot, new Vector2(d.magnitude, 0.07f), RopeCore * RopeHdr, Solid);
             Place(_ropeGlow, new Vector3(mid.x, mid.y, z), rot, new Vector2(d.magnitude, 0.2f), TierColor(tier) * 0.6f, Glow);
             Place(_anchor, new Vector3(to.x, to.y, 0f), Quaternion.identity, new Vector2(0.6f, 0.6f), RopeCore * RopeHdr, Glow);
+            Place(_anchorCore, new Vector3(to.x, to.y, 0f), Quaternion.Euler(0f, 0f, 45f), new Vector2(0.2f, 0.2f), RopeCore * RopeHdr, Solid);
         }
 
         private void SyncShots(RedlineSim sim, Vector2 playerFeet, int tier)

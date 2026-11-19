@@ -43,17 +43,46 @@ namespace Redline.Core
         // --- Wall jump ---
         /// <summary>Minimum horizontal launch speed of a wall jump (the wall-impact speed is used when higher).</summary>
         public float wallJumpSpeedX = 8f;
-        public float wallJumpSpeedY = 14f;
+        public float wallJumpSpeedY = 15f;
         public float wallJumpKick = 2f;
-        public float wallJumpLockTime = 0.15f;
+        public float wallJumpLockTime = 0.1f;
         public float wallSlideMaxFall = 6f;
         /// <summary>How long the speed you hit a wall with is remembered for the wall jump.</summary>
         public float wallImpactMemory = 0.25f;
 
+        /// <summary>Seconds after leaving a wall in the air during which a jump still wall-jumps (forgiving timing).</summary>
+        public float wallCoyoteTime = 0.12f;
+        /// <summary>Double jump: upward speed of the one air jump per airtime (u/s).</summary>
+        public float doubleJumpSpeed = 13f;
+        /// <summary>Lowest speed tier at which the double jump is available.</summary>
+        public int doubleJumpMinTier = 2;
+
         // --- Slide ---
         /// <summary>Speed added by a slide. Run + slide must stay below tier3Speed: tier 3 is earned.</summary>
-        public float slideBoost = 1.5f;
-        public float slideDuration = 0.45f;
+        public float slideBoost = 1.8f;
+        /// <summary>Longest a ground slide lasts. It also ends early once friction has slowed it to slideStopSpeed.</summary>
+        public float slideDuration = 0.85f;
+        // A ground slide is shaped by the speed tier it starts at: slideHeight/slideBoost/slideDuration
+        // above are tier 2 (a normal run). Tier 1 is a half crouch, tier 3 a full slide low to the ground.
+        /// <summary>Tier 1 slide (started below tier2Speed): half crouch height.</summary>
+        public float slideTier1Height = 1.15f;
+        public float slideTier1Boost = 0.8f;
+        public float slideTier1Duration = 0.55f;
+        /// <summary>Tier 3 slide (started at tier3Speed or faster): body near the ground.</summary>
+        public float slideTier3Height = 0.55f;
+        public float slideTier3Boost = 2.5f;
+        public float slideTier3Duration = 1.0f;
+        /// <summary>Length of a slide started in the air (a short dash).</summary>
+        public float airSlideDuration = 0.45f;
+        /// <summary>Deceleration while sliding on the ground (units/s^2): the slide bleeds speed instead of stopping dead.</summary>
+        public float slideFriction = 4f;
+        /// <summary>
+        /// How long a ground slide holds its full speed before slideFriction starts. Keeps the
+        /// slide-into-wall wall jump able to reach tier 3.
+        /// </summary>
+        public float slideFrictionDelay = 0.4f;
+        /// <summary>A ground slide slower than this stands up (e.g. after hitting a wall).</summary>
+        public float slideStopSpeed = 2.5f;
         public float slideMinSpeed = 5f;
         public float slideCooldown = 0.4f;
         /// <summary>A sliding player hits enemies in its body plus this much reach in front.</summary>
@@ -68,6 +97,12 @@ namespace Redline.Core
         public float hookMinLength = 1.5f;
         public float hookPumpAccel = 10f;
         public float hookCooldown = 0.2f;
+        /// <summary>Rope reel speed while hanging (units/s): up reels in (pulls toward the anchor), down lets out.</summary>
+        public float hookReelSpeed = 4f;
+        /// <summary>How fast the reel speeds up / slows down (units/s^2): a smooth start and stop instead of a yank.</summary>
+        public float hookReelAccel = 16f;
+        /// <summary>Longest the rope can be let out to (units).</summary>
+        public float hookMaxLength = 12f;
         /// <summary>Speed added toward the anchor when the hook attaches from the ground (an instant lift, no dead time).</summary>
         public float hookAttachPull = 7f;
         /// <summary>Upward speed given when jumping off the rope (only if slower than this).</summary>
@@ -105,6 +140,12 @@ namespace Redline.Core
         public float killMomentumRefund = 2.5f;
         /// <summary>Seconds after a kill in which the next kill extends the chain.</summary>
         public float chainWindow = 1.5f;
+        /// <summary>Endless levels: every Nth wave also brings a boss brute with bossHpMultiplier times the HP.</summary>
+        public int bossEveryWaves = 10;
+        public float bossHpMultiplier = 8f;
+        /// <summary>Shock floor ('E' tiles): live for shockOnTime, then dead for shockOffTime (seconds), repeating.</summary>
+        public float shockOnTime = 1.4f;
+        public float shockOffTime = 2.2f;
         /// <summary>Extra refund per chain step beyond the first kill.</summary>
         public float chainBonusPerKill = 0.75f;
         /// <summary>Cap on the extra chain refund.</summary>
@@ -128,7 +169,7 @@ namespace Redline.Core
         // --- Enemies ---
         public float gruntWidth = 1.0f;
         public float gruntHeight = 1.3f;
-        public float gruntHp = 1f;
+        public float gruntHp = 3f;
         public float gruntSpeed = 3.5f;
         /// <summary>High enough (~2.3 tiles) to hop the 2-tile bumps levels use.</summary>
         public float gruntJumpSpeed = 14.5f;
@@ -136,7 +177,7 @@ namespace Redline.Core
         public float bruteWidth = 1.5f;
         /// <summary>Hitbox height; kept low enough that a full jump clears a charge (the sprite is drawn taller).</summary>
         public float bruteHeight = 2.1f;
-        public float bruteHp = 4f;
+        public float bruteHp = 8f;
         public float bruteSpeed = 1.6f;
         /// <summary>0: brutes are too heavy to jump; a bump stops them (and a charge crashes into it).</summary>
         public float bruteJumpSpeed = 0f;
@@ -167,7 +208,7 @@ namespace Redline.Core
         public int bruteChargeFromWave = 4;
         // --- Drone ---
         public float droneSize = 1.0f;
-        public float droneHp = 1f;
+        public float droneHp = 2f;
         public int droneContactDamage = 1;
         public float droneSpeed = 3f;
         /// <summary>Hover height of the drone's underside above the player's feet (out of jump-strike reach).</summary>
@@ -182,7 +223,7 @@ namespace Redline.Core
         // --- Shooter ---
         public float shooterWidth = 0.9f;
         public float shooterHeight = 1.5f;
-        public float shooterHp = 1.0f;
+        public float shooterHp = 2.0f;
         public int shooterContactDamage = 1;
         /// <summary>Walk speed back to its post (it never chases).</summary>
         public float shooterSpeed = 2.0f;
@@ -205,11 +246,11 @@ namespace Redline.Core
         /// <summary>A reflected projectile flies back this many times faster.</summary>
         public float reflectSpeedMultiplier = 1.5f;
         /// <summary>Damage a reflected projectile deals to the enemy it hits (ignores armor; a shield facing it blocks it).</summary>
-        public float reflectedProjectileDamage = 2.0f;
+        public float reflectedProjectileDamage = 3.0f;
         // --- Shield bearer ---
         public float shieldWidth = 1.1f;
         public float shieldHeight = 1.6f;
-        public float shieldHp = 2.0f;
+        public float shieldHp = 4.0f;
         public int shieldContactDamage = 1;
         public float shieldSpeed = 2.6f;
         public float shieldJumpSpeed = 12.0f;
@@ -220,7 +261,7 @@ namespace Redline.Core
         // --- Kamikaze ---
         public float kamikazeWidth = 0.9f;
         public float kamikazeHeight = 1.0f;
-        public float kamikazeHp = 2.0f;
+        public float kamikazeHp = 3.0f;
         /// <summary>Touch damage (0: only the blast hurts, so touching it never grants invulnerability through the blast).</summary>
         public int kamikazeContactDamage = 0;
         /// <summary>Walk speed while guarding its post.</summary>
@@ -246,11 +287,11 @@ namespace Redline.Core
         /// <summary>Blast damage to the player.</summary>
         public int kamikazeBlastDamage = 2;
         /// <summary>Blast damage to each other enemy in the radius (ignores armor and shields).</summary>
-        public float kamikazeBlastEnemyDamage = 2.0f;
+        public float kamikazeBlastEnemyDamage = 3.0f;
         // --- Summoner ---
         public float summonerWidth = 0.9f;
         public float summonerHeight = 1.7f;
-        public float summonerHp = 2.0f;
+        public float summonerHp = 4.0f;
         public int summonerContactDamage = 1;
         /// <summary>Flee speed; must stay below runSpeed so the player can catch it on a ring.</summary>
         public float summonerSpeed = 6.0f;
@@ -348,6 +389,9 @@ namespace Redline.Core
             Positive(nameof(runSpeed), runSpeed);
             Positive(nameof(jumpSpeed), jumpSpeed);
             Positive(nameof(hookRange), hookRange);
+            if (hookReelSpeed < 0f) errors.Add("hookReelSpeed must be >= 0");
+            if (wallCoyoteTime < 0f) errors.Add("wallCoyoteTime must be >= 0");
+            if (doubleJumpSpeed < 0f) errors.Add("doubleJumpSpeed must be >= 0");
             Positive(nameof(attackRange), attackRange);
             if (strikeDownReach < 0f) errors.Add("strikeDownReach must be >= 0");
             Positive(nameof(attackCooldown), attackCooldown);
@@ -429,6 +473,20 @@ namespace Redline.Core
             Positive(nameof(kamikazeLungeSpeedX), kamikazeLungeSpeedX);
             Positive(nameof(kamikazeLungeSpeedY), kamikazeLungeSpeedY);
             Positive(nameof(slideDamageMultiplier), slideDamageMultiplier);
+            Positive(nameof(slideDuration), slideDuration);
+            Positive(nameof(airSlideDuration), airSlideDuration);
+            Positive(nameof(slideTier1Height), slideTier1Height);
+            Positive(nameof(slideTier3Height), slideTier3Height);
+            Positive(nameof(slideTier1Duration), slideTier1Duration);
+            Positive(nameof(slideTier3Duration), slideTier3Duration);
+            if (slideTier1Height > playerHeight) errors.Add("slideTier1Height must not exceed playerHeight");
+            if (slideTier3Height > playerHeight) errors.Add("slideTier3Height must not exceed playerHeight");
+            if (!(slideTier1Boost >= 0f)) errors.Add($"slideTier1Boost must be >= 0 (was {slideTier1Boost})");
+            if (!(slideTier3Boost >= 0f)) errors.Add($"slideTier3Boost must be >= 0 (was {slideTier3Boost})");
+            if (!(tier2Speed + slideTier1Boost < tier3Speed)) errors.Add("tier2Speed + slideTier1Boost must stay below tier3Speed (tier 3 is earned)");
+            if (!(slideFriction >= 0f)) errors.Add($"slideFriction must be >= 0 (was {slideFriction})");
+            if (!(slideFrictionDelay >= 0f)) errors.Add($"slideFrictionDelay must be >= 0 (was {slideFrictionDelay})");
+            if (!(slideStopSpeed >= 0f)) errors.Add($"slideStopSpeed must be >= 0 (was {slideStopSpeed})");
             if (!(slideHitReach >= 0f)) errors.Add($"slideHitReach must be >= 0 (was {slideHitReach})");
             Positive(nameof(summonerWidth), summonerWidth);
             Positive(nameof(summonerHeight), summonerHeight);

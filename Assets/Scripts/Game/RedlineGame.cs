@@ -23,12 +23,17 @@ namespace Redline.Game
         /// (levelAdvanceDelay) the next one loads with a fresh, fully healed player; a missing or
         /// invalid level is skipped with a logged warning. After the last one the victory stays.
         /// </summary>
-        private static readonly string[] Levels = { "Loop01", "Loop02", "Loop03" };
+        private static readonly string[] Levels = { "City01B", "City02", "City01", "Loop01", "Loop02", "Loop03" };   // the City maps are endless: the run ends only on death
+        /// <summary>Names shown in LEVEL SELECT, one per entry of <see cref="Levels"/>.</summary>
+        private static readonly string[] LevelTitles = { "1  NEON STREET", "2  RAIL YARD", "3  NEON STREET (DRAWN)", "4  LOOP I", "5  LOOP II", "6  LOOP III" };
+        /// <summary>Level a run starts at: 0 from PLAY, the picked one from LEVEL SELECT (restarts keep it).</summary>
+        private int _startLevel;
+        private MenuScreen _levelMenu;
         /// <summary>
         /// Half the view height in tiles: a close camera that follows the player. 6.75 frames the
         /// 40 px-per-tile character art at an exact 2× on a 1080p screen (13.5 tiles × 40 px = 540 px).
         /// </summary>
-        private const float CameraSize = 6.75f;
+        private const float CameraSize = 10.1f;   // classic 2D view; zoomed out 50% with the 3D view (Pixel3DCamera.FitScreen)
         /// <summary>Seconds of the player's velocity the camera looks ahead by.</summary>
         private const float Lookahead = 0.35f;
         private static readonly Color Background = new Color(0.01f, 0.01f, 0.04f);
@@ -183,12 +188,22 @@ namespace Redline.Game
             SyncPresentation();
 
             // Pause toggles (bound pause key or gamepad Start); the menus read their own input.
-            bool canToggle = Time.frameCount != _flowFrame && !_settingsScreen.Visible;
+            bool canToggle = Time.frameCount != _flowFrame && !_settingsScreen.Visible && !PerkMenuOpen;
             if (canToggle && _input.PausePressed)
             {
                 if (_flow == Flow.Playing) Pause();
                 else if (_flow == Flow.Paused) Resume();
             }
+
+            // F2 while playing: jump to the next map (wraps), to try the levels without beating an endless one.
+#if ENABLE_INPUT_SYSTEM
+            var kb = UnityEngine.InputSystem.Keyboard.current;
+            if (_flow == Flow.Playing && kb != null && kb.f2Key.wasPressedThisFrame)
+            {
+                int next = (_levelIndex + 1) % Levels.Length;
+                if (TryLoadLevel(next) || TryLoadLevel(0)) OnLevelChanged();
+            }
+#endif
 
             // The sim steps only in Playing; in menus the presses are dropped so they cannot reach the run.
             bool stepping = _flow == Flow.Playing && !_screen.Visible;
@@ -198,7 +213,7 @@ namespace Redline.Game
                 _accumulator = 0f;
             }
             else if (_hitStop > 0f) _hitStop -= dt;
-            else _accumulator += dt;
+            else _accumulator += dt * ExtrasTimeScale;
             while (_accumulator >= RedlineSim.FixedDt)
             {
                 var frame = _input.Consume();
@@ -226,6 +241,7 @@ namespace Redline.Game
                 _run.HighestTier = Math.Max(_run.HighestTier, Sim.PlayerTier);
                 _accumulator -= RedlineSim.FixedDt;
             }
+            if (Sim != null) ExtrasUpdate(dt);
             _tutorial.Tick(Time.unscaledDeltaTime, paused: !stepping);
             _trainingOverlay.Tick(Time.unscaledDeltaTime, paused: !stepping);
             if (stepping && _training != null) TickTrainingEnd(dt);
@@ -378,13 +394,14 @@ namespace Redline.Game
             _runConfig = Upgrades.Apply(_config, _upgradeCfg, _store.State);
             _run = default;
             _runEnded = false;
+            ExtrasNewRun();
         }
 
         /// <summary>A fresh, not yet started run from the first level with the current upgrades.</summary>
         private void PrepareRun()
         {
             BeginRunState();
-            if (!TryLoadLevel(0)) throw new InvalidOperationException("Redline: no playable level in Resources.");
+            if (!TryLoadLevel(_startLevel) && !TryLoadLevel(0)) throw new InvalidOperationException("Redline: no playable level in Resources.");
             OnLevelChanged();
         }
 
@@ -408,6 +425,7 @@ namespace Redline.Game
         {
             if (_runEnded) return 0;
             _runEnded = true;
+            RecordBestWave();
             _tutorial.Hide();
             SaveTutorialProgress();
             int earned = _store.State.AwardRun(_run, _upgradeCfg);
@@ -472,9 +490,23 @@ namespace Redline.Game
 
             _mainMenu = gameObject.AddComponent<MenuScreen>();
             _mainMenu.Init("MainMenu", 90f, "REDLINE", true);
-            _mainMenu.AddItem("PLAY", StartRun);
+            _mainMenu.AddItem("PLAY", () => { _startLevel = 0; StartRun(); });
+            _mainMenu.AddItem("LEVEL SELECT", OpenLevelSelect);
+
+            _levelMenu = gameObject.AddComponent<MenuScreen>();
+            _levelMenu.Init("LevelMenu", 90f, "LEVEL SELECT", true);
+            for (int i = 0; i < Levels.Length; i++)
+            {
+                int level = i;
+                _levelMenu.AddItem(i < LevelTitles.Length ? LevelTitles[i] : Levels[i], () => PickLevel(level));
+            }
+            _levelMenu.AddItem("BACK", CloseLevelSelect);
+            _levelMenu.Cancelled = CloseLevelSelect;
+            BuildLevelPreview();
+            BuildExtraMenus();
             _mainMenu.AddItem("TUTORIAL", StartTraining);
             _mainMenu.AddItem("UPGRADES", OpenUpgradesFromMenu);
+            _mainMenu.AddItem("COSMETICS", OpenCosmetics);
             _mainMenu.AddItem("SETTINGS", () => OpenSettings(_mainMenu));
             _mainMenu.AddItem("QUIT", QuitGame);
 
@@ -510,6 +542,58 @@ namespace Redline.Game
             _mainMenu.SetNotice(notice);
             _mainMenu.Show();
             SetFlow(Flow.Menu);
+        }
+
+        private UnityEngine.UIElements.Image _levelPreview;
+        private UnityEngine.UIElements.Label _levelPreviewName;
+        private Texture2D[] _levelThumbs;
+
+        /// <summary>LEVEL SELECT: a picture of the highlighted level on the right (drawn from its map file).</summary>
+        private void BuildLevelPreview()
+        {
+            _levelThumbs = new Texture2D[Levels.Length];
+            var box = new UnityEngine.UIElements.VisualElement { pickingMode = UnityEngine.UIElements.PickingMode.Ignore };
+            box.style.position = UnityEngine.UIElements.Position.Absolute;
+            box.style.right = new UnityEngine.UIElements.Length(3f, UnityEngine.UIElements.LengthUnit.Percent);
+            box.style.top = new UnityEngine.UIElements.Length(30f, UnityEngine.UIElements.LengthUnit.Percent);
+            box.style.width = new UnityEngine.UIElements.Length(38f, UnityEngine.UIElements.LengthUnit.Percent);
+            _levelPreview = new UnityEngine.UIElements.Image { scaleMode = ScaleMode.ScaleToFit, pickingMode = UnityEngine.UIElements.PickingMode.Ignore };
+            _levelPreview.style.width = new UnityEngine.UIElements.Length(100f, UnityEngine.UIElements.LengthUnit.Percent);
+            _levelPreview.style.height = 360f;
+            _levelPreviewName = MenuKit.Text("", MenuKit.Bold, MenuKit.Label, UiTheme.Bone);
+            _levelPreviewName.style.marginTop = 2f * MenuKit.T;
+            box.Add(_levelPreview);
+            box.Add(_levelPreviewName);
+            _levelMenu.Root.Add(box);
+            _levelMenu.SelectionChanged = i =>
+            {
+                bool level = i >= 0 && i < Levels.Length;
+                box.style.display = level ? UnityEngine.UIElements.DisplayStyle.Flex : UnityEngine.UIElements.DisplayStyle.None;
+                if (!level) return;
+                if (_levelThumbs[i] == null)
+                {
+                    var asset = Resources.Load<TextAsset>(Levels[i]);
+                    if (asset != null) _levelThumbs[i] = LevelThumbnail.Build(TileMap.Parse(asset.text));
+                }
+                _levelPreview.image = _levelThumbs[i];
+                int best = _store.State.BestWave(Levels[i]);
+                _levelPreviewName.text = (i < LevelTitles.Length ? LevelTitles[i] : Levels[i]) + (best > 0 ? "   -   BEST WAVE " + best : "") + (LevelUnlocked(i) ? "" : "   -   LOCKED");
+            };
+        }
+
+        private void OpenLevelSelect()
+        {
+            _mainMenu.Hide();
+            RefreshLevelLabels();
+            _levelMenu.Show();
+            SetFlow(_flow); // the Enter that opened it must not also pick the first level
+        }
+
+        private void CloseLevelSelect()
+        {
+            _levelMenu.Hide();
+            _mainMenu.Show();
+            SetFlow(_flow);
         }
 
         private void OpenUpgradesFromMenu()
@@ -695,6 +779,7 @@ namespace Redline.Game
             _camX = Sim.Player.X;
             _camY = Sim.Player.Y + 2.5f;
             _lookahead = 0f;
+            ExtrasLevelChanged();
         }
 
         /// <summary>(Re)builds the arena view for the current map under its own host object.</summary>
@@ -776,10 +861,13 @@ namespace Redline.Game
                     case SimEventType.Hit: OnHit(at, color, ev.Tier); break;
                     case SimEventType.Kill:
                         _run.Kills++;
-                        OnKill(at, color, ev.Tier, (EnemyKind)ev.Detail);
+                        OnKill(at, color, ev.Tier, (EnemyKind)ev.Detail, ev.Position);
+                        if (_training == null) ExtrasOnKill(ev.Tier, (EnemyKind)ev.Detail);
                         break;
+                    case SimEventType.BossSpawn: ExtrasOnBossSpawn(); break;
+                    case SimEventType.BossDown: ExtrasOnBossDown(); break;
                     case SimEventType.Clang: OnClang(at); break;
-                    case SimEventType.PlayerHurt: OnHurt(at); break;
+                    case SimEventType.PlayerHurt: OnHurt(at); _hurtThisWave = true; break;
                     case SimEventType.GameOver: OnGameOver(at); break;
                     case SimEventType.Jump: OnJump(); break;
                     case SimEventType.WallJump: OnWallJump(color); break;
@@ -787,7 +875,7 @@ namespace Redline.Game
                     case SimEventType.HookAttach: _effects.Sparks(at, color, 8, 5f); break;
                     case SimEventType.WaveStart:
                         // A wave starting means the previous one of this level was cleared.
-                        if (!_firstWaveOfLevel) _run.WavesCleared++;
+                        if (!_firstWaveOfLevel) { _run.WavesCleared++; if (_training == null) ExtrasOnWaveCleared(); }
                         _firstWaveOfLevel = false;
                         _effects.Flash(0.08f);
                         break;
@@ -828,12 +916,30 @@ namespace Redline.Game
             _shake = Mathf.Max(_shake, 0.05f * tier);
         }
 
-        private void OnKill(Vector2 at, Color color, int tier, EnemyKind kind)
+        /// <summary>
+        /// A kill: the white cut-flash of the blade (no debris pixels) and blood, sprayed away from the player with
+        /// splatters on the floor under the body (drones are machines: sparks and debris as before).
+        /// </summary>
+        private void OnKill(Vector2 at, Color color, int tier, EnemyKind kind, Vec2 simPos)
         {
             bool brute = kind == EnemyKind.Brute;
-            var debris = brute ? BruteDebris : kind == EnemyKind.Drone ? DroneDebris : GruntDebris;
-            _effects.Sparks(at, color, 10 + 6 * tier, 8f + 4f * tier);
-            _effects.Debris(at, debris, brute ? 16 : 9, 7f + 2f * tier);
+            if (kind == EnemyKind.Drone)
+            {
+                _effects.Sparks(at, color, 10 + 6 * tier, 8f + 4f * tier);
+                _effects.Debris(at, DroneDebris, 9, 7f + 2f * tier);
+            }
+            else
+            {
+                _effects.Debris(at, color, 0, 0f);   // the cut-flash line only
+                var map = Sim.Map;
+                int ix = Mathf.FloorToInt(simPos.X);
+                float floorY = 1f;
+                for (int y = Mathf.FloorToInt(simPos.Y); y >= 0; y--)
+                    if (map.IsSolid(((ix % map.Width) + map.Width) % map.Width, y)) { floorY = y + 1f; break; }
+                float dirX = map.Dx(Sim.Player.X, simPos.X);
+                var floorDraw = ToDraw(new Vec2(simPos.X, floorY));
+                _effects.Blood(at, dirX, floorDraw.y, (brute ? 1.6f : 1f) + (tier == 3 ? 0.3f : 0f));
+            }
             _shake = Mathf.Max(_shake, 0.08f * tier + (brute ? 0.2f : 0f));
             _hitStop = Mathf.Max(_hitStop, 0.02f * tier + (brute ? 0.05f : 0f));
             if (tier == 3) _effects.Flash(brute ? 0.22f : 0.1f);
@@ -893,11 +999,33 @@ namespace Redline.Game
             _actors.Squash(1.2f);
         }
 
+        /// <summary>Slide start feedback, scaled by the tier the slide started at (tier 1 a puff, tier 3 a burst).</summary>
         private void OnSlide(Color color)
         {
             var p = Sim.Player;
-            _effects.Dust(ToDraw(new Vector2(p.X, p.Y)), 8, p.Vx);
-            _effects.Sparks(ToDraw(new Vector2(p.X, p.Y + 0.1f)), color, 5, 4f);
+            int tier = Mathf.Clamp(p.SlideTier, 1, 3);
+            var tierColor = TierColors[tier - 1];
+            var feet = ToDraw(new Vector2(p.X, p.Y));
+            _effects.Dust(feet, tier == 1 ? 4 : tier == 2 ? 8 : 16, p.Vx);
+            if (tier >= 2) _effects.Sparks(ToDraw(new Vector2(p.X, p.Y + 0.1f)), tierColor, tier == 3 ? 16 : 6, tier == 3 ? 9f : 4f);
+            if (tier == 3) _shake = Mathf.Max(_shake, 0.18f);
+            _slideTrailTimer = 0f;
+        }
+
+        private float _slideTrailTimer;
+
+        /// <summary>While sliding on the ground: a floor trail in the slide's tier colour (none at tier 1, sparse at 2, dense at 3).</summary>
+        private void SpawnSlideTrail(float dt)
+        {
+            var p = Sim.Player;
+            if (!p.Sliding || !p.Grounded || p.SlideTier < 2 || Sim.State == SimState.GameOver) return;
+            _slideTrailTimer -= dt;
+            if (_slideTrailTimer > 0f) return;
+            bool t3 = p.SlideTier == 3;
+            _slideTrailTimer = t3 ? 0.03f : 0.08f;
+            var at = ToDraw(new Vector2(p.X - Mathf.Sign(p.Vx) * p.Width * 0.4f, p.Y + 0.05f));
+            _effects.Dust(at, t3 ? 3 : 1, p.Vx * 0.3f);
+            if (t3) _effects.Sparks(at, TierColors[2], 2, 3f);
         }
 
         private void OnLanded(float fallSpeed)
@@ -920,6 +1048,7 @@ namespace Redline.Game
         private void SpawnSpeedTrail(float dt)
         {
             if (Sim.State == SimState.GameOver) return;
+            SpawnSlideTrail(dt);
             if (_render3D) { SpawnSpeedTrail3D(dt); return; }
             var p = Sim.Player;
             int tier = Sim.PlayerTier;

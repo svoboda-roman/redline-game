@@ -16,14 +16,14 @@
     "charge":   {"albedo": "#7a1018", "emissive": "r"},
     "talisman": {"albedo": "#a88c62", "emissive": "b"},
     "spark":    {"albedo": "#b89466", "emissive": "r"},
-    "blur":     {"albedo": "#454950"}
+    "blur":     {"albedo": "#454950"},
+    "skin":     {"albedo": "#8a6656"},
+    "flesh":    {"albedo": "#6e3444"},
+    "flesh_dk": {"albedo": "#3a1a26"},
+    "cable":    {"albedo": "#1c1d22"},
+    "chrome":   {"albedo": "#8a929e"}
   },
-  "fold": {
-    "grunt": ["strip"],
-    "shooter": ["strip"],
-    "summoner": ["strip"],
-    "kamikaze": ["strip"],
-    "drone": ["strip"]
-  },
+  "fold": {},
+  "_fold_note": "cyberpunk reskin: every light strip glows again (neon), nothing folded",
   "coverage": {"opaque": 0.375, "opaque_emissive": 0.125, "r": 0.125, "g": 0.1875, "b": 0.1875}
 }

@@ -35,6 +35,7 @@ namespace Redline.Game.Render3D
 
         private void BuildRuins(Transform copy)
         {
+            if (_look.NeonStreet) return;   // no ruins or overgrowth on the neon street
             if (_ruinMats == null) BuildRuinMesh();
             if (_ruinMesh != null && _ruinMesh.vertexCount > 0) NoShadow(MeshGo("ruins", copy, _ruinMesh, _ruinMats));
         }

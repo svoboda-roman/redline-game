@@ -29,6 +29,13 @@ namespace Redline.Core
     {
         /// <summary>Horizontal input in [-1, 1].</summary>
         public float MoveX;
+        /// <summary>Vertical input in [-1, 1] (up positive): reels the hook rope in (up) or out (down) while hanging.</summary>
+        public float MoveY;
+        /// <summary>
+        /// The jump press came only from an "up" key (W / Up arrow), not Space or the pad's jump button. While
+        /// hanging, that press reels the rope in instead of letting go.
+        /// </summary>
+        public bool JumpPressedByUp;
         public bool JumpPressed;
         public bool JumpHeld;
         public bool AttackPressed;
@@ -103,7 +110,11 @@ namespace Redline.Core
         /// <summary>A summoner starts its cast (the telegraph before a drone appears).</summary>
         SummonerCast,
         /// <summary>A summoner summoned a drone (Position = the new drone's centre).</summary>
-        Summon
+        Summon,
+        /// <summary>A boss joined the wave (Position = the boss).</summary>
+        BossSpawn,
+        /// <summary>A boss died (sent with its Kill).</summary>
+        BossDown
     }
 
     /// <summary>A feedback event emitted during one simulation step.</summary>

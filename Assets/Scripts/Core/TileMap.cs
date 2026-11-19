@@ -8,7 +8,9 @@ namespace Redline.Core
     {
         Empty,
         Solid,
-        Spike
+        Spike,
+        /// <summary>Shock floor ('E'): passable, hurts like a spike only while the current is live (RedlineSim.ShockLive).</summary>
+        Shock
     }
 
     /// <summary>
@@ -51,6 +53,18 @@ namespace Redline.Core
         /// </summary>
         public bool Training { get; }
 
+        /// <summary>';endless': waves never run out; each one is bigger than the last (<see cref="WaveSpec.Endless"/>).</summary>
+        public bool Endless { get; private set; }
+
+        /// <summary>';randomspawn': enemies appear at random standing spots (<see cref="StandSpots"/>), not at 'S' cells.</summary>
+        public bool RandomSpawn { get; private set; }
+
+        /// <summary>
+        /// Bottom-centre of every cell an enemy can stand in: empty, the cell above empty, solid below
+        /// (not a spike), in row-major order from the bottom. Used by <see cref="RandomSpawn"/> levels.
+        /// </summary>
+        public IReadOnlyList<Vec2> StandSpots { get; private set; } = Array.Empty<Vec2>();
+
         private TileMap(int width, int height, Tile[] tiles, Vec2 start, List<Vec2> spawns, bool wraps, List<WaveSpec> waves,
             List<HintZone> hints, bool training)
         {
@@ -72,6 +86,7 @@ namespace Redline.Core
             var rows = new List<string>();
             bool wraps = false;
             bool training = false;
+            bool endless = false, randomSpawn = false;
             var waves = new List<WaveSpec>();
             var hintLines = new List<(string line, int number)>();
             int lineNumber = 0;
@@ -84,6 +99,8 @@ namespace Redline.Core
                     var directive = line.Trim();
                     if (directive == ";wrap") wraps = true;
                     else if (directive == ";training") training = true;
+                    else if (directive == ";endless") endless = true;
+                    else if (directive == ";randomspawn") randomSpawn = true;
                     else if (directive == ";wave" || directive.StartsWith(";wave ") || directive.StartsWith(";wave\t"))
                     {
                         try
@@ -124,6 +141,7 @@ namespace Redline.Core
                     {
                         case '#': t = Tile.Solid; break;
                         case '^': t = Tile.Spike; break;
+                        case 'E': t = Tile.Shock; break;
                         case 'P':
                             if (start.HasValue) throw new FormatException("map has more than one 'P'");
                             start = new Vec2(x + 0.5f, y);
@@ -135,7 +153,8 @@ namespace Redline.Core
             }
             if (!start.HasValue) throw new FormatException("map has no player start 'P'");
             if (training && waves.Count > 0) throw new FormatException("a ';training' level cannot declare ';wave' lines");
-            if (spawns.Count == 0) throw new FormatException("map has no enemy spawn 'S'");
+            if (spawns.Count == 0 && !randomSpawn) throw new FormatException("map has no enemy spawn 'S'");
+            if (endless && waves.Count > 0) throw new FormatException("an ';endless' level cannot declare ';wave' lines");
             var hints = new List<HintZone>(hintLines.Count);
             foreach (var (hintLine, number) in hintLines)
             {
@@ -153,7 +172,22 @@ namespace Redline.Core
                         throw new FormatException($"line {number}: hint id '{zone.Id}' is used twice in this level");
                 hints.Add(zone);
             }
-            return new TileMap(width, height, tiles, start.Value, spawns, wraps, waves, hints, training);
+            var map = new TileMap(width, height, tiles, start.Value, spawns, wraps, waves, hints, training)
+            {
+                Endless = endless,
+                RandomSpawn = randomSpawn,
+            };
+            if (randomSpawn)
+            {
+                var spots = new List<Vec2>();
+                for (int y = 1; y < height - 1; y++)
+                    for (int x = 0; x < width; x++)
+                        if (map.Get(x, y) == Tile.Empty && map.Get(x, y + 1) == Tile.Empty && map.Get(x, y - 1) == Tile.Solid)
+                            spots.Add(new Vec2(x + 0.5f, y));
+                if (spots.Count == 0) throw new FormatException("a ';randomspawn' level has no cell to stand on");
+                map.StandSpots = spots;
+            }
+            return map;
         }
 
         /// <summary>Tile at a cell; above/below the grid is Solid, and so are the sides unless the level wraps.</summary>
@@ -192,6 +226,15 @@ namespace Redline.Core
             for (int y = y0; y <= y1; y++)
                 for (int x = x0; x <= x1; x++)
                     if (IsSolid(x, y)) return true;
+            return false;
+        }
+
+        /// <summary>True when the box overlaps the lower half of any shock-floor cell.</summary>
+        public bool OverlapsShock(float minX, float minY, float maxX, float maxY)
+        {
+            for (int y = (int)MathF.Floor(minY); y <= (int)MathF.Floor(maxY); y++)
+                for (int x = (int)MathF.Floor(minX); x <= (int)MathF.Floor(maxX); x++)
+                    if (Get(x, y) == Tile.Shock && maxX > x && minX < x + 1 && maxY > y && minY < y + 0.5f) return true;
             return false;
         }
 

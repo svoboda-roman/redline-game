@@ -12,14 +12,14 @@
  "padding": 2,
  "rect_origin": "bottom-left (Unity sprite rect convention); pivot normalised within the rect",
  "pivot_note": "feet centre = bottom-centre of the 1.0 x 1.3 collision body; sprites face right",
- "bake_note": "3D-lit bake (tools/art/common/bake_char.py): unlit material albedo, area-filtered, hard alpha; no toon bands, rim or outline (same material language as the ronin); folded to albedo trim (no glow): strip",
+ "bake_note": "3D-lit bake (tools/art/common/bake_char.py): unlit material albedo, area-filtered, hard alpha; no toon bands, rim or outline (same material language as the ronin)",
  "textures": {
   "color": "grunt_color.png",
   "normal": "grunt_normal.png",
   "emissive": "grunt_emissive.png"
  },
  "normal_encoding": "view-space normal: R=+X right, G=+Y up, B=toward camera; transparent texels (128,128,255,0)",
- "emissive_encoding": "R = attack glow: spear-blade glint (attack frames 2-4), G = jingasa eye slit, B = amber light strips (do, hat band, spear collar); A = 255 where any mask is set; folded, no longer emissive: strip",
+ "emissive_encoding": "R = attack glow: spear-blade glint (attack frames 2-4), G = red cyber eye, B = neon light strips (mohawk, vest, spear collar); A = 255 where any mask is set",
  "animations": [
   {
    "name": "idle",

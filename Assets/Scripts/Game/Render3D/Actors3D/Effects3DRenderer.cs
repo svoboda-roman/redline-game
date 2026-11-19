@@ -153,6 +153,46 @@ namespace Redline.Game.Render3D.Actors3D
             }
         }
 
+        /// <summary>Neon blood: hot red (HDR, additive) so it blooms like the street's neon.</summary>
+        private static readonly Color NeonBlood = new Color(1.9f, 0.06f, 0.16f, 1f);
+        private static readonly Color NeonBloodHot = new Color(2.6f, 0.5f, 0.6f, 1f);
+
+        /// <summary>
+        /// A kill's neon blood splash (additive, glowing, small): a short burst of hot red droplets thrown away from the
+        /// killer along <paramref name="dirX"/> in an arc, a red glow puff at the wound, and a brief glowing red
+        /// splat on the floor at <paramref name="floorY"/>. Goes with the white cut-flash lines (the impact frame).
+        /// <paramref name="amount"/> 1 = a normal kill, more = a heavy one (brute, tier 3).
+        /// </summary>
+        public void Blood(Vector2 at, float dirX, float floorY, float amount)
+        {
+            float side = dirX >= 0f ? 1f : -1f;
+            int drops = Mathf.RoundToInt(12 * amount);
+            for (int i = 0; i < drops; i++)
+            {
+                float spd = Random.Range(3f, 8f);
+                var dir = new Vector2(side * Random.Range(0.3f, 1f), Random.Range(-0.1f, 0.9f)).normalized;
+                var c = i % 4 == 0 ? NeonBloodHot : NeonBlood;
+                float s = Random.Range(0.035f, 0.07f);
+                Spawn(Solid, null, at + Random.insideUnitCircle * 0.1f, Random.Range(-0.3f, 0.2f), dir * spd, c, new Vector2(s, s * 0.8f),
+                    Random.Range(0.3f, 0.55f), 20f, 1f, 0f, 0f, true, true, 0.3f);
+            }
+            // Red glow puff at the wound.
+            var puff = NeonBlood * 0.9f;
+            puff.a = 0.8f;
+            Spawn(Glow, null, at + new Vector2(side * 0.15f, 0f), -0.2f, new Vector2(side * 0.6f, 0.2f), puff,
+                new Vector2(0.55f, 0.55f) * amount, 0.25f, 0f, 3f, 0f, 1.6f, false, true, 0.3f);
+            // A brief glowing splat on the floor, strung out away from the killer.
+            for (int i = 0; i < 2 + Mathf.RoundToInt(amount); i++)
+            {
+                float dx = side * Random.Range(0.1f, 1.2f) * amount;
+                float w = Random.Range(0.3f, 0.6f), d = w * Random.Range(0.35f, 0.55f);
+                var c = NeonBlood * 0.7f;
+                c.a = 0.8f;
+                Spawn(Glow, null, new Vector2(at.x + dx, floorY + 0.012f + i * 0.001f), Random.Range(-0.6f, 0.6f), Vector2.zero, c,
+                    new Vector2(w, d), Random.Range(1.2f, 1.8f), 0f, 0f, 0f, 0.2f, false, true, 0.4f, true);
+            }
+        }
+
         /// <summary>
         /// Rainwater at the feet: droplets kicked up (thrown back against <paramref name="pushX"/>), a mist puff, and
         /// when <paramref name="pushX"/> is 0 (landing, brute crash) a splash ring lying flat on the deck.

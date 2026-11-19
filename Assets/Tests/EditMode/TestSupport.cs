@@ -13,7 +13,18 @@ namespace Redline.Tests
         /// <summary>Config with waves pushed far into the future so movement tests run without enemies.</summary>
         public static RedlineConfig NoWaves()
         {
-            return new RedlineConfig { firstWaveDelay = 1e6f };
+            return OneHitHp(new RedlineConfig { firstWaveDelay = 1e6f });
+        }
+
+        /// <summary>
+        /// The old one-hit enemy health, so mechanic tests (chains, drops, reflects, slides) stay about the mechanic,
+        /// not the balance. The game itself uses the tougher defaults (see EnemyToughnessTests).
+        /// </summary>
+        public static RedlineConfig OneHitHp(RedlineConfig c)
+        {
+            c.gruntHp = 1f; c.droneHp = 1f; c.shooterHp = 1f; c.bruteHp = 4f;
+            c.shieldHp = 2f; c.kamikazeHp = 2f; c.summonerHp = 2f;
+            return c;
         }
 
         /// <summary>

@@ -101,6 +101,9 @@ namespace Redline.RoninEditor
         private static void Cleanup()
         {
             _katana = null;
+            _uprightDeg = float.NaN;
+            _twoHand = false;
+            _rightForward = false;
             if (_cam != null)
             {
                 _cam.targetTexture = null;
@@ -142,12 +145,23 @@ namespace Redline.RoninEditor
             float idleHips = HipsHeight(RoninClip.Idle, 0f);
             // v3 (ronin_anims.py): procedural katana clips authored at 30 fps. Loops cover exactly one cycle.
             // Idle: 1.33 s breathing cycle, 16 frames at 12 fps.
+            // Sword held upright in a normal grip (blade up, leaning forward) in every non-attack pose; the slashes,
+            // the slide attack and death keep their own blade (see _uprightDeg / FixKatana).
+            // Standing: classic two-handed high guard (hasso-like): both hands on the hilt at shoulder height in front,
+            // right hand at the guard above the left, blade up and leaning back over the shoulder.
+            _uprightDeg = 24f;   // one-handed (right) ready stance: hand at the hip, blade up and forward, clear of the hat
+            _rightForward = true;
             list.Add(SampleClip("idle", RoninClip.Idle, 16f / L(RoninClip.Idle), true, Uniform(16, 0f, L(RoninClip.Idle), true), 0f, false, idleHips, hand));
             // Run and sprint: one stride cycle each (10 and 8 frames). The presenter plays them at
             // speed x duration / stride (the stride is measured here from the planted foot), so the cloth is simulated
             // in the real time one cycle takes at the speed each represents (run 9 u/s = the sim's run speed, sprint 18).
+            _twoHand = false;
+            _rightForward = false;
+            _uprightDeg = 35f;
             list.Add(Loco("run", RoninClip.Run, 10, 9f, idleHips, hand));
+            _uprightDeg = 55f;
             list.Add(Loco("sprint", RoninClip.Sprint, 8, 18f, idleHips, hand));
+            _uprightDeg = 42f;
             // Jump: take-off -> knee drive -> tuck in 0.4 s; the sim supplies the height, so the hips are pinned.
             list.Add(SampleClip("jump", RoninClip.Jump, 20, false, Uniform(8, 0f, Mathf.Min(0.4f, L(RoninClip.Jump)), false), 0f, true, idleHips, hand));
             list.Add(SampleClip("fall", RoninClip.Fall, 12, true, Uniform(12, 0f, L(RoninClip.Fall), true), 0f, true, idleHips, hand));
@@ -157,6 +171,7 @@ namespace Redline.RoninEditor
             land.Frames.Add(list[0].Frames[0].Clone("land_03"));
             list.Add(land);
             list.Add(Capture("hang", 12, true, Mathf.RoundToInt(L(RoninClip.Hang) * 12), 0f, 0.3f, 0f, t => { var i = idle; i.Grounded = false; i.Hooked = true; return i; }, hand));
+            _uprightDeg = float.NaN;
             list.Add(Capture("slide", 20, false, Mathf.Min(16, Mathf.RoundToInt(L(RoninClip.SlideAttack) * 20)), 0f, 0f, 0f, t => { var i = idle; i.Sliding = true; i.Speed = 8f; return i; }, hand));
             // Slashes: 10 frames at 30 fps sampled 1:1 (frame 0 anticipation, 1 mid-swing, 2 impact = 0.067 s after the
             // press, inside the sim's 0.15 s live strike; 3-4 follow-through; 5-9 recover). The 1-2 fastest frames carry
@@ -170,13 +185,16 @@ namespace Redline.RoninEditor
             list.Add(SampleClip("runattack2", RoninClip.RunAttack2, 30, false, slashTimes, 9f, false, idleHips, hand, 1f, smear));
             // Hurt: time-warped so the recoil snaps (clip 0.12 -> 0.45 s, its deepest lean, in 2 frames) then recovers to
             // the clip's end pose over 6 frames; 8 frames at 20 fps = 0.4 s (the presenter takes HurtDuration from this).
+            _uprightDeg = 48f;
             list.Add(SampleClip("hurt", RoninClip.Hurt, 20, false, new[] { 0.12f, 0.3f, 0.45f, 0.6f, 0.75f, 0.9f, 1.05f, L(RoninClip.Hurt) }, 0f, false, idleHips, hand));
             // Death: the whole 2.4 s clip (stagger, collapse, lying on the ground) in 22 frames at 14 fps (~1.5x speed);
             // the last frame is the clip's final lying pose and is held by the one-shot playback.
+            _uprightDeg = float.NaN;
             list.Add(SampleClip("death", RoninClip.Death, 14, false, Uniform(22, 0f, L(RoninClip.Death), false), 0f, false, idleHips, hand));
 
             int total = 0, fixedTotal = 0, bladePx = 0, eyePx = 0;
             foreach (var a in list) foreach (var f in a.Frames) { fixedTotal += Clean(f); total++; }
+            if (InkStyle) foreach (var a in list) foreach (var f in a.Frames) Ink(f);
             foreach (var a in list) foreach (var f in a.Frames) foreach (var e in f.Em) { if ((e & 1) != 0) bladePx++; if ((e & 2) != 0) eyePx++; }
             // The blade glow is the tier read: a bake without it is broken, not just different.
             if (bladePx == 0) throw new InvalidOperationException("no blade emissive pixels baked (Ronin_Blade emission)");
@@ -314,6 +332,7 @@ namespace Redline.RoninEditor
 
         private static Fr Snapshot(string name, Transform hand)
         {
+            FixKatana();
             for (int i = 0; i < _skinned.Length; i++) _skinned[i].BakeMesh(_proxyMeshes[i], true);
             var alb = Render(0);
             var nrm = Render(1);
@@ -440,6 +459,8 @@ namespace Redline.RoninEditor
                     float dy = Bone(HumanBodyBones.Hips).position.y - _view.transform.position.y - hipsY;
                     _view.Model.localPosition = new Vector3(0f, -dy / scale, 0f);
                 }
+                TwoHandGuard();
+                FixKatana();
             }
             void Advance(float from, float to, float seconds)
             {
@@ -462,6 +483,15 @@ namespace Redline.RoninEditor
                 sb.Append(Mathf.RoundToInt(Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg)).Append(' ');
             }
             Debug.Log($"RONIN_BAKE blade anim={name} angles(deg, 0=forward 90=up)= {sb}");
+            if (name == "idle")
+            {
+                Pose(times[0]);
+                PlaceCamera();
+                var rh = _cam.WorldToViewportPoint(Bone(HumanBodyBones.RightHand).position);
+                var lh = _cam.WorldToViewportPoint(Bone(HumanBodyBones.LeftHand).position);
+                var kp = _katana != null ? _cam.WorldToViewportPoint(_katana.position) : Vector3.zero;
+                Debug.Log($"RONIN_BAKE hands idle: right x={rh.x * CW:F1} y={rh.y * CH:F1} depth={rh.z:F3} | left x={lh.x * CW:F1} y={lh.y * CH:F1} depth={lh.z:F3} | katana x={kp.x * CW:F1} y={kp.y * CH:F1} depth={kp.z:F3} | katanaParent={(_katana != null && _katana.parent != null ? _katana.parent.name : "-")}");
+            }
             var smearFrames = smear ? PickSmearFrames(tips) : new List<int>();
             // Cloth: settle on the first pose, then (loops) run one full cycle so frame 0 continues from frame N-1.
             Pose(times[0]);
@@ -508,7 +538,174 @@ namespace Redline.RoninEditor
         private static readonly float[] SmearLevels = { 0.15f, 0.25f, 0.4f, 0.6f };   // the blade itself (1.0) is the leading edge
 
         private static Transform _katana;
-        private static Vector3 _guardLocal, _tipLocal;
+        private static Vector3 _guardLocal, _tipLocal, _pommelLocal;
+        private static Vector3 _katanaRestPos;
+        private static Quaternion _katanaRestRot;
+
+        /// <summary>
+        /// Blade angle for the clip being baked, in degrees from straight up toward the facing direction (the sword held
+        /// upright in a normal grip); NaN = the clip's own blade (slashes, slide, death). Applied by <see cref="FixKatana"/>.
+        /// </summary>
+        private static float _uprightDeg = float.NaN;
+
+        /// <summary>
+        /// Puts the katana back on the hand at its rest offset, then, for upright clips, turns it about the grip so the
+        /// blade points <see cref="_uprightDeg"/> from vertical toward the facing side (the hand and arm are untouched).
+        /// Idempotent; call after every pose and before every snapshot.
+        /// </summary>
+        private static void FixKatana()
+        {
+            if (_katana == null && !InitKatana()) return;
+            _katana.localPosition = _katanaRestPos;
+            _katana.localRotation = _katanaRestRot;
+            if (float.IsNaN(_uprightDeg)) return;
+            // The katana stays exactly where the model's fist holds it (its authored grip, child of the right hand);
+            // the WRIST turns so the blade points the requested way. The fist wraps the handle, the pommel shows
+            // below the fist and the blade above it: the sword is held, not glued on.
+            var wrist = _katana.parent;
+            if (wrist == null) return;
+            Vector3 cur = _katana.TransformDirection(_tipLocal - _guardLocal).normalized;
+            float a = _uprightDeg * Mathf.Deg2Rad;
+            Vector3 target = new Vector3(Mathf.Sin(a), Mathf.Cos(a), -0.12f).normalized;   // baked facing +x; a touch toward the camera
+            wrist.rotation = Quaternion.FromToRotation(cur, target) * wrist.rotation;
+        }
+
+        /// <summary>Standing two-handed guard: both palms on the handle in front of the belly (set per clip while baking).</summary>
+        private static bool _twoHand;
+
+        /// <summary>Standing one-handed: the right hand brought forward in front of the body, blade up (set per clip while baking).</summary>
+        private static bool _rightForward;
+
+        /// <summary>Handle centre of the two-handed guard relative to the hips (world units, facing +x; -z is toward the camera).</summary>
+        private static Vector3 GuardOffset = new Vector3(0.32f, 0.06f, -0.22f);   // sword fist at hip height, forward of the body and on the near side
+
+        /// <summary>
+        /// Batch entry point: renders the standing pose (idle frame 0, ink style) in several sword-holding stances side by
+        /// side into production/qa/evidence/ronin-stances.png, without touching the sheet. For choosing a stance.
+        /// </summary>
+        public static void StanceVariantsFromCommandLine()
+        {
+            try
+            {
+                RoninSetup.EnsureAssets();
+                EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                var assets = RoninAssets.Load();
+                GameObject root = null;
+                try
+                {
+                    SetupCamera();
+                    root = new GameObject("BakeRoot");
+                    _view = RoninView.Create(assets, root.transform);
+                    _view.AutoTick = false;
+                    _view.CameraTurn = Actors3DView.RoninCameraTurn;
+                    _view.SnapFacing(1);
+                    _view.transform.localScale = Vector3.one * Measure(_view.transform, 1.6f * Actors3DView.RoninHeightRatio);
+                    BuildPassMaterials();
+                    // (name, blade degrees from vertical toward facing, guard offset from the hips, two hands, IK)
+                    var v = new (string name, float deg, Vector3 off, bool two, bool ik)[]
+                    {
+                        ("A", 24f, new Vector3(0.2f, 0.02f, -0.15f), false, true),     // hip ready (current)
+                        ("B", 120f, Vector3.zero, false, false),                        // relaxed: blade down-forward by the leg
+                        ("C", -70f, new Vector3(0.12f, 0.42f, -0.18f), false, true),    // resting on the shoulder
+                        ("D", 60f, new Vector3(0.3f, 0.15f, -0.15f), false, true),      // one-hand seigan: tip toward the enemy
+                        ("E", 45f, new Vector3(0.3f, 0.18f, -0.12f), true, true),       // two-hand chudan: tip at eye height
+                        ("F", 0f, new Vector3(0.24f, 0.34f, -0.12f), true, true),       // two-hand hasso: upright by the shoulder
+                    };
+                    var frames = new List<Fr>();
+                    foreach (var s in v)
+                    {
+                        _uprightDeg = s.deg; GuardOffset = s.off; _twoHand = s.two && s.ik; _rightForward = !s.two && s.ik;
+                        _view.transform.position = Vector3.zero;
+                        _view.Model.localPosition = Vector3.zero;
+                        _view.SamplePose(RoninClip.Idle, 0f);
+                        TwoHandGuard();
+                        FixKatana();
+                        _view.ResetSprings();
+                        var f = Snapshot("stance_" + s.name, null);
+                        Clean(f);
+                        if (InkStyle) Ink(f);
+                        frames.Add(f);
+                    }
+                    const int S = 3;
+                    var tex = new Texture2D(CW * frames.Count * S, CH * S, TextureFormat.RGBA32, false);
+                    var bg = new Color32(150, 95, 140, 255);
+                    var px = new Color32[tex.width * tex.height];
+                    for (int i = 0; i < px.Length; i++) px[i] = bg;
+                    for (int n = 0; n < frames.Count; n++)
+                        for (int y = 0; y < CH; y++)
+                        for (int x = 0; x < CW; x++)
+                        {
+                            int k = y * CW + x;
+                            if (!frames[n].Op[k]) continue;
+                            var c = (frames[n].Em[k] & 1) != 0 ? new Color32(120, 220, 255, 255) : frames[n].Col[k];
+                            for (int sy = 0; sy < S; sy++) for (int sx = 0; sx < S; sx++) px[(y * S + sy) * tex.width + (n * CW + x) * S + sx] = c;
+                        }
+                    tex.SetPixels32(px);
+                    tex.Apply();
+                    System.IO.Directory.CreateDirectory(EvidenceDir);
+                    System.IO.File.WriteAllBytes(EvidenceDir + "ronin-stances.png", tex.EncodeToPNG());
+                    UnityEngine.Object.DestroyImmediate(tex);
+                }
+                finally
+                {
+                    if (root != null) UnityEngine.Object.DestroyImmediate(root);
+                    Cleanup();
+                }
+                EditorApplication.Exit(0);
+            }
+            catch (Exception e) { Debug.LogError("RONIN_STANCES_FAIL " + e); EditorApplication.Exit(1); }
+        }
+
+        /// <summary>
+        /// Two-handed guard: puts both palms on one handle in front of the belly, right hand near the guard, left near
+        /// the pommel, the handle along the blade direction (<see cref="_uprightDeg"/>), by a two-bone IK on each arm.
+        /// Called after the clip pose and before <see cref="FixKatana"/> (which then seats the katana in the right palm).
+        /// </summary>
+        private static void TwoHandGuard()
+        {
+            if ((!_twoHand && !_rightForward) || float.IsNaN(_uprightDeg)) return;
+            var hips = Bone(HumanBodyBones.Hips);
+            if (hips == null) return;
+            float a = _uprightDeg * Mathf.Deg2Rad;
+            var dir = new Vector3(Mathf.Sin(a), Mathf.Cos(a), 0f);
+            Vector3 centre = hips.position + GuardOffset;   // world units (the baked model is already at game scale)
+            if (_rightForward)
+            {
+                // One-handed: only the right (sword, near-camera) hand comes forward in front of the body.
+                ArmTo(HumanBodyBones.RightUpperArm, HumanBodyBones.RightLowerArm, HumanBodyBones.RightHand, HumanBodyBones.RightMiddleProximal, centre);
+                return;
+            }
+            ArmTo(HumanBodyBones.RightUpperArm, HumanBodyBones.RightLowerArm, HumanBodyBones.RightHand, HumanBodyBones.RightMiddleProximal, centre + dir * 0.06f);
+            ArmTo(HumanBodyBones.LeftUpperArm, HumanBodyBones.LeftLowerArm, HumanBodyBones.LeftHand, HumanBodyBones.LeftMiddleProximal, centre - dir * 0.07f);
+        }
+
+        /// <summary>Two-bone IK: rotates the upper and lower arm so the palm (not the wrist) lands on <paramref name="palmTarget"/>.</summary>
+        private static void ArmTo(HumanBodyBones upperB, HumanBodyBones lowerB, HumanBodyBones handB, HumanBodyBones midB, Vector3 palmTarget)
+        {
+            Transform up = Bone(upperB), lo = Bone(lowerB), hd = Bone(handB);
+            if (up == null || lo == null || hd == null) return;
+            var mid = Bone(midB);
+            Vector3 palmOff = mid != null ? (Vector3.Lerp(hd.position, mid.position, 0.6f) - hd.position) : Vector3.zero;
+            Vector3 t = palmTarget - palmOff;
+            Vector3 pa = up.position, pb = lo.position, pc = hd.position;
+            float lab = (pb - pa).magnitude, lcb = (pc - pb).magnitude;
+            const float eps = 1e-3f;
+            float lat = Mathf.Clamp((t - pa).magnitude, eps, lab + lcb - eps);
+            float Ang(Vector3 u, Vector3 v) => Mathf.Acos(Mathf.Clamp(Vector3.Dot(u.normalized, v.normalized), -1f, 1f));
+            float acab0 = Ang(pc - pa, pb - pa), babc0 = Ang(pa - pb, pc - pb), acat0 = Ang(pc - pa, t - pa);
+            float acab1 = Mathf.Acos(Mathf.Clamp((lcb * lcb - lab * lab - lat * lat) / (-2f * lab * lat), -1f, 1f));
+            float babc1 = Mathf.Acos(Mathf.Clamp((lat * lat - lab * lab - lcb * lcb) / (-2f * lab * lcb), -1f, 1f));
+            Vector3 axis0 = Vector3.Cross(pc - pa, pb - pa);
+            if (axis0.sqrMagnitude < 1e-8f) axis0 = Vector3.Cross(pc - pa, Vector3.down + Vector3.left);   // straight arm: bend the elbow down-back
+            axis0.Normalize();
+            Vector3 axis1 = Vector3.Cross(pc - pa, t - pa);
+            Quaternion r2 = axis1.sqrMagnitude > 1e-8f ? Quaternion.AngleAxis(acat0 * Mathf.Rad2Deg, Quaternion.Inverse(up.rotation) * axis1.normalized) : Quaternion.identity;
+            Quaternion r0 = Quaternion.AngleAxis((acab1 - acab0) * Mathf.Rad2Deg, Quaternion.Inverse(up.rotation) * axis0);
+            Quaternion r1 = Quaternion.AngleAxis((babc1 - babc0) * Mathf.Rad2Deg, Quaternion.Inverse(lo.rotation) * axis0);
+            up.localRotation = up.localRotation * (r0 * r2);
+            lo.localRotation = lo.localRotation * r1;
+        }
+
 
         /// <summary>Guard and tip of the katana in local space (longest mesh-bounds axis; the end nearer the hand is
         /// the pommel, the guard ~29% of the length from it; same rule as <see cref="BladeTrail"/>).</summary>
@@ -525,7 +722,10 @@ namespace Redline.RoninEditor
             Vector3 hand = _katana.parent != null ? _katana.InverseTransformPoint(_katana.parent.position) : Vector3.zero;
             Vector3 pommel = (a - hand).sqrMagnitude < (c - hand).sqrMagnitude ? a : c;
             _tipLocal = pommel == a ? c : a;
+            _pommelLocal = pommel;
             _guardLocal = Vector3.Lerp(pommel, _tipLocal, 0.29f);
+            _katanaRestPos = _katana.localPosition;
+            _katanaRestRot = _katana.localRotation;
             return true;
         }
 
@@ -702,6 +902,51 @@ namespace Redline.RoninEditor
         // ---------------------------------------------------------------- clean-up
 
         private static readonly int[] Dx8 = { -1, 0, 1, -1, 1, -1, 0, 1 }, Dy8 = { -1, -1, -1, 0, 0, 1, 1, 1 };
+
+        /// <summary>Black-and-white ink style for the sheet: contrasty greyscale body and a 1 px dark outline (blade keeps its tier glow).</summary>
+        public static bool InkStyle = true;
+
+        /// <summary>
+        /// Ink pass: every body texel becomes a contrasty grey (shadows near black, lights near white: manga / sumi-e
+        /// read), and every empty texel touching the body gets a near-black outline texel so the samurai cuts out of any
+        /// background. Blade (emissive R) texels stay as they are and get no outline (the tier glow defines them).
+        /// </summary>
+        private static void Ink(Fr f)
+        {
+            for (int k = 0; k < f.Op.Length; k++)
+            {
+                if (!f.Op[k] || (f.Em[k] & 1) != 0) continue;
+                var c = f.Col[k];
+                float l = (0.3f * c.r + 0.59f * c.g + 0.11f * c.b) / 255f;
+                float v = Mathf.Clamp01((l - 0.06f) / 0.5f);
+                v = v * v * (3f - 2f * v);                       // S-curve: crush darks, lift lights
+                byte g = (byte)Mathf.RoundToInt(Mathf.Lerp(18f, 238f, v));
+                f.Col[k] = new Color32(g, g, (byte)Mathf.Min(255, g + 4), 255);
+            }
+            var outline = new List<int>();
+            for (int y = 0; y < CH; y++)
+            for (int x = 0; x < CW; x++)
+            {
+                int k = y * CW + x;
+                if (f.Op[k]) continue;
+                bool edge = false;
+                for (int d = 0; d < 4 && !edge; d++)
+                {
+                    int nx = x + (d == 0 ? 1 : d == 1 ? -1 : 0), ny = y + (d == 2 ? 1 : d == 3 ? -1 : 0);
+                    if (nx < 0 || ny < 0 || nx >= CW || ny >= CH) continue;
+                    int n = ny * CW + nx;
+                    edge = f.Op[n] && (f.Em[n] & 1) == 0;
+                }
+                if (edge) outline.Add(k);
+            }
+            foreach (int k in outline)
+            {
+                f.Op[k] = true;
+                f.Em[k] = 0;
+                f.Col[k] = new Color32(8, 8, 10, 255);
+                f.Nrm[k] = new Color32(128, 128, 255, 255);
+            }
+        }
 
         private static int Clean(Fr f)
         {

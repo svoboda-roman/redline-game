@@ -1,11 +1,13 @@
-"""Grunt: ashigaru-style cyber foot soldier (body 1.0 x 1.3). Jingasa conical helmet with an amber eye
-slit, olive-drab tunic under a gunmetal do, short yari held forward.
+"""Grunt: cyberpunk half-human foot soldier (body 1.0 x 1.3). Half his skull is a chrome plate with a red
+cyber eye, the near (spear) arm and knee are machine parts, cables run up the back into the head; tactical
+suit under an armoured vest plate, electro-yari held forward.
 
-Run:  blender -b --factory-startup -P grunt.py -- --out grunt.blend   (see tools/art/common/make_char.sh)
+Run:  blender -b --factory-startup -P grunt.py -- --out grunt.blend   (see tools/art/common/make_char.ps1)
 """
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'common'))
 import kit  # noqa: E402
+import cyber  # noqa: E402
 from kit import part, cat, box, tube, ellipsoid, ecyl, shell, lathe, extrude2d, S, C, TAU  # noqa: E402
 
 
@@ -14,35 +16,33 @@ def build():
                       sh_w=0.17, sh_z=0.12, upper=0.22, fore=0.20)
     kit.set_rig(rp)
     kit.weapon('spear', 'R', 'wp')
-    kit.legs(thigh_mat='olive', shin_mat='cloth', r=(0.075, 0.058, 0.052, 0.04), boot=(0.17, 0.085, 0.07),
+    kit.legs(thigh_mat='suit', shin_mat='cloth', r=(0.075, 0.058, 0.052, 0.04), boot=(0.17, 0.085, 0.07),
              shin_guard='gunmetal')
-    kit.arms({'R': ('olive', 'cloth'), 'L': ('olive', 'cloth')}, r=(0.048, 0.04, 0.043, 0.036), hand=(0.065, 0.055, 0.07))
-    # torso
-    part('hips', 'pelvis_geo', 'pelvis', 'olive', ellipsoid((0, 0, -0.02), (0.12, 0.14, 0.09)))
-    part('kusazuri', 'pelvis_geo', 'pelvis', 'gunmetal', cat(
-        shell((0, 0), -100, 100, [(0.02, 0.135, 0.15), (-0.17, 0.165, 0.18)], 12)))
-    part('belly', 'spine_geo', 'spine', 'olive', ellipsoid((0.0, 0, 0.06), (0.11, 0.13, 0.11)))
-    part('do', 'chest_geo', 'chest', 'gunmetal', ellipsoid((0.025, 0, 0.04), (0.155, 0.18, 0.16)), bevel=0.0)
-    part('do_band', 'chest_geo', 'chest', 'helmet', ecyl((0.02, 0), -0.06, -0.035, 0.15, 0.172, 20))
-    part('strip_do', 'chest_geo', 'chest', 'strip', box((0.165, -0.04, 0.03), (0.012, 0.03, 0.06)))
-    for s, sy in (('R', -1), ('L', 1)):
-        part('sode_' + s, 'sh_' + s, 'sh_' + s, 'gunmetal', cat(
-            box((-0.01, sy * 0.06, 0.0), (0.16, 0.03, 0.09), (sy * 10, 0, 0)),
-            box((-0.006, sy * 0.07, -0.06), (0.15, 0.025, 0.06), (sy * 16, 0, 0))), bevel=0.006)
-    # head: hooded face plate + jingasa
+    # near leg: chrome knee and a piston down the shin (half machine)
+    part('knee_R', 'kn_R', 'kn_R', 'chrome', ellipsoid((0.03, 0, 0.0), (0.04, 0.055, 0.05)))
+    part('shin_piston_R', 'kn_R', 'kn_R', 'cyber', tube((0.05, -0.02, -0.03), (0.05, -0.02, -0.22), 0.012, 0.012, 6))
+    # near (spear) arm is a machine, far arm stays human
+    cyber.robo_arm('R')
+    cyber.human_arm('L', sleeve='suit', r=(0.048, 0.04, 0.043, 0.036), hand=(0.065, 0.055, 0.07))
+    # torso: tactical suit, armoured vest plate, implant port, cable bundle up the back
+    part('hips', 'pelvis_geo', 'pelvis', 'suit', ellipsoid((0, 0, -0.02), (0.12, 0.14, 0.09)))
+    part('belt', 'pelvis_geo', 'pelvis', 'gunmetal', ecyl((0, 0), -0.01, 0.035, 0.125, 0.145, 18))
+    part('belly', 'spine_geo', 'spine', 'suit', ellipsoid((0.0, 0, 0.06), (0.11, 0.13, 0.11)))
+    part('vest', 'chest_geo', 'chest', 'suit', ellipsoid((0.02, 0, 0.04), (0.15, 0.17, 0.155)))
+    part('vest_plate', 'chest_geo', 'chest', 'gunmetal', box((0.11, 0, 0.05), (0.06, 0.24, 0.17), (0, -6, 0)), bevel=0.012)
+    part('strip_do', 'chest_geo', 'chest', 'strip', box((0.145, -0.04, 0.03), (0.012, 0.03, 0.06)))
+    part('sh_mount_R', 'chest_geo', 'chest', 'chrome', ellipsoid((0.0, -0.17, 0.11), (0.07, 0.06, 0.06)))
+    cyber.spine_cables(x=-0.14, z0=-0.04, z1=0.24)
+    # head: half human, half chrome skull with a red eye
     H = 'head_geo'
-    part('neck_m', H, 'head', 'cloth', tube((0, 0, -0.10), (0, 0, 0.0), 0.045, 0.045))
-    part('face', H, 'head', 'helmet', ellipsoid((0.01, 0, 0.04), (0.085, 0.08, 0.09)))
-    part('eye', H, 'head', 'eye', shell((0.01, 0), -60, 60, [(0.045, 0.087, 0.082), (0.062, 0.087, 0.082)], 10))
-    part('jingasa', H, 'head', 'gunmetal', lathe((0.0, 0), [(0.075, 0.27), (0.085, 0.27), (0.20, 0.03), (0.215, 0.0)], 24))
-    part('jingasa_rim', H, 'head', 'helmet', ecyl((0.0, 0), 0.068, 0.082, 0.275, 0.275, 24))
-    part('jingasa_strip', H, 'head', 'strip', lathe((0.0, 0), [(0.145, 0.105), (0.155, 0.09)], 24))
-    # yari along +X of the spear joint
+    part('neck_m', H, 'head', 'cable', tube((0, 0, -0.10), (0, 0, 0.0), 0.04, 0.04, 10))
+    part('neck_rings', H, 'head', 'chrome', cat(ecyl((0, 0), -0.08, -0.07, 0.046, 0.046, 12), ecyl((0, 0), -0.05, -0.04, 0.046, 0.046, 12)))
+    cyber.half_face(H, r=0.1, c=(0.01, 0.0, 0.05))
+    # yari along +X of the spear joint (now an electro-spear)
     part('shaft', 'spear', 'spear', 'helmet', tube((-0.26, 0, 0), (0.47, 0, 0), 0.016, 0.016, 8))
     part('collar', 'spear', 'spear', 'gunmetal', tube((0.44, 0, 0), (0.50, 0, 0), 0.026, 0.022, 10))
     part('collar_strip', 'spear', 'spear', 'strip', tube((0.465, 0, 0), (0.48, 0, 0), 0.028, 0.028, 10))
     part('spearhead', 'spear', 'spear', 'steel', extrude2d([(0.50, -0.03), (0.58, -0.026), (0.68, 0.0), (0.58, 0.026), (0.50, 0.03)], 0, 0.014), smooth=False)
-    # thrust glint: R-channel edge on the blade, shown on the lunge frames of 'attack' only
     part('glint', 'spear', 'spear', 'glow', extrude2d([(0.52, -0.012), (0.60, -0.010), (0.70, 0.0), (0.60, 0.010), (0.52, 0.012)], -0.012, 0.006), smooth=False, group='glint')
     return rp
 
@@ -135,7 +135,7 @@ ANIMS = [
 
 META = dict(cell_w=3.0, cell_h=2.0, pad_bottom=0.25,
             pivot_note='feet centre = bottom-centre of the 1.0 x 1.3 collision body; sprites face right',
-            emissive_encoding='R = attack glow: spear-blade glint (attack frames 2-4), G = jingasa eye slit, B = amber light strips (do, hat band, spear collar); A = 255 where any mask is set')
+            emissive_encoding='R = attack glow: spear-blade glint (attack frames 2-4), G = red cyber eye, B = neon light strips (mohawk, vest, spear collar); A = 255 where any mask is set')
 
 if __name__ == '__main__':
     a = kit.args()

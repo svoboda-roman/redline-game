@@ -64,7 +64,129 @@ namespace Redline.Game
         {
             _game = game;
             System.IO.Directory.CreateDirectory(Directory);
-            StartCoroutine(UiRequested ? UiTour() : Tour());
+            bool extras = Array.IndexOf(Environment.GetCommandLineArgs(), "-redlineCaptureExtras") >= 0;
+            bool showcase = Array.IndexOf(Environment.GetCommandLineArgs(), "-redlineCaptureShowcase") >= 0;
+            StartCoroutine(showcase ? ShowcaseTour() : extras ? ExtrasTour() : UiRequested ? UiTour() : Tour());
+        }
+
+        private object Field(object o, string name) =>
+            o.GetType().GetField(name, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.GetValue(o);
+
+        private void SetField(object o, string name, object value) =>
+            o.GetType().GetField(name, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.SetValue(o, value);
+
+        private void Invoke(object o, string method, params object[] args) =>
+            o.GetType().GetMethod(method, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.Invoke(o, args);
+
+        /// <summary>
+        /// -redlineCaptureShowcase: every new feature, one shot each, without spending or saving anything: menus
+        /// (level select, cosmetics), a cosmetic accent, a combo callout, the shock floor and a boss, boss down, the
+        /// perk pick and a legendary RNG result.
+        /// </summary>
+        private IEnumerator ShowcaseTour()
+        {
+            yield return new WaitForSecondsRealtime(1.0f);
+            yield return Shot("01-main-menu.png");
+            Call("OpenLevelSelect");
+            yield return new WaitForSecondsRealtime(0.5f);
+            yield return Shot("02-level-select.png");
+            Call("CloseLevelSelect");
+            Call("OpenCosmetics");
+            yield return new WaitForSecondsRealtime(0.5f);
+            yield return Shot("03-cosmetics.png");
+            var cosMenu = Field(_game, "_cosmeticMenu") as MenuScreen;
+            if (cosMenu != null)
+            {
+                Invoke(cosMenu, "Select", 1);
+                yield return new WaitForSecondsRealtime(0.3f);
+                yield return Shot("03b-cosmetics-cyan.png");
+                Invoke(cosMenu, "Select", 4);
+                yield return new WaitForSecondsRealtime(0.3f);
+                yield return Shot("03c-cosmetics-gold.png");
+            }
+            Call("CloseCosmetics");
+
+            Call("StartRun");
+            yield return new WaitForSecondsRealtime(0.3f);
+            Call("TryLoadLevel", new object[] { 1 });
+            Call("OnLevelChanged");
+            var sim = _game.Sim;
+            yield return WaitForFight(sim, 0.5f);
+            sim = _game.Sim;
+            var p = sim.Player;
+            p.InvulnTimer = 60f;
+            p.X = 27f; p.Y = 1f; p.Vx = sim.Config.tier3Speed + 1f; p.Vy = 0f;
+            foreach (var e in sim.Enemies) e.Hp = 0f;
+            RedlineGame.ApplyCosmetic(CosmeticKind.Cyan);             // shown only, not bought
+            p.Chain = 6; p.ChainTimer = sim.Config.chainWindow;
+            SetField(_game, "_comboMult", 2);
+            Invoke(_game, "ExtrasOnKill", 3, EnemyKind.Grunt);
+            yield return new WaitForSecondsRealtime(0.25f);
+            yield return Shot("04-combo-x3-cyan.png");
+            RedlineGame.ApplyCosmetic(CosmeticKind.Crimson);
+
+            var boss = sim.SpawnEnemy(EnemyKind.Brute, new Vec2(36f, 1f));
+            boss.MakeBoss(sim.Config.bossHpMultiplier);
+            boss.StunTimer = 5f;
+            boss.Hp = boss.MaxHp * 0.6f;
+            Invoke(_game, "ExtrasOnBossSpawn");
+            float t = 0f;
+            while (!sim.ShockLive && t < 4f) { t += Time.unscaledDeltaTime; yield return null; }
+            yield return new WaitForSecondsRealtime(0.2f);
+            yield return Shot("05-boss-and-shock-floor.png");
+            Invoke(_game, "ExtrasOnBossDown");
+            boss.Hp = 0f;
+            yield return new WaitForSecondsRealtime(0.35f);
+            yield return Shot("06-boss-down.png");
+
+            Call("OfferPerks");
+            yield return new WaitForSecondsRealtime(0.5f);
+            yield return Shot("07-perk-pick.png");
+            var perkMenu = Field(_game, "_perkMenu") as MenuScreen;
+            perkMenu?.Hide();
+
+            var screen = Field(_game, "_screen") as UpgradeScreen;
+            if (screen != null)
+            {
+                screen.Show();
+                SetField(screen, "_won", UpgradeKind.Hook);
+                SetField(screen, "_rarity", SpinRarity.Legendary);
+                SetField(screen, "_gained", 3);
+                Invoke(screen, "FinishSpin");                       // the result display only: nothing spent or saved
+                yield return new WaitForSecondsRealtime(0.4f);
+                yield return Shot("08-rng-legendary.png");
+            }
+            Debug.Log("REDLINE_CAPTURE_DONE " + Directory);
+            Application.Quit();
+        }
+
+        /// <summary>-redlineCaptureExtras: level 2's shock floor, a wave boss next to the player, the perk pick.</summary>
+        private IEnumerator ExtrasTour()
+        {
+            Call("StartRun");
+            yield return new WaitForSecondsRealtime(0.3f);
+            Call("TryLoadLevel", new object[] { 1 });
+            Call("OnLevelChanged");
+            var sim = _game.Sim;
+            yield return WaitForFight(sim, 0.5f);
+            sim = _game.Sim;
+            var p = sim.Player;
+            p.InvulnTimer = 30f;
+            p.X = 27f; p.Y = 1f; p.Vx = 0f; p.Vy = 0f;
+            foreach (var e in sim.Enemies) e.Hp = 0f;
+            var boss = sim.SpawnEnemy(EnemyKind.Brute, new Vec2(36f, 1f));
+            boss.MakeBoss(sim.Config.bossHpMultiplier);
+            boss.StunTimer = 3f;
+            boss.Hp = boss.MaxHp * 0.7f;
+            float t = 0f;
+            while (!sim.ShockLive && t < 4f) { t += Time.unscaledDeltaTime; yield return null; }
+            yield return new WaitForSecondsRealtime(0.15f);
+            yield return Shot("extras-shock-boss.png");
+            Call("OfferPerks");
+            yield return new WaitForSecondsRealtime(0.4f);
+            yield return Shot("extras-perks.png");
+            Debug.Log("REDLINE_CAPTURE_DONE " + Directory);
+            Application.Quit();
         }
 
         private IEnumerator Tour()
@@ -74,6 +196,27 @@ namespace Redline.Game
             // 1. Wave 1 in progress: grunts closing in.
             yield return WaitForFight(sim, 1.2f);
             yield return Shot("hud-wave1.png");
+
+            // 1b. Health bars: the wave lined up beside the player, hurt to different amounts.
+            {
+                sim = _game.Sim;   // the run may have replaced the sim since the tour started
+                var pl = sim.Player;
+                pl.InvulnTimer = 5f;
+                int n = 0;
+                foreach (var e in sim.Enemies)
+                {
+                    if (!e.Alive) continue;
+                    e.X = pl.X + 2.2f + 1.6f * n;
+                    e.Y = pl.Y;
+                    e.Vx = e.Vy = 0f;
+                    e.StunTimer = 2f;
+                    e.Hp = e.MaxHp * (n % 2 == 0 ? 0.67f : 0.34f);
+                    e.SinceHit = 0.5f;
+                    n++;
+                }
+                yield return new WaitForSecondsRealtime(0.15f);
+                yield return Shot("hud-enemy-health.png");
+            }
 
 
             // 2. Wave 2: a brute appears, armored while the player is slow (steel colour).

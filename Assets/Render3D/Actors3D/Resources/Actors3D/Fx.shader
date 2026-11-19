@@ -15,6 +15,7 @@ Shader "Actors3D/Fx"
         [Enum(UnityEngine.Rendering.BlendMode)] _SrcBlend ("Src", Float) = 1
         [Enum(UnityEngine.Rendering.BlendMode)] _DstBlend ("Dst", Float) = 1
         _ZTest ("ZTest", Float) = 4
+        _ZWrite ("ZWrite", Float) = 0
     }
     SubShader
     {
@@ -24,7 +25,7 @@ Shader "Actors3D/Fx"
             Name "Fx"
             Tags { "LightMode"="UniversalForward" }
             Blend [_SrcBlend] [_DstBlend]
-            ZWrite Off
+            ZWrite [_ZWrite]
             ZTest [_ZTest]
             Cull Off
             HLSLPROGRAM
@@ -37,7 +38,7 @@ Shader "Actors3D/Fx"
             TEXTURE2D(_MainTex); SAMPLER(sampler_MainTex);
             CBUFFER_START(UnityPerMaterial)
                 float4 _MainTex_ST;
-                half _SrcBlend; half _DstBlend; half _ZTest;
+                half _SrcBlend; half _DstBlend; half _ZTest; half _ZWrite;
             CBUFFER_END
             UNITY_INSTANCING_BUFFER_START(Props)
                 UNITY_DEFINE_INSTANCED_PROP(float4, _Color)
@@ -81,6 +82,32 @@ Shader "Actors3D/Fx"
                 rgb = lerp(rgb, fogged, prm.y);
                 return additive ? half4(rgb * a, a) : half4(rgb, a);
             }
+            ENDHLSL
+        }
+        // Depth for the opaque-queue solid variant (FxSolid: hook rope), so depth of field keeps it sharp.
+        // URP draws DepthOnly only for opaque queues, so the transparent effect materials never reach it.
+        Pass
+        {
+            Name "DepthOnly"
+            Tags { "LightMode"="DepthOnly" }
+            ZWrite On
+            ColorMask R
+            Cull Off
+            HLSLPROGRAM
+            #pragma vertex vertDepth
+            #pragma fragment fragDepth
+            #pragma multi_compile_instancing
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            struct AttributesD { float4 positionOS : POSITION; UNITY_VERTEX_INPUT_INSTANCE_ID };
+            struct VaryingsD { float4 positionCS : SV_POSITION; };
+            VaryingsD vertDepth(AttributesD v)
+            {
+                VaryingsD o;
+                UNITY_SETUP_INSTANCE_ID(v);
+                o.positionCS = TransformObjectToHClip(v.positionOS.xyz);
+                return o;
+            }
+            half fragDepth(VaryingsD i) : SV_Target { return i.positionCS.z; }
             ENDHLSL
         }
     }

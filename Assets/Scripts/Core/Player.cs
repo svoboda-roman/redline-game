@@ -21,11 +21,21 @@ namespace Redline.Core
         public float WallImpactSpeed;
         public float WallImpactTimer;
 
+        /// <summary>Wall-jump grace after leaving a wall in the air, and the side that wall was on.</summary>
+        public float WallCoyoteTimer;
+        public int LastWallDir;
+
         public bool Sliding;
         public float SlideTimer;
+        /// <summary>Full length of the current slide (SlideTimer's start value).</summary>
+        public float SlideLength;
+        /// <summary>Speed tier (1-3) the current slide started at: sets its height, boost and length. 0 when not sliding.</summary>
+        public int SlideTier;
         public float SlideCooldownTimer;
         /// <summary>True once this airtime's air slide is spent; cleared on landing, wall jump and hook attach.</summary>
         public bool AirSlideUsed;
+        /// <summary>True once this airtime's double jump is spent; cleared on landing, wall jump and hook attach.</summary>
+        public bool AirJumpUsed;
 
         /// <summary>Capacity of <see cref="SlideHits"/> (more enemies than that cannot be tracked per slide).</summary>
         public const int MaxSlideHits = 32;
@@ -40,6 +50,8 @@ namespace Redline.Core
         public float HookCooldownTimer;
         /// <summary>Seconds on the current rope (a release only flings after a real swing).</summary>
         public float HookTime;
+        /// <summary>Current rope reel speed (units/s; + reeling in, - letting out). Eases toward the input.</summary>
+        public float HookReelSpeed;
 
         /// <summary>Time left on the speed orb buff (0 when inactive). Read by the HUD.</summary>
         public float SpeedBuffTimer;

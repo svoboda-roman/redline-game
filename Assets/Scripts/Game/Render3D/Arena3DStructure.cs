@@ -28,7 +28,91 @@ namespace Redline.Game.Render3D
 
         private readonly List<LevelBox> _boxes = new List<LevelBox>();
         private float[,] _tileDepth;
-        private Material _fasciaMat, _slabTopMat, _structMat, _clutterMat;
+        private Material _fasciaMat, _slabTopMat, _structMat, _clutterMat, _spikeCollarMat, _spikeTipMat;
+
+        /// <summary>
+        /// 80s chrome spike field for every spike tile: 6-9 tall thin hexagonal cones per tile at random spots and
+        /// heights between the play plane's front and back (z -1.4..2.4), each with a wider silver collar at the foot,
+        /// a white chrome shaft and, on about a quarter, a blood-red tip. Flat shaded (low-poly read). Sub-meshes:
+        /// 0 collar, 1 shaft, 2 red tip.
+        /// </summary>
+        private Mesh ChromeSpikes()
+        {
+            var v = new List<Vector3>(); var n = new List<Vector3>();
+            var tris = new[] { new List<int>(), new List<int>(), new List<int>() };
+            var rnd = new System.Random(_look.Seed * 19 + 5);
+            float R() => (float)rnd.NextDouble();
+            void Tri(int sub, Vector3 a, Vector3 b, Vector3 c, Vector3 outward)
+            {
+                var nn = Vector3.Cross(b - a, c - a).normalized;
+                if (Vector3.Dot(nn, outward) < 0f) { var tmp = b; b = c; c = tmp; nn = -nn; }   // front face outward
+                int i = v.Count;
+                v.Add(a); v.Add(b); v.Add(c); n.Add(nn); n.Add(nn); n.Add(nn);
+                tris[sub].Add(i); tris[sub].Add(i + 1); tris[sub].Add(i + 2);
+            }
+            // Spike axis frame of the tile being built: D along the spike, U and V across it.
+            Vector3 D = Vector3.up, U = Vector3.right, V = Vector3.forward;
+            // A frustum band from radius r0 at height y0 to r1 at y1 along D (r1 = 0: a cone tip).
+            void Band(int sub, Vector3 c, float r0, float y0, float r1, float y1, float rot)
+            {
+                const int S = 6;
+                for (int k = 0; k < S; k++)
+                {
+                    float a0 = rot + k * Mathf.PI * 2f / S, a1 = rot + (k + 1) * Mathf.PI * 2f / S;
+                    Vector3 Ring(float a, float r) => U * (Mathf.Cos(a) * r) + V * (Mathf.Sin(a) * r);
+                    var b0 = c + Ring(a0, r0) + D * y0;
+                    var b1 = c + Ring(a1, r0) + D * y0;
+                    var t0 = c + Ring(a0, r1) + D * y1;
+                    var t1 = c + Ring(a1, r1) + D * y1;
+                    float am = (a0 + a1) * 0.5f;
+                    var outward = Ring(am, 1f) + D * 0.3f;
+                    Tri(sub, b0, t1, b1, outward);
+                    if (r1 > 0f) Tri(sub, b0, t0, t1, outward);
+                }
+            }
+            for (int y = 1; y < _map.Height; y++)
+            for (int x = 0; x < _map.Width; x++)
+            {
+                if (_map.Get(x, y) != Tile.Spike) continue;
+                // Spikes grow out of what they sit on: the floor below (up), a wall to the left (right) or right
+                // (left), or a ceiling above (down). Free-floating spike tiles point up.
+                bool below = _map.IsSolid(x, y - 1), leftW = _map.IsSolid(x - 1, y), rightW = _map.IsSolid(x + 1, y), above = _map.IsSolid(x, y + 1);
+                // Hanging under a block (and not part of a vertical strip on a wall): flipped 180 to point down,
+                // even when a neighbouring platform touches its side.
+                bool vertStrip = _map.Get(x, y - 1) == Tile.Spike || _map.Get(x, y + 1) == Tile.Spike;
+                int orient = below ? 0 : above && !vertStrip ? 3 : leftW ? 1 : rightW ? 2 : above ? 3 : 0;
+                D = orient == 0 ? Vector3.up : orient == 1 ? Vector3.right : orient == 2 ? Vector3.left : Vector3.down;
+                U = orient == 0 || orient == 3 ? Vector3.right : Vector3.up;
+                V = Vector3.forward;
+                int count = 6 + rnd.Next(4);
+                for (int s = 0; s < count; s++)
+                {
+                    float along = 0.08f + R() * 0.84f, depth = -1.4f + R() * 3.8f;
+                    var c = orient == 0 ? new Vector3(x + along, y, depth)
+                          : orient == 1 ? new Vector3(x, y + along, depth)
+                          : orient == 2 ? new Vector3(x + 1f, y + along, depth)
+                          : new Vector3(x + along, y + 1f, depth);
+                    float r = 0.055f + R() * 0.035f, hgt = 0.5f + R() * 0.45f, rot = R() * 6.28f;
+                    float collar = hgt * 0.2f;
+                    Band(0, c, r * 1.25f, 0f, r * 1.05f, collar, rot);                // silver collar
+                    bool red = R() < 0.25f;
+                    float split = red ? hgt * 0.62f : hgt;
+                    float rs = Mathf.Lerp(r * 0.9f, 0f, (split - collar) / (hgt - collar));
+                    if (red)
+                    {
+                        Band(1, c, r * 0.9f, collar, rs, split, rot);                 // white chrome shaft
+                        Band(2, c, rs, split, 0f, hgt, rot);                          // blood-red tip
+                    }
+                    else Band(1, c, r * 0.9f, collar, 0f, hgt, rot);
+                }
+            }
+            var m = new Mesh { name = "chromeSpikes", indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
+            m.SetVertices(v); m.SetNormals(n);
+            m.subMeshCount = 3;
+            for (int i = 0; i < 3; i++) m.SetTriangles(tris[i], i);
+            m.RecalculateBounds();
+            return m;
+        }
         private Mesh _structMesh;
         private float _streetUnits = 8f;
         private Texture2D _streetGloss;
@@ -58,6 +142,7 @@ namespace Redline.Game.Render3D
                 case "Loop03": floor = SurfacePatterns.FloorKind.Setts; fascia = SurfacePatterns.FasciaKind.Brick; break;
                 default: floor = SurfacePatterns.FloorKind.ConcreteDeck; fascia = SurfacePatterns.FasciaKind.RivetedSteel; break;
             }
+            if (_look.MetalPlatforms) fascia = SurfacePatterns.FasciaKind.RivetedSteel;   // black metal platforms
             int seed = _look.Seed * 7 + 1;
             var street = Surface(SurfaceTextures3D.Build("street", SurfacePatterns.Street(floor, seed, _look.PuddleThreshold), true, true));
             _streetGloss = street.MetalGloss;
@@ -79,6 +164,19 @@ namespace Redline.Game.Render3D
                 grime.Albedo, tiling: new Vector2(4f / GrimeUnits, 4f / GrimeUnits)));
             _structMat = Own(Proto3DMaterials.Lit3D("structure", Keep(_look.WallColor * 0.5f, grime.MeanLum), 0.4f, 0.6f, grime.Albedo));
             _clutterMat = Own(Proto3DMaterials.Lit3D("clutter", Keep(_look.DeckColor * 0.4f, grime.MeanLum), 0.3f, 0f, grime.Albedo));
+            if (_look.MetalPlatforms)
+            {
+                // Black metal: supports / scaffold tubes, crates and clutter, spikes. Glossy so the neon and the red
+                // lamps streak along them; spikes keep a dim red glow so the hazard still reads.
+                var black = new Color(0.07f, 0.068f, 0.075f);
+                _structMat = Own(Proto3DMaterials.Lit3D("structure", black, 0.72f, 0.95f));
+                _clutterMat = Own(Proto3DMaterials.Lit3D("clutter", black * 1.3f, 0.6f, 0.85f, grime.Albedo));
+                _slabTopMat = Own(Proto3DMaterials.Lit3D("slabTop", black * 1.4f, 0.75f, 0.9f, top.Albedo, top.Normal, 1f));
+                // Spikes: 80s chrome. Silver collar at the foot, white chrome shaft, a few blood-red tips.
+                _spikeCollarMat = Own(Proto3DMaterials.Lit3D("spikeCollar", new Color(0.62f, 0.63f, 0.68f), 0.78f, 1f));
+                _spikeMat = Own(Proto3DMaterials.Lit3D("spike", new Color(0.93f, 0.93f, 0.96f), 0.88f, 0.85f, emissionColor: new Color(0.08f, 0.08f, 0.09f)));
+                _spikeTipMat = Own(Proto3DMaterials.Lit3D("spikeTip", new Color(0.55f, 0.02f, 0.03f), 0.7f, 0.3f, emissionColor: new Color(0.35f, 0.01f, 0.02f)));
+            }
             _palette.Detail = grime.Albedo;
             _palette.DetailMean = grime.MeanLum;
 
@@ -173,6 +271,9 @@ namespace Redline.Game.Render3D
                 }
 
                 // Ties and X-bracing between neighbouring columns on the same footing.
+                // Metal platforms: thin scaffold tubes (ledgers and single diagonals), not a heavy truss lattice.
+                bool scaffold = _look.MetalPlatforms;
+                float ledger = scaffold ? 0.06f : 0.12f, diag = scaffold ? 0.045f : 0.08f, dz = scaffold ? 0.05f : 0.08f;
                 for (int i = 0; i + 1 < cols.Count; i++)
                 {
                     var a = cols[i]; var c = cols[i + 1];
@@ -180,18 +281,19 @@ namespace Redline.Game.Render3D
                     float zb = a.z + 0.2f;
                     float yTop = y0 - 0.35f, step = Mathf.Clamp(c.x - a.x, 2.2f, 3.5f);
                     float prev = yTop;
-                    b.Beam(0, new Vector3(a.x, yTop, zb), new Vector3(c.x, yTop, zb), 0.12f, 0.08f);
-                    for (float y = yTop - step; y > a.y + 0.6f; y -= step)
+                    int bay = 0;
+                    b.Beam(0, new Vector3(a.x, yTop, zb), new Vector3(c.x, yTop, zb), ledger, dz);
+                    for (float y = yTop - step; y > a.y + 0.6f; y -= step, bay++)
                     {
-                        b.Beam(0, new Vector3(a.x, y, zb), new Vector3(c.x, y, zb), 0.12f, 0.08f);
-                        b.Beam(0, new Vector3(a.x, y, zb), new Vector3(c.x, prev, zb), 0.08f, 0.06f);
-                        b.Beam(0, new Vector3(a.x, prev, zb), new Vector3(c.x, y, zb), 0.08f, 0.06f);
+                        b.Beam(0, new Vector3(a.x, y, zb), new Vector3(c.x, y, zb), ledger, dz);
+                        if (!scaffold || bay % 2 == 0) b.Beam(0, new Vector3(a.x, y, zb), new Vector3(c.x, prev, zb), diag, dz);
+                        if (!scaffold || bay % 2 == 1) b.Beam(0, new Vector3(a.x, prev, zb), new Vector3(c.x, y, zb), diag, dz);
                         prev = y;
                     }
                     if (prev - a.y > 1.2f) // last bay down to the footing
                     {
-                        b.Beam(0, new Vector3(a.x, a.y + 0.3f, zb), new Vector3(c.x, prev, zb), 0.08f, 0.06f);
-                        b.Beam(0, new Vector3(a.x, prev, zb), new Vector3(c.x, a.y + 0.3f, zb), 0.08f, 0.06f);
+                        b.Beam(0, new Vector3(a.x, a.y + 0.3f, zb), new Vector3(c.x, prev, zb), diag, dz);
+                        if (!scaffold) b.Beam(0, new Vector3(a.x, prev, zb), new Vector3(c.x, a.y + 0.3f, zb), diag, dz);
                     }
                 }
             }

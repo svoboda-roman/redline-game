@@ -68,6 +68,12 @@ namespace Redline.Core
         /// <summary>Waves in this level: the map's ';wave' lines, or the config's waves when it has none.</summary>
         public int WaveCount => _waves.Count;
 
+        /// <summary>Waves generated for an ';endless' level (after the last one it repeats; there is no victory).</summary>
+        public const int EndlessWaveCount = 999;
+
+        /// <summary>True on an ';endless' level: waves keep coming, bigger each time; no victory.</summary>
+        public bool Endless => _map.Endless;
+
         /// <summary>The waves this run plays, in order.</summary>
         public IReadOnlyList<WaveSpec> Waves => _waves;
 
@@ -97,7 +103,9 @@ namespace Redline.Core
             _map = map ?? throw new ArgumentNullException(nameof(map));
             var errors = _cfg.Validate();
             if (errors.Count > 0) throw new ArgumentException("Invalid RedlineConfig: " + string.Join("; ", errors));
-            _waves = _map.Training ? Array.Empty<WaveSpec>() : _map.Waves.Count > 0 ? _map.Waves : WaveSpec.FromConfig(_cfg);
+            _waves = _map.Training ? Array.Empty<WaveSpec>()
+                : _map.Endless ? WaveSpec.Endless(EndlessWaveCount)
+                : _map.Waves.Count > 0 ? _map.Waves : WaveSpec.FromConfig(_cfg);
             var waveErrors = _map.Training ? new List<string>() : ValidateWaves(_waves);
             if (waveErrors.Count > 0) throw new ArgumentException("Invalid level waves: " + string.Join("; ", waveErrors));
             _orbs = new List<Orb>(_cfg.orbMaxCount);
@@ -131,6 +139,7 @@ namespace Redline.Core
             p.RefreshContacts(_map);
             Player = p;
             State = _map.Training ? SimState.Training : SimState.WaveBreak;
+            Elapsed = 0f;
             WaveIndex = 0;
             BreakTimer = _cfg.firstWaveDelay;
             EnemiesAlive = 0;
@@ -157,6 +166,7 @@ namespace Redline.Core
             var p = Player;
             p.Hooked = false;
             p.Sliding = false;
+            p.SlideTier = 0;
             p.Height = _cfg.playerHeight;
             p.X = _map.WrapX(position.X);
             p.Y = position.Y;
@@ -214,6 +224,12 @@ namespace Redline.Core
         }
 
         /// <summary>Advances the run by dt seconds.</summary>
+        /// <summary>Seconds the sim has stepped (drives the shock-floor rhythm).</summary>
+        public float Elapsed { get; private set; }
+
+        /// <summary>True while 'E' shock-floor tiles are live (shockOnTime on, shockOffTime off, repeating).</summary>
+        public bool ShockLive => _cfg.shockOnTime > 0f && Elapsed % (_cfg.shockOnTime + MathF.Max(0f, _cfg.shockOffTime)) < _cfg.shockOnTime;
+
         public void Step(InputFrame input, float dt)
         {
             _events.Clear();
@@ -223,6 +239,7 @@ namespace Redline.Core
                 return;
             }
             if (State == SimState.Victory || State == SimState.GameOver) return;
+            Elapsed += dt;
 
             if (State == SimState.WaveBreak)
             {
@@ -286,7 +303,8 @@ namespace Redline.Core
             if (State != SimState.Fighting || alive > 0) return;
 
             WaveIndex++;
-            if (WaveIndex >= WaveCount)
+            if (WaveIndex >= WaveCount && _map.Endless) WaveIndex = WaveCount - 1;   // endless: the biggest wave repeats
+            else if (WaveIndex >= WaveCount)
             {
                 WaveIndex = WaveCount - 1;
                 State = SimState.Victory;
@@ -307,6 +325,14 @@ namespace Redline.Core
             // Spawn order (and so spawn-point assignment): brutes, grunts, drones, then the rest in
             // WaveEnemy order.
             for (int i = 0; i < wave[WaveEnemy.Brute]; i++) SpawnAtPoint(EnemyKind.Brute, k++).Charges = charging;
+            // Boss wave (endless levels): one more brute, many times tougher, always charging.
+            if (_map.Endless && _cfg.bossEveryWaves > 0 && (WaveIndex + 1) % _cfg.bossEveryWaves == 0)
+            {
+                var boss = SpawnAtPoint(EnemyKind.Brute, k++);
+                boss.Charges = true;
+                boss.MakeBoss(_cfg.bossHpMultiplier);
+                Emit(SimEventType.BossSpawn, boss.Center);
+            }
             for (int i = 0; i < wave[WaveEnemy.Grunt]; i++) SpawnAtPoint(EnemyKind.Grunt, k++);
             for (int i = 0; i < wave[WaveEnemy.Drone]; i++) SpawnAtPoint(EnemyKind.Drone, k++);
             for (int w = (int)WaveEnemy.Drone + 1; w < WaveSpec.KindCount; w++)
@@ -349,8 +375,12 @@ namespace Redline.Core
             return errors;
         }
 
+        /// <summary>Minimum horizontal distance between a random spawn and the player (units).</summary>
+        public const float RandomSpawnClearance = 7f;
+
         private Enemy SpawnAtPoint(EnemyKind kind, int k)
         {
+            if (_map.RandomSpawn) return SpawnRandom(kind);
             var points = _map.SpawnPoints;
             var pt = points[k % points.Count];
             int ring = k / points.Count;
@@ -361,6 +391,29 @@ namespace Redline.Core
             if (_map.OverlapsSolid(e.MinX, e.Y, e.MaxX, e.MaxY))
             {
                 e.X = pt.X;
+                e.Y = pt.Y;
+                e.RefreshContacts(_map);
+            }
+            return e;
+        }
+
+        /// <summary>
+        /// ';randomspawn': a random standing spot (sim RNG, so a run is reproducible) at least
+        /// <see cref="RandomSpawnClearance"/> from the player; drones appear above it in the air.
+        /// </summary>
+        private Enemy SpawnRandom(EnemyKind kind)
+        {
+            var spots = _map.StandSpots;
+            Vec2 pt = spots[0];
+            for (int tries = 0; tries < 24; tries++)
+            {
+                pt = spots[Math.Min(spots.Count - 1, (int)(NextRandom() * spots.Count))];
+                if (Math.Abs(_map.Dx(Player.X, pt.X)) >= RandomSpawnClearance) break;
+            }
+            float lift = kind == EnemyKind.Drone ? 2.5f : 0f;
+            var e = SpawnEnemy(kind, new Vec2(pt.X, pt.Y + lift));
+            if (_map.OverlapsSolid(e.MinX, e.Y, e.MaxX, e.MaxY))
+            {
                 e.Y = pt.Y;
                 e.RefreshContacts(_map);
             }
@@ -385,7 +438,7 @@ namespace Redline.Core
             HorizontalControl(p, dir, dt);
             HandleJump(p, input);
             ApplyGravity(p, dir, dt);
-            ApplyRope(p, dt);
+            ApplyRope(p, input.MoveY, dt);
 
             LimitSpeed(p, dt);
             float impact = p.Move(_map, dt);
@@ -425,7 +478,15 @@ namespace Redline.Core
             {
                 p.CoyoteTimer = c.coyoteTime;
                 p.AirSlideUsed = false;
+                p.AirJumpUsed = false;
             }
+            // Wall coyote: a jump shortly after leaving a wall still wall-jumps off it.
+            if (!p.Grounded && !p.Hooked && p.WallDir != 0)
+            {
+                p.WallCoyoteTimer = c.wallCoyoteTime;
+                p.LastWallDir = p.WallDir;
+            }
+            else p.WallCoyoteTimer = p.Grounded ? 0f : Dec(p.WallCoyoteTimer, dt);
             if (p.WallImpactTimer <= 0f) p.WallImpactSpeed = 0f;
         }
 
@@ -468,13 +529,23 @@ namespace Redline.Core
             p.SlideBufferTimer = 0f;
             p.Sliding = true;
             p.AirSlideUsed = air;
-            p.SlideTimer = c.slideDuration;
             p.SlideHitCount = 0;
             // Never slows the player: air overspeed carried into a slide is kept.
             float speed = tooSlow ? c.slideMinSpeed : MathF.Abs(p.Vx);
             int dir = tooSlow ? p.Facing : Sign(p.Vx);
-            p.Vx = dir * MathF.Max(speed, MathF.Min(speed + c.slideBoost, MaxSpeed(p)));
-            p.Height = c.slideHeight;
+            // A ground slide takes its shape from the speed it starts at: tier 1 a half crouch,
+            // tier 2 the normal slide, tier 3 a full slide near the ground (lower, faster, longer).
+            // An air slide is always the normal (tier 2) shape, as a short dash.
+            int slideTier = air ? 2 : CombatRules.TierFor(speed, c);
+            float boost = slideTier == 1 ? c.slideTier1Boost : slideTier == 3 ? c.slideTier3Boost : c.slideBoost;
+            float height = slideTier == 1 ? c.slideTier1Height : slideTier == 3 ? c.slideTier3Height : c.slideHeight;
+            float length = air ? c.airSlideDuration
+                : slideTier == 1 ? c.slideTier1Duration : slideTier == 3 ? c.slideTier3Duration : c.slideDuration;
+            p.SlideTier = slideTier;
+            p.SlideLength = length;
+            p.SlideTimer = length;
+            p.Vx = dir * MathF.Max(speed, MathF.Min(speed + boost, MaxSpeed(p)));
+            p.Height = height;
             Emit(SimEventType.Slide, p.Center);
         }
 
@@ -487,13 +558,24 @@ namespace Redline.Core
             }
             if (p.Sliding)
             {
+                // A ground slide holds its full speed for slideFrictionDelay, then starts to bleed it.
+                bool holding = p.SlideLength - p.SlideTimer < _cfg.slideFrictionDelay;
                 p.SlideTimer -= dt;
-                bool slideOver = p.SlideTimer <= 0f;
-                // An air slide runs its timer too: only the timer ends it, not being airborne.
-                if (slideOver) TryEndSlide();
-                // Still low after the slide (no head room): crawl with normal ground rules.
-                if (p.Sliding && slideOver && p.Grounded) GroundControl(p, dir, dt);
-                return;
+                // On the ground the slide bleeds speed (slideFriction) rather than stopping dead; it
+                // ends when its timer runs out or it has slowed below slideStopSpeed. An air slide
+                // runs its timer too: being airborne neither slows nor ends it.
+                bool slideOver = p.SlideTimer <= 0f || (p.Grounded && MathF.Abs(p.Vx) < _cfg.slideStopSpeed);
+                // Holding against the slide on the ground cancels it into normal ground control.
+                bool braking = p.Grounded && dir != 0 && dir == -Sign(p.Vx);
+                if (slideOver || braking) TryEndSlide();
+                if (p.Sliding)
+                {
+                    // Still low after the slide (no head room): crawl with normal ground rules.
+                    if (slideOver && p.Grounded) GroundControl(p, dir, dt);
+                    else if (p.Grounded && !holding) p.Vx = MoveToward(p.Vx, 0f, _cfg.slideFriction * dt);
+                    return;
+                }
+                if (!braking) return;
             }
             if (p.Grounded)
             {
@@ -529,7 +611,12 @@ namespace Redline.Core
             var c = _cfg;
             if (p.JumpBufferTimer > 0f)
             {
-                if (p.Hooked)
+                // W / Up while hanging reels the rope in (ReelRope); only Space / the pad's jump lets go.
+                if (p.Hooked && input.JumpPressedByUp)
+                {
+                    ConsumeJump(p);
+                }
+                else if (p.Hooked)
                 {
                     ReleaseHook(voluntary: true);
                     if (p.Vy < c.hookJumpSpeed) p.Vy = c.hookJumpSpeed;
@@ -544,9 +631,20 @@ namespace Redline.Core
                     ConsumeJump(p);
                     Emit(SimEventType.Jump, p.Center);
                 }
-                else if (p.WallDir != 0)
+                else if (p.WallDir != 0 || p.WallCoyoteTimer > 0f)
                 {
                     WallJump(p);
+                }
+                else if (input.JumpPressed && !p.AirJumpUsed && PlayerTier >= c.doubleJumpMinTier)
+                {
+                    // Double jump: one per airtime, only from speed tier 2 up, only on a fresh press
+                    // (a press buffered for the landing does not burn it).
+                    if (p.Sliding) TryEndSlide();
+                    p.AirJumpUsed = true;
+                    p.Vy = MathF.Max(p.Vy, c.doubleJumpSpeed);
+                    p.JumpCutAvailable = true;
+                    ConsumeJump(p);
+                    Emit(SimEventType.Jump, p.Center, PlayerTier, 1);
                 }
             }
             if (!input.JumpHeld && p.JumpCutAvailable && p.Vy > 0f)
@@ -560,14 +658,17 @@ namespace Redline.Core
         private void WallJump(Player p)
         {
             var c = _cfg;
+            int wall = p.WallDir != 0 ? p.WallDir : p.LastWallDir;   // touching, or just left (wall coyote)
+            p.WallCoyoteTimer = 0f;
             float speed = MathF.Max(c.wallJumpSpeedX, p.WallImpactSpeed) + c.wallJumpKick;
-            p.Vx = -p.WallDir * MathF.Min(speed, MaxSpeed(p));
+            p.Vx = -wall * MathF.Min(speed, MaxSpeed(p));
             p.Vy = c.wallJumpSpeedY;
-            p.Facing = -p.WallDir;
+            p.Facing = -wall;
             p.WallJumpLockTimer = c.wallJumpLockTime;
             p.WallImpactSpeed = 0f;
             p.JumpCutAvailable = false;
             p.AirSlideUsed = false;
+            p.AirJumpUsed = false;
             if (p.Sliding) TryEndSlide();
             ConsumeJump(p);
             Emit(SimEventType.WallJump, p.Center);
@@ -583,14 +684,28 @@ namespace Redline.Core
         }
 
         /// <summary>Rope constraint: keep the predicted centre within the rope length.</summary>
-        private void ApplyRope(Player p, float dt)
+        private void ApplyRope(Player p, float reel, float dt)
         {
             if (!p.Hooked) return;
+            var c = _cfg;
             var centre = p.Center;
             var anchor = _map.Near(centre, p.HookAnchor);
+            float dist = (centre - anchor).Length;
+            bool reelOut = reel < -ReelDeadZone;
             // The rope reels in while the player moves toward the anchor, so it is always taut and
-            // the swing starts the moment they would move away (no slack "delay").
-            p.HookLength = MathF.Max(_cfg.hookMinLength, MathF.Min(p.HookLength, (centre - anchor).Length));
+            // the swing starts the moment they would move away (no slack "delay"). Not while letting out.
+            if (!reelOut) p.HookLength = MathF.Min(p.HookLength, dist);
+            // Reel speed eases toward the input (no instant yank), then changes the rope length:
+            // positive pulls in (the constraint drags the player up), negative lets out (gravity lowers them).
+            float target = MathF.Abs(reel) > ReelDeadZone ? reel * c.hookReelSpeed : 0f;
+            float accel = c.hookReelAccel * dt;
+            p.HookReelSpeed = MathF.Abs(target - p.HookReelSpeed) <= accel ? target
+                : p.HookReelSpeed + MathF.Sign(target - p.HookReelSpeed) * accel;
+            if (p.HookReelSpeed > 0f)
+                p.HookLength -= p.HookReelSpeed * dt;
+            else if (p.HookReelSpeed < 0f)
+                p.HookLength = MathF.Min(p.HookLength - p.HookReelSpeed * dt, MathF.Max(c.hookMaxLength, dist));
+            p.HookLength = MathF.Max(c.hookMinLength, p.HookLength);
             var predicted = new Vec2(centre.X + p.Vx * dt, centre.Y + p.Vy * dt);
             var d = predicted - anchor;
             float len = d.Length;
@@ -630,7 +745,9 @@ namespace Redline.Core
             if (!_map.Raycast(p.Center, dir, range, out var hit)) return;
             p.Hooked = true;
             p.AirSlideUsed = false;
+            p.AirJumpUsed = false;
             p.HookTime = 0f;
+            p.HookReelSpeed = 0f;
             p.HookAnchor = new Vec2(_map.WrapX(hit.X), hit.Y);
             var toAnchor = hit - p.Center;
             float distance = toAnchor.Length;
@@ -711,6 +828,7 @@ namespace Redline.Core
             if (!p.Sliding) return true;
             if (_map.OverlapsSolid(p.MinX, p.Y, p.MaxX, p.Y + _cfg.playerHeight)) return false;
             p.Sliding = false;
+            p.SlideTier = 0;
             p.Height = _cfg.playerHeight;
             p.SlideCooldownTimer = _cfg.slideCooldown;
             return true;
@@ -1134,6 +1252,7 @@ namespace Redline.Core
         {
             Kills++;
             Emit(SimEventType.Kill, e.Center, tier, (int)e.Kind);
+            if (e.IsBoss) Emit(SimEventType.BossDown, e.Center, tier);
             RollOrbDrop(e);
         }
 
@@ -1623,6 +1742,7 @@ namespace Redline.Core
                 return;
             }
             if (_map.OverlapsSpike(p.MinX, p.Y, p.MaxX, p.MaxY)) Hurt(_cfg.spikeDamage, 0, true);
+            else if (ShockLive && _map.OverlapsShock(p.MinX, p.Y, p.MaxX, p.MaxY)) Hurt(_cfg.spikeDamage, 0, true);
         }
 
         private void Hurt(int damage, int awayDir, bool spike)
@@ -1658,6 +1778,9 @@ namespace Redline.Core
 
         private void Emit(SimEventType type, Vec2 position, int tier, int detail) =>
             _events.Add(new SimEvent(type, position, tier, detail));
+
+        /// <summary>Vertical input below this magnitude does not reel the hook rope.</summary>
+        private const float ReelDeadZone = 0.3f;
 
         private static float Dec(float timer, float dt) => timer > 0f ? timer - dt : 0f;
 

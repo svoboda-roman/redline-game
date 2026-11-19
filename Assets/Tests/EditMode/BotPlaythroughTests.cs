@@ -16,7 +16,7 @@ namespace Redline.Tests
 
         private static (RedlineSim sim, ScriptedPlayer bot, float time) Play(bool skilled)
         {
-            var cfg = new RedlineConfig();
+            var cfg = OneHitHp(new RedlineConfig());
             var map = TileMap.Parse(ReadResource("Loop01.txt"));
             var sim = new RedlineSim(cfg, map);
             var bot = new ScriptedPlayer(cfg, map, skilled);
@@ -42,7 +42,7 @@ namespace Redline.Tests
         [Test]
         public void Loop01_OffersHookLaunchesThatReachTier3()
         {
-            var cfg = new RedlineConfig();
+            var cfg = OneHitHp(new RedlineConfig());
             var bot = new ScriptedPlayer(cfg, TileMap.Parse(ReadResource("Loop01.txt")), skilled: true);
 
             Assert.Greater(bot.LaunchCount, 0);

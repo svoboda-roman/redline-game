@@ -79,9 +79,12 @@ namespace Redline.Game.Render3D.Actors3D
         private object _lastSim;
         private float _time, _fuseTime;
 
-        /// <summary>Creates the enemy views under <paramref name="parent"/>. <paramref name="effects"/> is kept for API parity (unused).</summary>
+        private readonly Effects3DRenderer _effects;
+
+        /// <summary>Creates the enemy views under <paramref name="parent"/>. <paramref name="effects"/> gets the corpse landing dust (optional).</summary>
         public Enemy3DRenderer(Transform parent, Effects3DRenderer effects = null)
         {
+            _effects = effects;
             _root = new GameObject("Enemies3D").transform;
             _root.SetParent(parent, false);
             for (int k = 0; k < _kinds.Length; k++) _kinds[k] = LoadKind((EnemyKind)k);
@@ -132,6 +135,8 @@ namespace Redline.Game.Render3D.Actors3D
         {
             public readonly Transform Root, Quad;
             public readonly MeshRenderer Body, Overlay, Halo;
+            /// <summary>Health bar over a damaged enemy: dark back and neon fill (null on corpses).</summary>
+            public readonly MeshRenderer HpBack, HpFill;
             public readonly SpriteAnimator Anim = new SpriteAnimator();
             public Enemy Enemy;
             public EnemyKind Kind;
@@ -141,6 +146,10 @@ namespace Redline.Game.Render3D.Actors3D
             public bool Active;
             public float Held, X, Y, Height, Vy;
             public bool Landed;
+            /// <summary>Corpse flight: horizontal speed, tilt (degrees) and its rate, bounces left, dust pending.</summary>
+            public float Vx, Tilt, TiltVel;
+            public int Bounces;
+            public bool Thumped;
 
             public View(Transform parent, bool corpse)
             {
@@ -153,12 +162,18 @@ namespace Redline.Game.Render3D.Actors3D
                 // In front of the body (camera at -z) so the additive layer is not depth-rejected by it.
                 Overlay.transform.localPosition = new Vector3(0f, 0f, -0.02f);
                 if (!corpse) Halo = Actors3DAssets.CreateQuad("halo", parent, Actors3DAssets.FxAdditive, false, false);
+                if (!corpse)
+                {
+                    HpBack = Actors3DAssets.CreateQuad("hpBack", parent, Actors3DAssets.FxSolid, false, false);
+                    HpFill = Actors3DAssets.CreateQuad("hpFill", parent, Actors3DAssets.FxSolid, false, false);
+                }
             }
 
             public void Hide()
             {
                 Body.enabled = Overlay.enabled = false;
                 if (Halo != null) Halo.enabled = false;
+                if (HpBack != null) HpBack.enabled = HpFill.enabled = false;
             }
         }
 
@@ -193,7 +208,7 @@ namespace Redline.Game.Render3D.Actors3D
                 if (!e.Alive)
                 {
                     bool exploded = e.Kind == EnemyKind.Kamikaze && v.LastAct == EnemyAct.Fuse && e.Act == EnemyAct.Idle;
-                    if (v.WasAlive && !exploded) SpawnCorpse(v, e);
+                    if (v.WasAlive && !exploded) SpawnCorpse(v, e, map, playerX);
                     v.WasAlive = false;
                     v.Hide();
                     continue;
@@ -218,7 +233,19 @@ namespace Redline.Game.Render3D.Actors3D
             v.Anim.Play(_kinds[(int)e.Kind].Anims.Idle, true);
         }
 
-        private void SpawnCorpse(View from, Enemy e)
+        // Corpse physics (presentation only): the killing blow throws the body away from the player in an arc; it
+        // tumbles a little, the death clip plays slowed while airborne, it lands with a thump of dust, bounces once
+        // if it came down hard, skids to a stop, lies there, then dithers out.
+        /// <summary>Corpse launch: horizontal speed range (u/s) away from the player, upward speed (u/s).</summary>
+        public static float CorpseThrowMin = 3.5f, CorpseThrowMax = 9f, CorpseLift = 6.5f;
+        /// <summary>Corpse gravity (u/s^2), ground friction while skidding (u/s^2), tilt rate in flight (deg/s).</summary>
+        public static float CorpseGravity = 34f, CorpseFriction = 16f, CorpseTiltRate = 140f;
+        /// <summary>Seconds a landed corpse lies before fading, and the fade time.</summary>
+        public static float CorpseLie = 2.2f, CorpseFadeTime = 0.9f;
+        /// <summary>Death clip playback rate while the body is still in the air (lets the fall read).</summary>
+        public static float CorpseAirAnimRate = 0.6f;
+
+        private void SpawnCorpse(View from, Enemy e, TileMap map, float playerX)
         {
             View c = null;
             for (int i = 0; i < _corpses.Count; i++) if (!_corpses[i].Active) { c = _corpses[i]; break; }
@@ -228,10 +255,20 @@ namespace Redline.Game.Render3D.Actors3D
             c.X = e.X;
             c.Y = e.Y;
             c.Height = e.Height;
-            c.Flip = from.Flip;
             c.Held = 0f;
-            c.Vy = 0f;
-            c.Landed = e.Kind != EnemyKind.Drone || e.Grounded;
+            // Thrown away from the player, harder the faster the body was already moving (knockback from the hit).
+            float away = map.Dx(playerX, e.X);
+            int dir = away > 0.01f ? 1 : away < -0.01f ? -1 : (e.Vx >= 0f ? 1 : -1);
+            float speed = Mathf.Clamp(Mathf.Abs(e.Vx) * 0.8f + CorpseThrowMin, CorpseThrowMin, CorpseThrowMax);
+            c.Vx = dir * speed;
+            c.Vy = Mathf.Max(e.Vy, 0f) * 0.5f + CorpseLift * (e.Kind == EnemyKind.Brute ? 0.6f : 1f);
+            // Falls backwards: faces the player (the killer) while flying away from him.
+            c.Flip = dir > 0;
+            c.Tilt = 0f;
+            c.TiltVel = dir * CorpseTiltRate * (e.Kind == EnemyKind.Brute ? 0.5f : 1f);
+            c.Bounces = 1;
+            c.Thumped = false;
+            c.Landed = false;
             c.Anim.Play(_kinds[(int)e.Kind].Anims.Death, true);
         }
 
@@ -241,34 +278,69 @@ namespace Redline.Game.Render3D.Actors3D
             {
                 var c = _corpses[i];
                 if (!c.Active) continue;
-                if (!c.Landed) FallCorpse(c, map, dt);
-                c.Anim.Tick(dt);
-                if (c.Anim.Finished) c.Held += dt;
-                if (c.Held >= EnemyLook.CorpseHold + EnemyLook.CorpseFade) { c.Active = false; c.Hide(); continue; }
-                float alpha = 1f - Mathf.Clamp01((c.Held - EnemyLook.CorpseHold) / EnemyLook.CorpseFade);
+                float drawX = playerFeet.x + map.Dx(playerX, c.X);
+                MoveCorpse(c, map, dt, drawX);
+                c.Anim.Tick(dt, c.Landed ? 1f : CorpseAirAnimRate);
+                if (c.Anim.Finished && c.Landed && Mathf.Abs(c.Vx) < 0.05f) c.Held += dt;
+                if (c.Held >= CorpseLie + CorpseFadeTime) { c.Active = false; c.Hide(); continue; }
+                float alpha = 1f - Mathf.Clamp01((c.Held - CorpseLie) / CorpseFadeTime);
                 float y = c.Y + (EnemyLook.CentrePivot(c.Kind) ? c.Height * 0.5f : 0f);
-                Place(c, new Vector3(playerFeet.x + map.Dx(playerX, c.X), y, 0f), 1f, Quaternion.identity);
+                Place(c, new Vector3(drawX, y, 0f), 1f, Quaternion.Euler(0f, 0f, -c.Tilt));
                 var k = _kinds[(int)c.Kind];
                 Draw(c, k.CorpseLit, k.Overlay, EnemyLook.AttackColor(c.Kind) * AttackHdr, EnemyLook.Eyes * EyesHdr,
                     StripColor(c.Kind, EnemyLook.KindColor(c.Kind)), new Color(1f, 1f, 1f, EnemyLook.FillAlpha), alpha);
             }
         }
 
-        /// <summary>A drone shot down in the air drops (body box bottom at c.Y) until it rests on a solid tile.</summary>
-        private static void FallCorpse(View c, TileMap map, float dt)
+        /// <summary>
+        /// Flight, landing and skid of a corpse (body box bottom at c.Y, centre c.X): gravity, wall stops, one bounce
+        /// when it lands hard, then ground friction; the in-flight tilt settles back to level on the ground.
+        /// </summary>
+        private void MoveCorpse(View c, TileMap map, float dt, float drawX)
         {
-            c.Vy -= EnemyLook.DroneCorpseGravity * dt;
+            const float halfW = 0.3f, h = 0.6f;
+            // Horizontal: stop against walls.
+            if (Mathf.Abs(c.Vx) > 0.001f)
+            {
+                float nx = c.X + c.Vx * dt;
+                if (map.OverlapsSolid(nx - halfW, c.Y + 0.05f, nx + halfW, c.Y + h)) c.Vx = 0f;
+                else c.X = nx;
+            }
+            if (c.Landed)
+            {
+                c.Vx = Mathf.MoveTowards(c.Vx, 0f, CorpseFriction * dt);
+                c.Tilt = Mathf.MoveTowards(c.Tilt, 0f, 220f * dt);
+                // Walked off a ledge while skidding: fall again.
+                if (!map.OverlapsSolid(c.X - halfW, c.Y - 0.08f, c.X + halfW, c.Y - 0.01f) && c.Y > 0.5f) c.Landed = false;
+                return;
+            }
+            c.Vy -= CorpseGravity * dt;
+            c.Tilt = Mathf.Clamp(c.Tilt + c.TiltVel * dt, -35f, 35f);
             float y = c.Y + c.Vy * dt;
-            const float halfW = 0.3f;
-            if (map.OverlapsSolid(c.X - halfW, y, c.X + halfW, c.Y))
+            if (c.Vy < 0f && map.OverlapsSolid(c.X - halfW, y, c.X + halfW, c.Y))
             {
                 c.Y = Mathf.Floor(c.Y + 1e-3f); // tile tops are whole units
+                float impact = -c.Vy;
+                if (!c.Thumped && _effects != null)
+                {
+                    _effects.Dust(new Vector2(drawX, c.Y), impact > 8f ? 7 : 4, c.Vx);
+                    c.Thumped = true;
+                }
+                if (c.Bounces > 0 && impact > 7f)
+                {
+                    c.Bounces--;
+                    c.Vy = impact * 0.28f;
+                    c.Vx *= 0.55f;
+                    c.TiltVel *= -0.5f;
+                    return;
+                }
                 c.Vy = 0f;
+                c.Vx *= 0.7f;
                 c.Landed = true;
                 return;
             }
             c.Y = y;
-            if (c.Y < -2f) c.Landed = true; // fell out of the map: stop simulating
+            if (c.Y < -2f) { c.Landed = true; c.Vx = 0f; } // fell out of the map: stop simulating
         }
 
         /// <summary>Player grounded in the last <see cref="Sync"/> (true for <see cref="SyncRaw"/>-only captures).</summary>
@@ -344,7 +416,7 @@ namespace Redline.Game.Render3D.Actors3D
                 attackHdr *= 1.6f;
             }
 
-            float pop = (e.SinceHit < EnemyLook.HitPopTime ? EnemyLook.HitPop : 1f) * FuseSwell(e);
+            float pop = (e.SinceHit < EnemyLook.HitPopTime ? EnemyLook.HitPop : 1f) * FuseSwell(e) * (e.IsBoss ? BossScale : 1f);
             var offset = Offset(e, index);
             float lift = EnemyLook.CentrePivot(e.Kind) ? e.Height * 0.5f : 0f;
             var rot = brute && e.Mode == BruteMode.Crashed ? Quaternion.Euler(0f, 0f, Mathf.Sin(_time * 9f) * 6f) : Quaternion.identity;
@@ -371,6 +443,40 @@ namespace Redline.Game.Render3D.Actors3D
             _mpb.SetColor(ColorId, new Color(hc.r * HaloHdr, hc.g * HaloHdr, hc.b * HaloHdr, ha));
             _mpb.SetVector(ParamsId, new Vector4(1f, 0.6f, 0f, 0f));
             halo.SetPropertyBlock(_mpb);
+
+            SyncHealthBar(v, e, new Vector2(feet.x + offset.x, feet.y + offset.y));
+        }
+
+        /// <summary>Health bar size (world units), gap over the head, and colours. Shown only once the enemy is hurt.</summary>
+        public static float HpBarWidth = 0.9f, HpBarHeight = 0.09f, HpBarGap = 0.3f;
+        /// <summary>Wave bosses are drawn this much bigger than their kind.</summary>
+        public static float BossScale = 1.45f;
+        public static Color HpBackColor = new Color(0.05f, 0.03f, 0.06f), HpFillColor = new Color(1f, 0.12f, 0.22f) * 2.2f;
+
+        private void SyncHealthBar(View v, Enemy e, Vector2 feet)
+        {
+            bool show = (e.Hp < e.MaxHp - 0.001f || e.IsBoss) && e.Hp > 0f;
+            v.HpBack.enabled = v.HpFill.enabled = show;
+            if (!show) return;
+            float frac = Mathf.Clamp01(e.Hp / e.MaxHp);
+            float bw = e.IsBoss ? HpBarWidth * 2.2f : HpBarWidth;
+            float y = feet.y + e.Height * (e.IsBoss ? BossScale : 1f) + HpBarGap;
+            float x0 = feet.x - bw * 0.5f;
+            Bar(v.HpBack, new Vector3(feet.x, y, -0.05f), new Vector2(bw + 0.06f, HpBarHeight + 0.06f), HpBackColor);
+            float w = bw * frac;
+            Bar(v.HpFill, new Vector3(x0 + w * 0.5f, y, -0.07f), new Vector2(w, HpBarHeight), HpFillColor);
+        }
+
+        private void Bar(MeshRenderer r, Vector3 pos, Vector2 size, Color c)
+        {
+            var t = r.transform;
+            t.localPosition = pos;
+            t.localRotation = Quaternion.identity;
+            t.localScale = new Vector3(size.x, size.y, 1f);
+            _mpb.Clear();
+            _mpb.SetColor(ColorId, new Color(c.r, c.g, c.b, 1f));
+            _mpb.SetVector(ParamsId, new Vector4(0f, 0f, 0f, 0f));
+            r.SetPropertyBlock(_mpb);
         }
 
         /// <summary>Sprite texels per world unit; quads snap to this grid so they line up 1:1 with the
