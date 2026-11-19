@@ -28,7 +28,74 @@ namespace Redline.Game.Render3D
 
         private readonly List<LevelBox> _boxes = new List<LevelBox>();
         private float[,] _tileDepth;
-        private Material _fasciaMat, _slabTopMat, _structMat, _clutterMat;
+        private Material _fasciaMat, _slabTopMat, _structMat, _clutterMat, _spikeCollarMat, _spikeTipMat;
+
+        /// <summary>
+        /// 80s chrome spike field for every spike tile: 6-9 tall thin hexagonal cones per tile at random spots and
+        /// heights between the play plane's front and back (z -1.4..2.4), each with a wider silver collar at the foot,
+        /// a white chrome shaft and, on about a quarter, a blood-red tip. Flat shaded (low-poly read). Sub-meshes:
+        /// 0 collar, 1 shaft, 2 red tip.
+        /// </summary>
+        private Mesh ChromeSpikes()
+        {
+            var v = new List<Vector3>(); var n = new List<Vector3>();
+            var tris = new[] { new List<int>(), new List<int>(), new List<int>() };
+            var rnd = new System.Random(_look.Seed * 19 + 5);
+            float R() => (float)rnd.NextDouble();
+            void Tri(int sub, Vector3 a, Vector3 b, Vector3 c, Vector3 outward)
+            {
+                var nn = Vector3.Cross(b - a, c - a).normalized;
+                if (Vector3.Dot(nn, outward) < 0f) { var tmp = b; b = c; c = tmp; nn = -nn; }   // front face outward
+                int i = v.Count;
+                v.Add(a); v.Add(b); v.Add(c); n.Add(nn); n.Add(nn); n.Add(nn);
+                tris[sub].Add(i); tris[sub].Add(i + 1); tris[sub].Add(i + 2);
+            }
+            // A frustum band from radius r0 at y0 to r1 at y1 (r1 = 0: a cone tip).
+            void Band(int sub, Vector3 c, float r0, float y0, float r1, float y1, float rot)
+            {
+                const int S = 6;
+                for (int k = 0; k < S; k++)
+                {
+                    float a0 = rot + k * Mathf.PI * 2f / S, a1 = rot + (k + 1) * Mathf.PI * 2f / S;
+                    var b0 = c + new Vector3(Mathf.Cos(a0) * r0, y0, Mathf.Sin(a0) * r0);
+                    var b1 = c + new Vector3(Mathf.Cos(a1) * r0, y0, Mathf.Sin(a1) * r0);
+                    var t0 = c + new Vector3(Mathf.Cos(a0) * r1, y1, Mathf.Sin(a0) * r1);
+                    var t1 = c + new Vector3(Mathf.Cos(a1) * r1, y1, Mathf.Sin(a1) * r1);
+                    float am = (a0 + a1) * 0.5f;
+                    var outward = new Vector3(Mathf.Cos(am), 0.3f, Mathf.Sin(am));
+                    Tri(sub, b0, t1, b1, outward);
+                    if (r1 > 0f) Tri(sub, b0, t0, t1, outward);
+                }
+            }
+            for (int y = 1; y < _map.Height; y++)
+            for (int x = 0; x < _map.Width; x++)
+            {
+                if (_map.Get(x, y) != Tile.Spike) continue;
+                int count = 6 + rnd.Next(4);
+                for (int s = 0; s < count; s++)
+                {
+                    var c = new Vector3(x + 0.08f + R() * 0.84f, y, -1.4f + R() * 3.8f);
+                    float r = 0.055f + R() * 0.035f, hgt = 0.5f + R() * 0.45f, rot = R() * 6.28f;
+                    float collar = hgt * 0.2f;
+                    Band(0, c, r * 1.25f, 0f, r * 1.05f, collar, rot);                // silver collar
+                    bool red = R() < 0.25f;
+                    float split = red ? hgt * 0.62f : hgt;
+                    float rs = Mathf.Lerp(r * 0.9f, 0f, (split - collar) / (hgt - collar));
+                    if (red)
+                    {
+                        Band(1, c, r * 0.9f, collar, rs, split, rot);                 // white chrome shaft
+                        Band(2, c, rs, split, 0f, hgt, rot);                          // blood-red tip
+                    }
+                    else Band(1, c, r * 0.9f, collar, 0f, hgt, rot);
+                }
+            }
+            var m = new Mesh { name = "chromeSpikes", indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
+            m.SetVertices(v); m.SetNormals(n);
+            m.subMeshCount = 3;
+            for (int i = 0; i < 3; i++) m.SetTriangles(tris[i], i);
+            m.RecalculateBounds();
+            return m;
+        }
         private Mesh _structMesh;
         private float _streetUnits = 8f;
         private Texture2D _streetGloss;
@@ -88,7 +155,10 @@ namespace Redline.Game.Render3D
                 _structMat = Own(Proto3DMaterials.Lit3D("structure", black, 0.72f, 0.95f));
                 _clutterMat = Own(Proto3DMaterials.Lit3D("clutter", black * 1.3f, 0.6f, 0.85f, grime.Albedo));
                 _slabTopMat = Own(Proto3DMaterials.Lit3D("slabTop", black * 1.4f, 0.75f, 0.9f, top.Albedo, top.Normal, 1f));
-                // (Spike tiles are drawn as electrified puddles on metal platform levels: Arena3DHazards.cs.)
+                // Spikes: 80s chrome. Silver collar at the foot, white chrome shaft, a few blood-red tips.
+                _spikeCollarMat = Own(Proto3DMaterials.Lit3D("spikeCollar", new Color(0.62f, 0.63f, 0.68f), 0.78f, 1f));
+                _spikeMat = Own(Proto3DMaterials.Lit3D("spike", new Color(0.93f, 0.93f, 0.96f), 0.88f, 0.85f, emissionColor: new Color(0.08f, 0.08f, 0.09f)));
+                _spikeTipMat = Own(Proto3DMaterials.Lit3D("spikeTip", new Color(0.55f, 0.02f, 0.03f), 0.7f, 0.3f, emissionColor: new Color(0.35f, 0.01f, 0.02f)));
             }
             _palette.Detail = grime.Albedo;
             _palette.DetailMean = grime.MeanLum;
