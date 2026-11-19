@@ -102,6 +102,7 @@ namespace Redline.Game.Render3D.Integration
             _rig = Pixel3DCamera.Latest;
             try { _baked = new BakedRoninView(_root); }
             catch (System.Exception e) { Debug.LogWarning("Redline: baked ronin unavailable, using the live 3D model. " + e.Message); }
+            if (_baked != null) AddBakedLights(_baked.Root, playerHeight * RoninHeightRatio);
 
             var assets = RoninAssets.Load();
             if (assets == null) Debug.LogError("Redline: Resources/" + RoninAssets.ResourcePath + " is missing; the 3D player is not drawn.");
@@ -147,6 +148,42 @@ namespace Redline.Game.Render3D.Integration
             _anchor = Actors3DAssets.CreateQuad("Anchor", _root, Actors3DAssets.FxAdditive, false, false);
             _playerBlob = Actors3DAssets.CreateQuad("PlayerContactShadow", _root, Actors3DAssets.FxAlpha, false, false);
             _playerBlobCore = Actors3DAssets.CreateQuad("PlayerContactShadowCore", _root, Actors3DAssets.FxAlpha, false, false);
+        }
+
+        /// <summary>Neutral-warm front light on the baked ronin sprite (characters only): keeps the samurai in his own colours
+        /// against the cool neon level so he reads apart from the background.</summary>
+        public static Color BakedFillColor = new Color(1f, 0.93f, 0.85f);
+        /// <summary>Intensity of <see cref="BakedFillColor"/>.</summary>
+        public static float BakedFillIntensity = 4.5f;
+        /// <summary>Warm back rim on the baked ronin sprite (characters only): a warm edge against the cool background.</summary>
+        public static Color BakedRimColor = new Color(1f, 0.7f, 0.42f);
+        /// <summary>Intensity of <see cref="BakedRimColor"/>.</summary>
+        public static float BakedRimIntensity = 24f;
+
+        private static void AddBakedLights(Transform root, float h)
+        {
+            var mask = (RenderingLayerMask)(1u << Arena3DRenderer.CharacterRenderingLayer);
+            var fillGo = new GameObject("BakedRoninFill");
+            fillGo.transform.SetParent(root, false);
+            fillGo.transform.localPosition = new Vector3(0f, h * 0.8f, -h * 1.4f);
+            var fill = fillGo.AddComponent<Light>();
+            fill.type = LightType.Point;
+            fill.color = BakedFillColor;
+            fill.intensity = BakedFillIntensity;
+            fill.range = h * 2.8f;
+            fill.shadows = LightShadows.None;
+            fill.GetUniversalAdditionalLightData().renderingLayers = mask;
+
+            var rimGo = new GameObject("BakedRoninRim");
+            rimGo.transform.SetParent(root, false);
+            rimGo.transform.localPosition = new Vector3(0f, h * 0.95f, h * 0.5f);
+            var rim = rimGo.AddComponent<Light>();
+            rim.type = LightType.Point;
+            rim.color = BakedRimColor;
+            rim.intensity = BakedRimIntensity;
+            rim.range = h * 2.2f;
+            rim.shadows = LightShadows.None;
+            rim.GetUniversalAdditionalLightData().renderingLayers = mask;
         }
 
         private readonly MeshRenderer _playerBlob, _playerBlobCore;
@@ -277,6 +314,7 @@ namespace Redline.Game.Render3D.Integration
                 Grounded = p.Grounded,
                 VelocityY = p.Vy,
                 Sliding = p.Sliding,
+                SlideTier = p.SlideTier,
                 Hooked = p.Hooked,
                 Attacking = p.Attacking,
                 StrikeId = p.StrikeId,
