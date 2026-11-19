@@ -1,0 +1,540 @@
+{
+ "name": "props",
+ "ppu": 48.0,
+ "atlas": {
+  "w": 974,
+  "h": 318
+ },
+ "padding": 2,
+ "camera_tilt_deg": 11.0,
+ "rect_origin": "bottom-left (Unity sprite rect convention); pivot normalised within the rect",
+ "pivot_note": "'floor' props: pivot = ground contact at the bottom-centre; 'ceiling' props: pivot = hook at the top-centre",
+ "layer_note": "background-decor: behind the actors at mid-dark value; foreground-occluder: may also be drawn large, dark and low-opacity in front at the very bottom of the screen; hanging: hangs under an overhang",
+ "textures": {
+  "color": "props_color.png",
+  "normal": "props_normal.png",
+  "emissive": "props_emissive.png"
+ },
+ "normal_encoding": "tangent space in the sprite plane: R=+X right, G=+Y up, B=toward camera; transparent texels (128,128,255,0)",
+ "emissive_encoding": "RGB = emissive colour, linear-encoded (import with sRGB off); A = 255 on lit texels",
+ "palette": [
+  "#0a0c11",
+  "#140b07",
+  "#14161b",
+  "#141d27",
+  "#1a1e26",
+  "#1a2e34",
+  "#22252c",
+  "#25374a",
+  "#264046",
+  "#264149",
+  "#272c35",
+  "#29444a",
+  "#2a1406",
+  "#2a3240",
+  "#2c3038",
+  "#2e271f",
+  "#30353d",
+  "#352219",
+  "#355a63",
+  "#373e49",
+  "#38404b",
+  "#3c1d1e",
+  "#3c4756",
+  "#3d424b",
+  "#406b74",
+  "#42372b",
+  "#433a1f",
+  "#47566a",
+  "#48505a",
+  "#4b5666",
+  "#4b5a6e",
+  "#4c3226",
+  "#4e5e73",
+  "#4e6478",
+  "#516075",
+  "#526c81",
+  "#536379",
+  "#54667d",
+  "#548d99",
+  "#552829",
+  "#555b65",
+  "#55657a",
+  "#56616f",
+  "#566170",
+  "#56626f",
+  "#56677c",
+  "#585f6e",
+  "#58738c",
+  "#58768b",
+  "#594a39",
+  "#596a81",
+  "#5a6472",
+  "#5a6b82",
+  "#5b5d70",
+  "#5b6e86",
+  "#5c6c82",
+  "#5e522b",
+  "#5e6875",
+  "#5e6970",
+  "#607288",
+  "#626673",
+  "#656274",
+  "#65768c",
+  "#664532",
+  "#667890",
+  "#667990",
+  "#676f7a",
+  "#67707b",
+  "#677a91",
+  "#697275",
+  "#6c6d78",
+  "#6c7e95",
+  "#6e3634",
+  "#6f6778",
+  "#757d7a",
+  "#7b8ea6",
+  "#7c6c38",
+  "#8c97a6",
+  "#ff3346",
+  "#ff4fb0",
+  "#ffb25a"
+ ],
+ "props": [
+  {
+   "name": "ac_unit",
+   "layer": "background-decor",
+   "anchor": "floor",
+   "rect": {
+    "x": 676,
+    "y": 56,
+    "w": 92,
+    "h": 60
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.15
+   },
+   "size": {
+    "w": 1.9167,
+    "h": 1.25
+   },
+   "emissive": 0
+  },
+  {
+   "name": "fan_tower",
+   "layer": "background-decor",
+   "anchor": "floor",
+   "rect": {
+    "x": 900,
+    "y": 218,
+    "w": 72,
+    "h": 98
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.081633
+   },
+   "size": {
+    "w": 1.5,
+    "h": 2.0417
+   },
+   "emissive": 13,
+   "emissive_centroid": {
+    "x": 0.2909,
+    "y": 1.472
+   },
+   "emissive_color": "#ff3346"
+  },
+  {
+   "name": "vent_stack",
+   "layer": "background-decor",
+   "anchor": "floor",
+   "rect": {
+    "x": 436,
+    "y": 190,
+    "w": 80,
+    "h": 126
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.039683
+   },
+   "size": {
+    "w": 1.6667,
+    "h": 2.625
+   },
+   "emissive": 0
+  },
+  {
+   "name": "exhaust_elbow",
+   "layer": "background-decor",
+   "anchor": "floor",
+   "rect": {
+    "x": 2,
+    "y": 22,
+    "w": 108,
+    "h": 94
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.074468
+   },
+   "size": {
+    "w": 2.25,
+    "h": 1.9583
+   },
+   "emissive": 0
+  },
+  {
+   "name": "water_tank",
+   "layer": "background-decor",
+   "anchor": "floor",
+   "rect": {
+    "x": 64,
+    "y": 152,
+    "w": 82,
+    "h": 164
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.060976
+   },
+   "size": {
+    "w": 1.7083,
+    "h": 3.4167
+   },
+   "emissive": 0
+  },
+  {
+   "name": "antenna_mast",
+   "layer": "background-decor",
+   "anchor": "floor",
+   "rect": {
+    "x": 2,
+    "y": 118,
+    "w": 60,
+    "h": 198
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.030303
+   },
+   "size": {
+    "w": 1.25,
+    "h": 4.125
+   },
+   "emissive": 35,
+   "emissive_centroid": {
+    "x": 0.0533,
+    "y": 2.8211
+   },
+   "emissive_color": "#ff3346"
+  },
+  {
+   "name": "sat_dish",
+   "layer": "background-decor",
+   "anchor": "floor",
+   "rect": {
+    "x": 112,
+    "y": 32,
+    "w": 56,
+    "h": 84
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.071429
+   },
+   "size": {
+    "w": 1.1667,
+    "h": 1.75
+   },
+   "emissive": 0
+  },
+  {
+   "name": "cable_spool",
+   "layer": "foreground-occluder",
+   "anchor": "floor",
+   "rect": {
+    "x": 438,
+    "y": 49,
+    "w": 96,
+    "h": 67
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.134328
+   },
+   "size": {
+    "w": 2.0,
+    "h": 1.3958
+   },
+   "emissive": 0
+  },
+  {
+   "name": "cable_posts",
+   "layer": "background-decor",
+   "anchor": "floor",
+   "rect": {
+    "x": 724,
+    "y": 214,
+    "w": 174,
+    "h": 102
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.039216
+   },
+   "size": {
+    "w": 3.625,
+    "h": 2.125
+   },
+   "emissive": 9,
+   "emissive_centroid": {
+    "x": 0.1979,
+    "y": 1.3229
+   },
+   "emissive_color": "#ff3346"
+  },
+  {
+   "name": "crates",
+   "layer": "foreground-occluder",
+   "anchor": "floor",
+   "rect": {
+    "x": 300,
+    "y": 42,
+    "w": 84,
+    "h": 74
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.108108
+   },
+   "size": {
+    "w": 1.75,
+    "h": 1.5417
+   },
+   "emissive": 0
+  },
+  {
+   "name": "barrels",
+   "layer": "foreground-occluder",
+   "anchor": "floor",
+   "rect": {
+    "x": 770,
+    "y": 57,
+    "w": 74,
+    "h": 59
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.152542
+   },
+   "size": {
+    "w": 1.5417,
+    "h": 1.2292
+   },
+   "emissive": 0
+  },
+  {
+   "name": "container",
+   "layer": "background-decor",
+   "anchor": "floor",
+   "rect": {
+    "x": 582,
+    "y": 199,
+    "w": 140,
+    "h": 117
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.076923
+   },
+   "size": {
+    "w": 2.9167,
+    "h": 2.4375
+   },
+   "emissive": 0
+  },
+  {
+   "name": "fence",
+   "layer": "foreground-occluder",
+   "anchor": "floor",
+   "rect": {
+    "x": 170,
+    "y": 35,
+    "w": 128,
+    "h": 81
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.049383
+   },
+   "size": {
+    "w": 2.6667,
+    "h": 1.6875
+   },
+   "emissive": 0
+  },
+  {
+   "name": "billboard",
+   "layer": "background-decor",
+   "anchor": "floor",
+   "rect": {
+    "x": 148,
+    "y": 163,
+    "w": 168,
+    "h": 153
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.019608
+   },
+   "size": {
+    "w": 3.5,
+    "h": 3.1875
+   },
+   "emissive": 7052,
+   "emissive_centroid": {
+    "x": -0.0116,
+    "y": 2.2387
+   },
+   "emissive_color": "#385d64"
+  },
+  {
+   "name": "neon_sign",
+   "layer": "background-decor",
+   "anchor": "floor",
+   "rect": {
+    "x": 518,
+    "y": 196,
+    "w": 62,
+    "h": 120
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.025
+   },
+   "size": {
+    "w": 1.2917,
+    "h": 2.5
+   },
+   "emissive": 236,
+   "emissive_centroid": {
+    "x": 0.3122,
+    "y": 1.5329
+   },
+   "emissive_color": "#ff4fb0"
+  },
+  {
+   "name": "stair_hut",
+   "layer": "background-decor",
+   "anchor": "floor",
+   "rect": {
+    "x": 318,
+    "y": 180,
+    "w": 116,
+    "h": 136
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.088235
+   },
+   "size": {
+    "w": 2.4167,
+    "h": 2.8333
+   },
+   "emissive": 930,
+   "emissive_centroid": {
+    "x": -0.3087,
+    "y": 0.7297
+   },
+   "emissive_color": "#ffb25a"
+  },
+  {
+   "name": "railing",
+   "layer": "foreground-occluder",
+   "anchor": "floor",
+   "rect": {
+    "x": 536,
+    "y": 54,
+    "w": 138,
+    "h": 62
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.064516
+   },
+   "size": {
+    "w": 2.875,
+    "h": 1.2917
+   },
+   "emissive": 0
+  },
+  {
+   "name": "puddle",
+   "layer": "background-decor",
+   "anchor": "floor",
+   "rect": {
+    "x": 2,
+    "y": 2,
+    "w": 120,
+    "h": 18
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5
+   },
+   "size": {
+    "w": 2.5,
+    "h": 0.375
+   },
+   "emissive": 0
+  },
+  {
+   "name": "debris",
+   "layer": "foreground-occluder",
+   "anchor": "floor",
+   "rect": {
+    "x": 846,
+    "y": 79,
+    "w": 76,
+    "h": 37
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.216216
+   },
+   "size": {
+    "w": 1.5833,
+    "h": 0.7708
+   },
+   "emissive": 0
+  },
+  {
+   "name": "hang_cables",
+   "layer": "hanging",
+   "anchor": "ceiling",
+   "rect": {
+    "x": 386,
+    "y": 44,
+    "w": 50,
+    "h": 72
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.944444
+   },
+   "size": {
+    "w": 1.0417,
+    "h": 1.5
+   },
+   "emissive": 4,
+   "emissive_centroid": {
+    "x": 0.1875,
+    "y": -0.875
+   },
+   "emissive_color": "#ff3346"
+  }
+ ]
+}

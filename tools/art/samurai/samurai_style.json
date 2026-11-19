@@ -1,0 +1,414 @@
+{
+ "_doc": "Shared style for the 3D-to-pixel pipeline. Material ids are written into the R channel of the id pass (id*10). Ramps are dark->light sRGB; colours shared between materials count once in the palette. shading=2 selects tools/art/samurai/shade_v2.py (hue-shifted ramps from gen_ramps.py, Bayer dither on large soft transitions, metal specular clusters, lacquer highlight line, selective inner AA). Palette values are technical placeholders pending art-director sign-off.",
+ "shading": 2,
+ "rig": {
+  "yaw": {
+   "pelvis": -12,
+   "spine": -18,
+   "chest": -25,
+   "head": -15
+  }
+ },
+ "render": {
+  "ao_distance": 0.12,
+  "ao_samples": 16,
+  "cell_w": 3.8,
+  "cell_h": 3.0,
+  "cell_pad_bottom": 0.25
+ },
+ "light": {
+  "dir": [
+   -0.35,
+   0.8,
+   0.5
+  ],
+  "ambient": 0.74,
+  "diffuse": 0.36,
+  "ao_strength": 0.65
+ },
+ "spec_light": [
+  0.35,
+  0.75,
+  0.6
+ ],
+ "bands": {
+  "2": [
+   0.7
+  ],
+  "3": [
+   0.64,
+   1.0
+  ],
+  "4": [
+   0.56,
+   0.78,
+   1.0
+  ],
+  "5": [
+   0.5,
+   0.66,
+   0.84,
+   1.02
+  ]
+ },
+ "dither": {
+  "amp": 0.02,
+  "bayer": 4,
+  "inset": 3
+ },
+ "coverage": {
+  "alpha": 0.5,
+  "priority": 0.22
+ },
+ "rim": {
+  "enabled": true,
+  "dirs": [
+   [
+    -1,
+    0
+   ]
+  ]
+ },
+ "inner_aa": true,
+ "outlines": {
+  "cool": "#0d0f15",
+  "steel": "#262b35",
+  "crimson": "#2c0a10",
+  "teal": "#0f3a46"
+ },
+ "materials": [
+  {
+   "id": 1,
+   "name": "helmet",
+   "outline": "cool",
+   "lacquer": {
+    "power": 7,
+    "thr": 0.55
+   },
+   "gen": {
+    "base": "#262b38",
+    "n": 5,
+    "dl": 0.055,
+    "cool": 0.035,
+    "warm": 0.012,
+    "spec": 0.22
+   },
+   "ramp": [
+    "#0c0f24",
+    "#181d2f",
+    "#262b38",
+    "#373941",
+    "#48474a"
+   ],
+   "spec": "#8a8582"
+  },
+  {
+   "id": 2,
+   "name": "crest",
+   "outline": "steel",
+   "priority": 6,
+   "metal": {
+    "power": 20,
+    "thr": 0.6
+   },
+   "gen": {
+    "base": "#aab3be",
+    "n": 4,
+    "dl": 0.08,
+    "cool": 0.035,
+    "warm": 0.03,
+    "spec": 0.1
+   },
+   "ramp": [
+    "#838caa",
+    "#9da6b7",
+    "#bbbfc4",
+    "#ddd8cf"
+   ],
+   "spec": "#fff7e1"
+  },
+  {
+   "id": 3,
+   "name": "mask",
+   "outline": "steel",
+   "gen": {
+    "base": "#c4bba7",
+    "n": 4,
+    "dl": 0.085,
+    "cool": 0.04,
+    "warm": 0.025
+   },
+   "ramp": [
+    "#9a9293",
+    "#b6ada0",
+    "#d4c8b0",
+    "#f5e3c2"
+   ]
+  },
+  {
+   "id": 4,
+   "name": "visor",
+   "ramp": [
+    "#ff3346"
+   ],
+   "outline": "crimson",
+   "priority": 1,
+   "emissive": "g"
+  },
+  {
+   "id": 5,
+   "name": "coat",
+   "outline": "cool",
+   "dither": true,
+   "ramp": [
+    "#13172d",
+    "#1f2436",
+    "#2c313e",
+    "#3a404e",
+    "#4b505b"
+   ],
+   "_doc": "hand ramp (gen dropped): light tones held cool blue-grey, warm shift only on the top highlight"
+  },
+  {
+   "id": 6,
+   "name": "lining",
+   "outline": "crimson",
+   "dither": true,
+   "gen": {
+    "base": "#8a1d2c",
+    "n": 5,
+    "dl": 0.065,
+    "cool": 0.035,
+    "warm": 0.03
+   },
+   "ramp": [
+    "#620019",
+    "#760024",
+    "#8a1d2c",
+    "#9e3734",
+    "#b14f3c"
+   ],
+   "sliver_min": 6
+  },
+  {
+   "id": 7,
+   "name": "armour",
+   "outline": "cool",
+   "dither": true,
+   "metal": {
+    "power": 22,
+    "thr": 0.62
+   },
+   "gen": {
+    "base": "#3d495a",
+    "n": 5,
+    "dl": 0.06,
+    "cool": 0.03,
+    "warm": 0.02,
+    "spec": 0.16
+   },
+   "ramp": [
+    "#1d2845",
+    "#2c3851",
+    "#3d495a",
+    "#535962",
+    "#696969"
+   ],
+   "spec": "#9f988e"
+  },
+  {
+   "id": 8,
+   "name": "cyber",
+   "outline": "cool",
+   "metal": {
+    "power": 22,
+    "thr": 0.6
+   },
+   "gen": {
+    "base": "#4a525e",
+    "n": 5,
+    "dl": 0.065,
+    "cool": 0.03,
+    "warm": 0.02,
+    "spec": 0.16
+   },
+   "ramp": [
+    "#272e47",
+    "#383f54",
+    "#4a525e",
+    "#616468",
+    "#797571"
+   ],
+   "spec": "#afa597"
+  },
+  {
+   "id": 9,
+   "name": "cyan",
+   "ramp": [
+    "#6cf3ff"
+   ],
+   "outline": "teal",
+   "priority": 2,
+   "emissive": "b"
+  },
+  {
+   "id": 10,
+   "name": "wraps",
+   "outline": "cool",
+   "gen": {
+    "base": "#4a4447",
+    "n": 4,
+    "dl": 0.06,
+    "cool": 0.03,
+    "warm": 0.025
+   },
+   "ramp": [
+    "#322c39",
+    "#423c43",
+    "#544c4b",
+    "#6a5b51"
+   ]
+  },
+  {
+   "id": 11,
+   "name": "cloth",
+   "outline": "cool",
+   "share": "coat",
+   "pick": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "ramp": [
+    "#13172d",
+    "#1f2436",
+    "#2c313e",
+    "#3a404e"
+   ]
+  },
+  {
+   "id": 12,
+   "name": "boots",
+   "outline": "cool",
+   "gen": {
+    "base": "#1f2229",
+    "n": 3,
+    "dl": 0.045,
+    "cool": 0.03,
+    "warm": 0.012
+   },
+   "ramp": [
+    "#141722",
+    "#1f2229",
+    "#2d2d30"
+   ]
+  },
+  {
+   "id": 13,
+   "name": "blade",
+   "outline": "steel",
+   "priority": 3,
+   "emissive": "r",
+   "share": "crest",
+   "pick": [
+    1,
+    2,
+    3
+   ],
+   "ramp": [
+    "#9da6b7",
+    "#bbbfc4",
+    "#ddd8cf"
+   ]
+  },
+  {
+   "id": 14,
+   "name": "steel",
+   "outline": "cool",
+   "priority": 7,
+   "metal": {
+    "power": 14,
+    "thr": 0.65
+   },
+   "spec_from": "crest",
+   "share": "crest",
+   "pick": [
+    0,
+    1,
+    2
+   ],
+   "ramp": [
+    "#838caa",
+    "#9da6b7",
+    "#bbbfc4"
+   ]
+  },
+  {
+   "id": 15,
+   "name": "fittings",
+   "outline": "cool",
+   "metal": {
+    "power": 16,
+    "thr": 0.62
+   },
+   "spec_from": "armour",
+   "share": "boots",
+   "pick": [
+    0,
+    1,
+    2
+   ],
+   "ramp": [
+    "#141722",
+    "#1f2229",
+    "#2d2d30"
+   ]
+  },
+  {
+   "id": 16,
+   "name": "smear",
+   "ramp": [
+    "#e9eef2",
+    "#ffffff"
+   ],
+   "outline": "steel",
+   "priority": 4,
+   "emissive": "r",
+   "flat_band": 1
+  },
+  {
+   "id": 17,
+   "name": "smear_edge",
+   "ramp": [
+    "#8d98a7"
+   ],
+   "outline": "steel",
+   "priority": 5,
+   "emissive": "r",
+   "emissive_value": 136,
+   "flat_band": 0
+  },
+  {
+   "id": 18,
+   "name": "lacing",
+   "outline": "cool",
+   "ramp": [
+    "#221d28",
+    "#2b2330",
+    "#352a36"
+   ],
+   "_doc": "hand ramp: muted dark crimson-violet sitting 1-2 value steps off armour so lacing reads as texture, not a red checkerboard"
+  },
+  {
+   "id": 19,
+   "name": "mouth",
+   "ramp": [
+    "#15101a"
+   ],
+   "outline": "cool",
+   "priority": 9,
+   "cov": 0.3
+  }
+ ]
+}

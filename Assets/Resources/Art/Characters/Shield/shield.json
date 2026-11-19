@@ -1,0 +1,809 @@
+{
+ "name": "shield",
+ "ppu": 48.0,
+ "cell": {
+  "w": 164,
+  "h": 116
+ },
+ "atlas": {
+  "w": 1662,
+  "h": 710
+ },
+ "padding": 2,
+ "rect_origin": "bottom-left (Unity sprite rect convention); pivot normalised within the rect",
+ "pivot_note": "feet centre = bottom-centre of the 1.1 x 1.6 collision body; sprites face right, shield on the front (+X) side; turn yaws toward the camera over 4 frames (0..-135 deg), flip the sprite after its last frame",
+ "bake_note": "3D-lit bake (tools/art/common/bake_char.py): unlit material albedo, area-filtered, hard alpha; no toon bands, rim or outline (same material language as the ronin)",
+ "textures": {
+  "color": "shield_color.png",
+  "normal": "shield_normal.png",
+  "emissive": "shield_emissive.png"
+ },
+ "normal_encoding": "view-space normal: R=+X right, G=+Y up, B=toward camera; transparent texels (128,128,255,0)",
+ "emissive_encoding": "R = attack glow: shield face flare (block frames 1-2 of 4), G = visor, B = amber shield rim strip; A = 255 where any mask is set",
+ "animations": [
+  {
+   "name": "idle",
+   "fps": 8,
+   "loop": true,
+   "frames": [
+    "shield_idle_00",
+    "shield_idle_01",
+    "shield_idle_02",
+    "shield_idle_03",
+    "shield_idle_04",
+    "shield_idle_05",
+    "shield_idle_06",
+    "shield_idle_07"
+   ]
+  },
+  {
+   "name": "walk",
+   "fps": 20,
+   "loop": true,
+   "frames": [
+    "shield_walk_00",
+    "shield_walk_01",
+    "shield_walk_02",
+    "shield_walk_03",
+    "shield_walk_04",
+    "shield_walk_05",
+    "shield_walk_06",
+    "shield_walk_07",
+    "shield_walk_08",
+    "shield_walk_09"
+   ]
+  },
+  {
+   "name": "turn",
+   "fps": 7,
+   "loop": false,
+   "frames": [
+    "shield_turn_00",
+    "shield_turn_01",
+    "shield_turn_02",
+    "shield_turn_03"
+   ]
+  },
+  {
+   "name": "block",
+   "fps": 14,
+   "loop": false,
+   "frames": [
+    "shield_block_00",
+    "shield_block_01",
+    "shield_block_02",
+    "shield_block_03"
+   ]
+  },
+  {
+   "name": "hurt",
+   "fps": 16,
+   "loop": false,
+   "frames": [
+    "shield_hurt_00",
+    "shield_hurt_01",
+    "shield_hurt_02",
+    "shield_hurt_03"
+   ]
+  },
+  {
+   "name": "death",
+   "fps": 12,
+   "loop": false,
+   "frames": [
+    "shield_death_00",
+    "shield_death_01",
+    "shield_death_02",
+    "shield_death_03",
+    "shield_death_04",
+    "shield_death_05",
+    "shield_death_06"
+   ]
+  }
+ ],
+ "frames": [
+  {
+   "name": "shield_idle_00",
+   "anim": "idle",
+   "index": 0,
+   "rect": {
+    "x": 2,
+    "y": 592,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_idle_01",
+   "anim": "idle",
+   "index": 1,
+   "rect": {
+    "x": 168,
+    "y": 592,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_idle_02",
+   "anim": "idle",
+   "index": 2,
+   "rect": {
+    "x": 334,
+    "y": 592,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_idle_03",
+   "anim": "idle",
+   "index": 3,
+   "rect": {
+    "x": 500,
+    "y": 592,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_idle_04",
+   "anim": "idle",
+   "index": 4,
+   "rect": {
+    "x": 666,
+    "y": 592,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_idle_05",
+   "anim": "idle",
+   "index": 5,
+   "rect": {
+    "x": 832,
+    "y": 592,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_idle_06",
+   "anim": "idle",
+   "index": 6,
+   "rect": {
+    "x": 998,
+    "y": 592,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_idle_07",
+   "anim": "idle",
+   "index": 7,
+   "rect": {
+    "x": 1164,
+    "y": 592,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_walk_00",
+   "anim": "walk",
+   "index": 0,
+   "rect": {
+    "x": 2,
+    "y": 474,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_walk_01",
+   "anim": "walk",
+   "index": 1,
+   "rect": {
+    "x": 168,
+    "y": 474,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_walk_02",
+   "anim": "walk",
+   "index": 2,
+   "rect": {
+    "x": 334,
+    "y": 474,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_walk_03",
+   "anim": "walk",
+   "index": 3,
+   "rect": {
+    "x": 500,
+    "y": 474,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_walk_04",
+   "anim": "walk",
+   "index": 4,
+   "rect": {
+    "x": 666,
+    "y": 474,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_walk_05",
+   "anim": "walk",
+   "index": 5,
+   "rect": {
+    "x": 832,
+    "y": 474,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_walk_06",
+   "anim": "walk",
+   "index": 6,
+   "rect": {
+    "x": 998,
+    "y": 474,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_walk_07",
+   "anim": "walk",
+   "index": 7,
+   "rect": {
+    "x": 1164,
+    "y": 474,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_walk_08",
+   "anim": "walk",
+   "index": 8,
+   "rect": {
+    "x": 1330,
+    "y": 474,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_walk_09",
+   "anim": "walk",
+   "index": 9,
+   "rect": {
+    "x": 1496,
+    "y": 474,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_turn_00",
+   "anim": "turn",
+   "index": 0,
+   "rect": {
+    "x": 2,
+    "y": 356,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_turn_01",
+   "anim": "turn",
+   "index": 1,
+   "rect": {
+    "x": 168,
+    "y": 356,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_turn_02",
+   "anim": "turn",
+   "index": 2,
+   "rect": {
+    "x": 334,
+    "y": 356,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_turn_03",
+   "anim": "turn",
+   "index": 3,
+   "rect": {
+    "x": 500,
+    "y": 356,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_block_00",
+   "anim": "block",
+   "index": 0,
+   "rect": {
+    "x": 2,
+    "y": 238,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_block_01",
+   "anim": "block",
+   "index": 1,
+   "rect": {
+    "x": 168,
+    "y": 238,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_block_02",
+   "anim": "block",
+   "index": 2,
+   "rect": {
+    "x": 334,
+    "y": 238,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_block_03",
+   "anim": "block",
+   "index": 3,
+   "rect": {
+    "x": 500,
+    "y": 238,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_hurt_00",
+   "anim": "hurt",
+   "index": 0,
+   "rect": {
+    "x": 2,
+    "y": 120,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_hurt_01",
+   "anim": "hurt",
+   "index": 1,
+   "rect": {
+    "x": 168,
+    "y": 120,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_hurt_02",
+   "anim": "hurt",
+   "index": 2,
+   "rect": {
+    "x": 334,
+    "y": 120,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_hurt_03",
+   "anim": "hurt",
+   "index": 3,
+   "rect": {
+    "x": 500,
+    "y": 120,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_death_00",
+   "anim": "death",
+   "index": 0,
+   "rect": {
+    "x": 2,
+    "y": 2,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_death_01",
+   "anim": "death",
+   "index": 1,
+   "rect": {
+    "x": 168,
+    "y": 2,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_death_02",
+   "anim": "death",
+   "index": 2,
+   "rect": {
+    "x": 334,
+    "y": 2,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_death_03",
+   "anim": "death",
+   "index": 3,
+   "rect": {
+    "x": 500,
+    "y": 2,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_death_04",
+   "anim": "death",
+   "index": 4,
+   "rect": {
+    "x": 666,
+    "y": 2,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_death_05",
+   "anim": "death",
+   "index": 5,
+   "rect": {
+    "x": 832,
+    "y": 2,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  },
+  {
+   "name": "shield_death_06",
+   "anim": "death",
+   "index": 6,
+   "rect": {
+    "x": 998,
+    "y": 2,
+    "w": 164,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 82,
+    "y": 12
+   }
+  }
+ ]
+}
