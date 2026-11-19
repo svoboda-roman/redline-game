@@ -145,7 +145,7 @@ namespace Redline.RoninEditor
             // Idle: 1.33 s breathing cycle, 16 frames at 12 fps.
             // Sword held upright in a normal grip (blade up, leaning forward) in every non-attack pose; the slashes,
             // the slide attack and death keep their own blade (see _uprightDeg / FixKatana).
-            _uprightDeg = 18f;
+            _uprightDeg = 48f;   // standing: blade forward and up, clear of the arm and hat (like the run pose)
             list.Add(SampleClip("idle", RoninClip.Idle, 16f / L(RoninClip.Idle), true, Uniform(16, 0f, L(RoninClip.Idle), true), 0f, false, idleHips, hand));
             // Run and sprint: one stride cycle each (10 and 8 frames). The presenter plays them at
             // speed x duration / stride (the stride is measured here from the planted foot), so the cloth is simulated
@@ -154,7 +154,7 @@ namespace Redline.RoninEditor
             list.Add(Loco("run", RoninClip.Run, 10, 9f, idleHips, hand));
             _uprightDeg = 55f;
             list.Add(Loco("sprint", RoninClip.Sprint, 8, 18f, idleHips, hand));
-            _uprightDeg = 20f;
+            _uprightDeg = 42f;
             // Jump: take-off -> knee drive -> tuck in 0.4 s; the sim supplies the height, so the hips are pinned.
             list.Add(SampleClip("jump", RoninClip.Jump, 20, false, Uniform(8, 0f, Mathf.Min(0.4f, L(RoninClip.Jump)), false), 0f, true, idleHips, hand));
             list.Add(SampleClip("fall", RoninClip.Fall, 12, true, Uniform(12, 0f, L(RoninClip.Fall), true), 0f, true, idleHips, hand));
@@ -178,7 +178,7 @@ namespace Redline.RoninEditor
             list.Add(SampleClip("runattack2", RoninClip.RunAttack2, 30, false, slashTimes, 9f, false, idleHips, hand, 1f, smear));
             // Hurt: time-warped so the recoil snaps (clip 0.12 -> 0.45 s, its deepest lean, in 2 frames) then recovers to
             // the clip's end pose over 6 frames; 8 frames at 20 fps = 0.4 s (the presenter takes HurtDuration from this).
-            _uprightDeg = 30f;
+            _uprightDeg = 48f;
             list.Add(SampleClip("hurt", RoninClip.Hurt, 20, false, new[] { 0.12f, 0.3f, 0.45f, 0.6f, 0.75f, 0.9f, 1.05f, L(RoninClip.Hurt) }, 0f, false, idleHips, hand));
             // Death: the whole 2.4 s clip (stagger, collapse, lying on the ground) in 22 frames at 14 fps (~1.5x speed);
             // the last frame is the clip's final lying pose and is held by the one-shot playback.
@@ -187,6 +187,7 @@ namespace Redline.RoninEditor
 
             int total = 0, fixedTotal = 0, bladePx = 0, eyePx = 0;
             foreach (var a in list) foreach (var f in a.Frames) { fixedTotal += Clean(f); total++; }
+            if (InkStyle) foreach (var a in list) foreach (var f in a.Frames) Ink(f);
             foreach (var a in list) foreach (var f in a.Frames) foreach (var e in f.Em) { if ((e & 1) != 0) bladePx++; if ((e & 2) != 0) eyePx++; }
             // The blade glow is the tier read: a bake without it is broken, not just different.
             if (bladePx == 0) throw new InvalidOperationException("no blade emissive pixels baked (Ronin_Blade emission)");
@@ -474,6 +475,15 @@ namespace Redline.RoninEditor
                 sb.Append(Mathf.RoundToInt(Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg)).Append(' ');
             }
             Debug.Log($"RONIN_BAKE blade anim={name} angles(deg, 0=forward 90=up)= {sb}");
+            if (name == "idle")
+            {
+                Pose(times[0]);
+                PlaceCamera();
+                var rh = _cam.WorldToViewportPoint(Bone(HumanBodyBones.RightHand).position);
+                var lh = _cam.WorldToViewportPoint(Bone(HumanBodyBones.LeftHand).position);
+                var kp = _katana != null ? _cam.WorldToViewportPoint(_katana.position) : Vector3.zero;
+                Debug.Log($"RONIN_BAKE hands idle: right x={rh.x * CW:F1} y={rh.y * CH:F1} depth={rh.z:F3} | left x={lh.x * CW:F1} y={lh.y * CH:F1} depth={lh.z:F3} | katana x={kp.x * CW:F1} y={kp.y * CH:F1} depth={kp.z:F3} | katanaParent={(_katana != null && _katana.parent != null ? _katana.parent.name : "-")}");
+            }
             var smearFrames = smear ? PickSmearFrames(tips) : new List<int>();
             // Cloth: settle on the first pose, then (loops) run one full cycle so frame 0 continues from frame N-1.
             Pose(times[0]);
@@ -553,7 +563,9 @@ namespace Redline.RoninEditor
             float a = _uprightDeg * Mathf.Deg2Rad;
             Vector3 target = new Vector3(Mathf.Sin(a), Mathf.Cos(a), 0f);   // baked facing +x
             _katana.rotation = Quaternion.FromToRotation(cur, target) * _katana.rotation;
-            _katana.position += palm - _katana.TransformPoint(gripLocal);
+            // Grip in the palm, nudged toward the camera so the blade reads in front of the arm and coat (the sword
+            // hand is the near one), not behind the body as if the far hand held it.
+            _katana.position += palm - _katana.TransformPoint(gripLocal) + new Vector3(0f, 0f, -0.12f);
         }
 
         /// <summary>Centre of the right (sword) palm: from the wrist toward the middle-finger base when the rig has it.</summary>
@@ -760,6 +772,51 @@ namespace Redline.RoninEditor
         // ---------------------------------------------------------------- clean-up
 
         private static readonly int[] Dx8 = { -1, 0, 1, -1, 1, -1, 0, 1 }, Dy8 = { -1, -1, -1, 0, 0, 1, 1, 1 };
+
+        /// <summary>Black-and-white ink style for the sheet: contrasty greyscale body and a 1 px dark outline (blade keeps its tier glow).</summary>
+        public static bool InkStyle = true;
+
+        /// <summary>
+        /// Ink pass: every body texel becomes a contrasty grey (shadows near black, lights near white: manga / sumi-e
+        /// read), and every empty texel touching the body gets a near-black outline texel so the samurai cuts out of any
+        /// background. Blade (emissive R) texels stay as they are and get no outline (the tier glow defines them).
+        /// </summary>
+        private static void Ink(Fr f)
+        {
+            for (int k = 0; k < f.Op.Length; k++)
+            {
+                if (!f.Op[k] || (f.Em[k] & 1) != 0) continue;
+                var c = f.Col[k];
+                float l = (0.3f * c.r + 0.59f * c.g + 0.11f * c.b) / 255f;
+                float v = Mathf.Clamp01((l - 0.06f) / 0.5f);
+                v = v * v * (3f - 2f * v);                       // S-curve: crush darks, lift lights
+                byte g = (byte)Mathf.RoundToInt(Mathf.Lerp(18f, 238f, v));
+                f.Col[k] = new Color32(g, g, (byte)Mathf.Min(255, g + 4), 255);
+            }
+            var outline = new List<int>();
+            for (int y = 0; y < CH; y++)
+            for (int x = 0; x < CW; x++)
+            {
+                int k = y * CW + x;
+                if (f.Op[k]) continue;
+                bool edge = false;
+                for (int d = 0; d < 4 && !edge; d++)
+                {
+                    int nx = x + (d == 0 ? 1 : d == 1 ? -1 : 0), ny = y + (d == 2 ? 1 : d == 3 ? -1 : 0);
+                    if (nx < 0 || ny < 0 || nx >= CW || ny >= CH) continue;
+                    int n = ny * CW + nx;
+                    edge = f.Op[n] && (f.Em[n] & 1) == 0;
+                }
+                if (edge) outline.Add(k);
+            }
+            foreach (int k in outline)
+            {
+                f.Op[k] = true;
+                f.Em[k] = 0;
+                f.Col[k] = new Color32(8, 8, 10, 255);
+                f.Nrm[k] = new Color32(128, 128, 255, 255);
+            }
+        }
 
         private static int Clean(Fr f)
         {
