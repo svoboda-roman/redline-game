@@ -153,6 +153,52 @@ namespace Redline.Game.Render3D.Actors3D
             }
         }
 
+        private static readonly Color BloodColor = new Color(0.42f, 0.015f, 0.03f, 1f);
+        private static readonly Color BloodDark = new Color(0.22f, 0.01f, 0.02f, 1f);
+
+        /// <summary>
+        /// A kill's blood (alpha-blended, never glowing): a spray of droplets from the wound thrown away from the
+        /// killer along <paramref name="dirX"/> in an arc, stretched along their flight and falling, a dark red mist
+        /// puff, and splatters lying flat on the floor at <paramref name="floorY"/> that stay a few seconds and fade.
+        /// <paramref name="amount"/> 1 = a normal kill, 2+ = a heavy one (brute, tier 3).
+        /// </summary>
+        public void Blood(Vector2 at, float dirX, float floorY, float amount)
+        {
+            float side = dirX >= 0f ? 1f : -1f;
+            int drops = Mathf.RoundToInt(22 * amount);
+            for (int i = 0; i < drops; i++)
+            {
+                float spd = Random.Range(2.5f, 8.5f) * Mathf.Lerp(1f, 1.25f, amount - 1f);
+                var dir = new Vector2(side * Random.Range(0.25f, 1f), Random.Range(-0.15f, 0.95f)).normalized;
+                var c = Color.Lerp(BloodColor, BloodDark, Random.value * 0.6f);
+                float s = Random.Range(0.035f, 0.085f);
+                Spawn(Solid, null, at + Random.insideUnitCircle * 0.12f, Random.Range(-0.3f, 0.2f), dir * spd, c, new Vector2(s, s * 0.8f),
+                    Random.Range(0.45f, 0.85f), 24f, 0.6f, 0f, 0f, true, false, 0.4f);
+            }
+            // A few fat drops that fall short.
+            for (int i = 0; i < Mathf.RoundToInt(5 * amount); i++)
+            {
+                var v = new Vector2(side * Random.Range(0.5f, 2.5f), Random.Range(0.5f, 3f));
+                float s = Random.Range(0.09f, 0.14f);
+                Spawn(Solid, null, at, -0.15f, v, BloodDark, new Vector2(s, s), Random.Range(0.4f, 0.6f), 26f, 0.3f, 0f, 0f, false, false, 0.4f);
+            }
+            // Mist puff.
+            var mist = new Color(BloodColor.r * 0.8f, 0.02f, 0.03f, 0.45f);
+            Spawn(Glow, null, at + new Vector2(side * 0.2f, 0f), -0.2f, new Vector2(side * 0.8f, 0.3f), mist,
+                new Vector2(0.6f, 0.6f) * amount, 0.5f, 0f, 2f, 0f, 1.8f, false, false, 0.4f);
+            // Splatters on the floor, strung out away from the killer.
+            int splats = 3 + Mathf.RoundToInt(2 * amount);
+            for (int i = 0; i < splats; i++)
+            {
+                float dx = side * Random.Range(0f, 1.6f) * amount;
+                float w = Random.Range(0.35f, 0.8f) * (i == 0 ? 1.4f : 1f), d = w * Random.Range(0.35f, 0.6f);
+                var c = Color.Lerp(BloodColor, BloodDark, Random.Range(0.3f, 0.8f));
+                c.a = 0.9f;
+                Spawn(Glow, null, new Vector2(at.x + dx, floorY + 0.012f + i * 0.001f), Random.Range(-0.8f, 0.8f), Vector2.zero, c,
+                    new Vector2(w, d), Random.Range(6f, 8f), 0f, 0f, 0f, 0.15f, false, false, 0.5f, true);
+            }
+        }
+
         /// <summary>
         /// Rainwater at the feet: droplets kicked up (thrown back against <paramref name="pushX"/>), a mist puff, and
         /// when <paramref name="pushX"/> is 0 (landing, brute crash) a splash ring lying flat on the deck.
