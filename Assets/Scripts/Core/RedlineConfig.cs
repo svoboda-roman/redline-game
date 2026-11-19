@@ -94,7 +94,9 @@ namespace Redline.Core
         public float hookPumpAccel = 10f;
         public float hookCooldown = 0.2f;
         /// <summary>Rope reel speed while hanging (units/s): up reels in (pulls toward the anchor), down lets out.</summary>
-        public float hookReelSpeed = 8f;
+        public float hookReelSpeed = 4f;
+        /// <summary>How fast the reel speeds up / slows down (units/s^2): a smooth start and stop instead of a yank.</summary>
+        public float hookReelAccel = 16f;
         /// <summary>Longest the rope can be let out to (units).</summary>
         public float hookMaxLength = 12f;
         /// <summary>Speed added toward the anchor when the hook attaches from the ground (an instant lift, no dead time).</summary>

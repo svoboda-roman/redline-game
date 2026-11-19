@@ -77,7 +77,10 @@ namespace Redline.Game.Render3D
                 // Spikes grow out of what they sit on: the floor below (up), a wall to the left (right) or right
                 // (left), or a ceiling above (down). Free-floating spike tiles point up.
                 bool below = _map.IsSolid(x, y - 1), leftW = _map.IsSolid(x - 1, y), rightW = _map.IsSolid(x + 1, y), above = _map.IsSolid(x, y + 1);
-                int orient = below ? 0 : leftW ? 1 : rightW ? 2 : above ? 3 : 0;
+                // Hanging under a block (and not part of a vertical strip on a wall): flipped 180 to point down,
+                // even when a neighbouring platform touches its side.
+                bool vertStrip = _map.Get(x, y - 1) == Tile.Spike || _map.Get(x, y + 1) == Tile.Spike;
+                int orient = below ? 0 : above && !vertStrip ? 3 : leftW ? 1 : rightW ? 2 : above ? 3 : 0;
                 D = orient == 0 ? Vector3.up : orient == 1 ? Vector3.right : orient == 2 ? Vector3.left : Vector3.down;
                 U = orient == 0 || orient == 3 ? Vector3.right : Vector3.up;
                 V = Vector3.forward;

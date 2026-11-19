@@ -666,11 +666,16 @@ namespace Redline.Core
             // The rope reels in while the player moves toward the anchor, so it is always taut and
             // the swing starts the moment they would move away (no slack "delay"). Not while letting out.
             if (!reelOut) p.HookLength = MathF.Min(p.HookLength, dist);
-            if (reel > ReelDeadZone)
-                p.HookLength -= reel * c.hookReelSpeed * dt;                  // pull in: the constraint drags the player up
-            else if (reelOut)
-                p.HookLength = MathF.Min(p.HookLength - reel * c.hookReelSpeed * dt,
-                                         MathF.Max(c.hookMaxLength, dist));   // let out: gravity lowers the player
+            // Reel speed eases toward the input (no instant yank), then changes the rope length:
+            // positive pulls in (the constraint drags the player up), negative lets out (gravity lowers them).
+            float target = MathF.Abs(reel) > ReelDeadZone ? reel * c.hookReelSpeed : 0f;
+            float accel = c.hookReelAccel * dt;
+            p.HookReelSpeed = MathF.Abs(target - p.HookReelSpeed) <= accel ? target
+                : p.HookReelSpeed + MathF.Sign(target - p.HookReelSpeed) * accel;
+            if (p.HookReelSpeed > 0f)
+                p.HookLength -= p.HookReelSpeed * dt;
+            else if (p.HookReelSpeed < 0f)
+                p.HookLength = MathF.Min(p.HookLength - p.HookReelSpeed * dt, MathF.Max(c.hookMaxLength, dist));
             p.HookLength = MathF.Max(c.hookMinLength, p.HookLength);
             var predicted = new Vec2(centre.X + p.Vx * dt, centre.Y + p.Vy * dt);
             var d = predicted - anchor;
@@ -712,6 +717,7 @@ namespace Redline.Core
             p.Hooked = true;
             p.AirSlideUsed = false;
             p.HookTime = 0f;
+            p.HookReelSpeed = 0f;
             p.HookAnchor = new Vec2(_map.WrapX(hit.X), hit.Y);
             var toAnchor = hit - p.Center;
             float distance = toAnchor.Length;

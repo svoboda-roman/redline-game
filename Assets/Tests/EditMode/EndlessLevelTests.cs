@@ -8,10 +8,11 @@ namespace Redline.Tests
     /// <summary>City01: an ';endless' ';randomspawn' level — waves grow with the waves beaten, enemies spawn at random spots.</summary>
     public class EndlessLevelTests
     {
-        [Test]
-        public void City01_ParsesAsEndlessRandomSpawnLevel()
+        [TestCase("City01")]
+        [TestCase("City01B")]
+        public void City01_ParsesAsEndlessRandomSpawnLevel(string level)
         {
-            var map = TileMap.Parse(Resources.Load<TextAsset>("City01").text);
+            var map = TileMap.Parse(Resources.Load<TextAsset>(level).text);
             Assert.IsTrue(map.Endless);
             Assert.IsTrue(map.RandomSpawn);
             Assert.IsFalse(map.WrapsX);
