@@ -159,7 +159,7 @@ namespace Redline.Core
         // --- Enemies ---
         public float gruntWidth = 1.0f;
         public float gruntHeight = 1.3f;
-        public float gruntHp = 1f;
+        public float gruntHp = 3f;
         public float gruntSpeed = 3.5f;
         /// <summary>High enough (~2.3 tiles) to hop the 2-tile bumps levels use.</summary>
         public float gruntJumpSpeed = 14.5f;
@@ -167,7 +167,7 @@ namespace Redline.Core
         public float bruteWidth = 1.5f;
         /// <summary>Hitbox height; kept low enough that a full jump clears a charge (the sprite is drawn taller).</summary>
         public float bruteHeight = 2.1f;
-        public float bruteHp = 4f;
+        public float bruteHp = 8f;
         public float bruteSpeed = 1.6f;
         /// <summary>0: brutes are too heavy to jump; a bump stops them (and a charge crashes into it).</summary>
         public float bruteJumpSpeed = 0f;
@@ -198,7 +198,7 @@ namespace Redline.Core
         public int bruteChargeFromWave = 4;
         // --- Drone ---
         public float droneSize = 1.0f;
-        public float droneHp = 1f;
+        public float droneHp = 2f;
         public int droneContactDamage = 1;
         public float droneSpeed = 3f;
         /// <summary>Hover height of the drone's underside above the player's feet (out of jump-strike reach).</summary>
@@ -213,7 +213,7 @@ namespace Redline.Core
         // --- Shooter ---
         public float shooterWidth = 0.9f;
         public float shooterHeight = 1.5f;
-        public float shooterHp = 1.0f;
+        public float shooterHp = 2.0f;
         public int shooterContactDamage = 1;
         /// <summary>Walk speed back to its post (it never chases).</summary>
         public float shooterSpeed = 2.0f;
@@ -236,11 +236,11 @@ namespace Redline.Core
         /// <summary>A reflected projectile flies back this many times faster.</summary>
         public float reflectSpeedMultiplier = 1.5f;
         /// <summary>Damage a reflected projectile deals to the enemy it hits (ignores armor; a shield facing it blocks it).</summary>
-        public float reflectedProjectileDamage = 2.0f;
+        public float reflectedProjectileDamage = 3.0f;
         // --- Shield bearer ---
         public float shieldWidth = 1.1f;
         public float shieldHeight = 1.6f;
-        public float shieldHp = 2.0f;
+        public float shieldHp = 4.0f;
         public int shieldContactDamage = 1;
         public float shieldSpeed = 2.6f;
         public float shieldJumpSpeed = 12.0f;
@@ -251,7 +251,7 @@ namespace Redline.Core
         // --- Kamikaze ---
         public float kamikazeWidth = 0.9f;
         public float kamikazeHeight = 1.0f;
-        public float kamikazeHp = 2.0f;
+        public float kamikazeHp = 3.0f;
         /// <summary>Touch damage (0: only the blast hurts, so touching it never grants invulnerability through the blast).</summary>
         public int kamikazeContactDamage = 0;
         /// <summary>Walk speed while guarding its post.</summary>
@@ -277,11 +277,11 @@ namespace Redline.Core
         /// <summary>Blast damage to the player.</summary>
         public int kamikazeBlastDamage = 2;
         /// <summary>Blast damage to each other enemy in the radius (ignores armor and shields).</summary>
-        public float kamikazeBlastEnemyDamage = 2.0f;
+        public float kamikazeBlastEnemyDamage = 3.0f;
         // --- Summoner ---
         public float summonerWidth = 0.9f;
         public float summonerHeight = 1.7f;
-        public float summonerHp = 2.0f;
+        public float summonerHp = 4.0f;
         public int summonerContactDamage = 1;
         /// <summary>Flee speed; must stay below runSpeed so the player can catch it on a ring.</summary>
         public float summonerSpeed = 6.0f;

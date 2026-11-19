@@ -220,7 +220,7 @@ namespace Redline.Tests
         [Test]
         public void SummonerFasterThanThePlayersRun_IsAnInvalidConfig()
         {
-            var cfg = new RedlineConfig();
+            var cfg = OneHitHp(new RedlineConfig());
             cfg.summonerSpeed = cfg.runSpeed;
 
             Assert.IsNotEmpty(cfg.Validate());
