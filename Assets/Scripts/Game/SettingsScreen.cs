@@ -68,6 +68,7 @@ namespace Redline.Game
             public Label Name;
             public Label Value;   // value, or key slot 1
             public Label Value2;  // key slot 2 (bind rows)
+            public Label[] Slots; // every key slot of a bind row (ControlBindings.SlotsPerAction)
             public Label Extra;   // read-only gamepad label (bind rows)
         }
 
@@ -338,8 +339,8 @@ namespace Redline.Game
                 {
                     bool here = rowSelected && _slot == k;
                     string key = KeyLabels.Label(b.Get(action, k));
-                    string text = here && _capturing ? (_blinkOn ? "PRESS A KEY" : "") : here ? "< " + key + " >" : key;
-                    (k == 0 ? v.Value : v.Value2).text = text;
+                    string text = here && _capturing ? (_blinkOn ? "PRESS A KEY" : "") : here ? "<" + key + ">" : key;
+                    v.Slots[k].text = text;
                 }
             }
             for (int i = 0; i < ItemCount; i++)
@@ -352,6 +353,7 @@ namespace Redline.Game
                 v.Name.style.color = (i == ResetIndex || i == BackIndex) ? nameColor : nameColor;
                 if (v.Value != null) v.Value.style.color = valColor;
                 if (v.Value2 != null) v.Value2.style.color = valColor;
+                if (v.Slots != null) foreach (var sl in v.Slots) sl.style.color = valColor;
                 if (v.Extra != null) v.Extra.style.color = sel ? UiTheme.Ground : UiTheme.Dim;
             }
             if (_scrolledTo != _selected)
@@ -374,7 +376,7 @@ namespace Redline.Game
             _scroll = new ScrollView(ScrollViewMode.Vertical);
             _scroll.verticalScrollerVisibility = ScrollerVisibility.Hidden;
             _scroll.horizontalScrollerVisibility = ScrollerVisibility.Hidden;
-            _scroll.style.width = 190f * MenuKit.T;
+            _scroll.style.width = 440f * MenuKit.T;   // name 116 + three key slots 72 + gamepad label
             _scroll.style.height = 8f * 18f * MenuKit.T; // about 9 rows of 16 T plus headers
             _scroll.style.marginTop = 2f * MenuKit.T;
             _scroll.style.flexShrink = 1;
@@ -418,7 +420,7 @@ namespace Redline.Game
             row.RegisterCallback<PointerEnterEvent>(_ => Select(index));
             var v = new RowView { Root = row };
             v.Name = MenuKit.Text(name, null, MenuKit.Entry, UiTheme.Orange);
-            v.Name.style.width = 66f * MenuKit.T;
+            v.Name.style.width = 116f * MenuKit.T;   // fits the longest name (REDUCED MOTION, HUD TEXT SCALE) before the value
             v.Name.style.whiteSpace = WhiteSpace.NoWrap;
             row.Add(v.Name);
             _views[index] = v;
@@ -464,7 +466,7 @@ namespace Redline.Game
             {
                 int slot = k;
                 var l = MenuKit.Text("", null, MenuKit.Entry, UiTheme.Bone);
-                l.style.width = 36f * MenuKit.T;
+                l.style.width = 72f * MenuKit.T;   // fits a selected long key: <L-SHIFT>
                 l.style.whiteSpace = WhiteSpace.NoWrap;
                 l.pickingMode = PickingMode.Position;
                 l.RegisterCallback<PointerEnterEvent>(_ =>
@@ -477,10 +479,13 @@ namespace Redline.Game
                     if (!ClickAllowed()) return;
                     _selected = index; _slot = slot; BeginCapture();
                 });
-                if (k == 0) v.Value = l; else v.Value2 = l;
+                if (v.Slots == null) v.Slots = new Label[ControlBindings.SlotsPerAction];
+                v.Slots[k] = l;
+                if (k == 0) v.Value = l; else if (k == 1) v.Value2 = l;
                 v.Root.Add(l);
             }
             v.Extra = MenuKit.Text(KeyLabels.GamepadLabel(action), null, MenuKit.Label, UiTheme.Dim);
+            v.Extra.style.whiteSpace = WhiteSpace.NoWrap;
             v.Root.Add(v.Extra);
         }
 
