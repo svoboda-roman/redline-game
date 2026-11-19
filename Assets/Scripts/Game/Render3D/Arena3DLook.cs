@@ -243,17 +243,19 @@ namespace Redline.Game.Render3D
             Sunsetize(l, redder);
             l.Sunset = false;
             l.NeonStreet = true;
-            l.SkyZenith = new Color(0.05f, 0.04f, 0.16f);
-            l.SkyHorizon = redder ? new Color(0.45f, 0.1f, 0.22f) : new Color(0.4f, 0.12f, 0.38f);
-            l.SkyGlow = new Color(0.35f, 0.08f, 0.25f);
-            l.FogColor = redder ? new Color(0.36f, 0.1f, 0.18f) : new Color(0.32f, 0.12f, 0.3f);
-            l.FogDensity = 0.011f;
-            l.FarGlow = redder ? new Color(0.9f, 0.25f, 0.35f) : new Color(0.85f, 0.3f, 0.7f);
+            // Black night: near-black zenith, only a faint city glow at the horizon, thin dark fog, light rain.
+            l.SkyZenith = new Color(0.006f, 0.005f, 0.02f);
+            l.SkyHorizon = redder ? new Color(0.13f, 0.03f, 0.06f) : new Color(0.11f, 0.04f, 0.12f);
+            l.SkyGlow = new Color(0.08f, 0.02f, 0.06f);
+            l.FogColor = redder ? new Color(0.11f, 0.03f, 0.06f) : new Color(0.09f, 0.04f, 0.1f);
+            l.FogDensity = 0.01f;
+            l.FarGlow = redder ? new Color(0.32f, 0.08f, 0.12f) : new Color(0.28f, 0.1f, 0.24f);
             l.HazeTint = l.FarGlow;
-            l.HazeStrength = 0.28f;
-            l.HazeGlow = 0.08f;
-            l.CityGlowStrength = 0.3f;
-            l.Ambient = new Color(0.16f, 0.1f, 0.16f);
+            l.HazeStrength = 0.18f;
+            l.HazeGlow = 0.04f;
+            l.CityGlowStrength = 0.22f;
+            l.Ambient = new Color(0.1f, 0.07f, 0.11f);
+            l.Rain = 0.35f;
             l.Moon = new Color(0.85f, 0.55f, 0.9f);
             l.MoonIntensity = 1.6f;
             l.Sodium = new Color(1.35f, 0.1f, 0.08f);   // red street lamps: red heads, red light, red reflections
@@ -271,8 +273,8 @@ namespace Redline.Game.Render3D
             l.FloorReflect = 0.32f;
             l.PuddleReflect = 0.95f;
             l.ReflectionIntensity = 2.4f;
-            l.Exposure = 0.7f;
-            l.Contrast = 22f;
+            l.Exposure = 0.64f;
+            l.Contrast = 24f;
             l.Saturation = 38f;          // saturated colour rather than glow
             l.BloomThreshold = 1.0f;
             l.BloomIntensity = 0.6f;

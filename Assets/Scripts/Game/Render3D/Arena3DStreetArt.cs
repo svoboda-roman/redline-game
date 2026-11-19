@@ -47,7 +47,7 @@ namespace Redline.Game.Render3D
             {
                 float cx = -260f + (float)crnd.NextDouble() * 520f, cy = 30f + (float)crnd.NextDouble() * 60f;
                 float cw = 110f + (float)crnd.NextDouble() * 180f, ch = 7f + (float)crnd.NextDouble() * 12f;
-                var cc = Color.Lerp(new Color(0.22f, 0.08f, 0.18f), new Color(0.12f, 0.08f, 0.2f), (cy - 30f) / 60f);
+                var cc = Color.Lerp(new Color(0.09f, 0.03f, 0.07f), new Color(0.05f, 0.04f, 0.08f), (cy - 30f) / 60f);
                 clouds.Billboard(new Vector3(cx, cy, 400f), cw, ch, cc);
                 clouds.Billboard(new Vector3(cx + cw * 0.2f, cy + ch * 0.3f, 400f), cw * 0.6f, ch * 0.7f, cc * 0.8f);
             }
