@@ -94,6 +94,16 @@ namespace Redline.Game
             Call("OpenCosmetics");
             yield return new WaitForSecondsRealtime(0.5f);
             yield return Shot("03-cosmetics.png");
+            var cosMenu = Field(_game, "_cosmeticMenu") as MenuScreen;
+            if (cosMenu != null)
+            {
+                Invoke(cosMenu, "Select", 1);
+                yield return new WaitForSecondsRealtime(0.3f);
+                yield return Shot("03b-cosmetics-cyan.png");
+                Invoke(cosMenu, "Select", 4);
+                yield return new WaitForSecondsRealtime(0.3f);
+                yield return Shot("03c-cosmetics-gold.png");
+            }
             Call("CloseCosmetics");
 
             Call("StartRun");
