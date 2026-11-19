@@ -402,6 +402,21 @@ namespace Redline.Game.Render3D
             var puddles = new QuadBatch();
 
             // (No neon trim strips under slabs: platforms read as built structure, see Arena3DStructure.cs.)
+            // Metal platforms: pale steel edge lines round the front of every solid box (the hookable surfaces).
+            if (_look.MetalPlatforms)
+            {
+                var edge = _look.EdgeLine;
+                const float t = 0.07f, zf = -0.58f;
+                foreach (var box in _boxes)
+                {
+                    float x0 = box.X0 + 0.06f, x1 = box.X1 - 0.06f, w = x1 - x0;
+                    solids.Billboard(new Vector3((x0 + x1) * 0.5f, box.Y1 - 0.05f, zf), w, t, edge * 1.25f);      // top edge (brightest)
+                    if (box.Y0 > 1) solids.Billboard(new Vector3((x0 + x1) * 0.5f, box.Y0 + 0.05f, zf), w, t, edge * 0.7f);
+                    float h = box.Y1 - box.Y0 - 0.1f, cy = (box.Y0 + box.Y1) * 0.5f;
+                    solids.Billboard(new Vector3(x0, cy, zf), t, h, edge * 0.7f);
+                    solids.Billboard(new Vector3(x1, cy, zf), t, h, edge * 0.7f);
+                }
+            }
 
             // Lamps.
             foreach (var s in _spots)

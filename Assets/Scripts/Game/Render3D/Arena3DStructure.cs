@@ -58,6 +58,7 @@ namespace Redline.Game.Render3D
                 case "Loop03": floor = SurfacePatterns.FloorKind.Setts; fascia = SurfacePatterns.FasciaKind.Brick; break;
                 default: floor = SurfacePatterns.FloorKind.ConcreteDeck; fascia = SurfacePatterns.FasciaKind.RivetedSteel; break;
             }
+            if (_look.MetalPlatforms) fascia = SurfacePatterns.FasciaKind.RivetedSteel;   // black metal platforms
             int seed = _look.Seed * 7 + 1;
             var street = Surface(SurfaceTextures3D.Build("street", SurfacePatterns.Street(floor, seed, _look.PuddleThreshold), true, true));
             _streetGloss = street.MetalGloss;
@@ -79,6 +80,16 @@ namespace Redline.Game.Render3D
                 grime.Albedo, tiling: new Vector2(4f / GrimeUnits, 4f / GrimeUnits)));
             _structMat = Own(Proto3DMaterials.Lit3D("structure", Keep(_look.WallColor * 0.5f, grime.MeanLum), 0.4f, 0.6f, grime.Albedo));
             _clutterMat = Own(Proto3DMaterials.Lit3D("clutter", Keep(_look.DeckColor * 0.4f, grime.MeanLum), 0.3f, 0f, grime.Albedo));
+            if (_look.MetalPlatforms)
+            {
+                // Black metal: supports / scaffold tubes, crates and clutter, spikes. Glossy so the neon and the red
+                // lamps streak along them; spikes keep a dim red glow so the hazard still reads.
+                var black = new Color(0.07f, 0.068f, 0.075f);
+                _structMat = Own(Proto3DMaterials.Lit3D("structure", black, 0.72f, 0.95f));
+                _clutterMat = Own(Proto3DMaterials.Lit3D("clutter", black * 1.3f, 0.6f, 0.85f, grime.Albedo));
+                _slabTopMat = Own(Proto3DMaterials.Lit3D("slabTop", black * 1.4f, 0.75f, 0.9f, top.Albedo, top.Normal, 1f));
+                _spikeMat = Own(Proto3DMaterials.Lit3D("spike", black, 0.85f, 1f, emissionColor: _look.Signal * 0.4f));
+            }
             _palette.Detail = grime.Albedo;
             _palette.DetailMean = grime.MeanLum;
 
@@ -173,25 +184,29 @@ namespace Redline.Game.Render3D
                 }
 
                 // Ties and X-bracing between neighbouring columns on the same footing.
-                for (int i = 0; !_look.NeonStreet && i + 1 < cols.Count; i++)   // no bracing lattice on the neon street
+                // Metal platforms: thin scaffold tubes (ledgers and single diagonals), not a heavy truss lattice.
+                bool scaffold = _look.MetalPlatforms;
+                float ledger = scaffold ? 0.06f : 0.12f, diag = scaffold ? 0.045f : 0.08f, dz = scaffold ? 0.05f : 0.08f;
+                for (int i = 0; i + 1 < cols.Count; i++)
                 {
                     var a = cols[i]; var c = cols[i + 1];
                     if (Mathf.Abs(a.y - c.y) > 0.01f || Mathf.Abs(a.z - c.z) > 0.01f || c.x - a.x < 1.2f) continue;
                     float zb = a.z + 0.2f;
                     float yTop = y0 - 0.35f, step = Mathf.Clamp(c.x - a.x, 2.2f, 3.5f);
                     float prev = yTop;
-                    b.Beam(0, new Vector3(a.x, yTop, zb), new Vector3(c.x, yTop, zb), 0.12f, 0.08f);
-                    for (float y = yTop - step; y > a.y + 0.6f; y -= step)
+                    int bay = 0;
+                    b.Beam(0, new Vector3(a.x, yTop, zb), new Vector3(c.x, yTop, zb), ledger, dz);
+                    for (float y = yTop - step; y > a.y + 0.6f; y -= step, bay++)
                     {
-                        b.Beam(0, new Vector3(a.x, y, zb), new Vector3(c.x, y, zb), 0.12f, 0.08f);
-                        b.Beam(0, new Vector3(a.x, y, zb), new Vector3(c.x, prev, zb), 0.08f, 0.06f);
-                        b.Beam(0, new Vector3(a.x, prev, zb), new Vector3(c.x, y, zb), 0.08f, 0.06f);
+                        b.Beam(0, new Vector3(a.x, y, zb), new Vector3(c.x, y, zb), ledger, dz);
+                        if (!scaffold || bay % 2 == 0) b.Beam(0, new Vector3(a.x, y, zb), new Vector3(c.x, prev, zb), diag, dz);
+                        if (!scaffold || bay % 2 == 1) b.Beam(0, new Vector3(a.x, prev, zb), new Vector3(c.x, y, zb), diag, dz);
                         prev = y;
                     }
                     if (prev - a.y > 1.2f) // last bay down to the footing
                     {
-                        b.Beam(0, new Vector3(a.x, a.y + 0.3f, zb), new Vector3(c.x, prev, zb), 0.08f, 0.06f);
-                        b.Beam(0, new Vector3(a.x, prev, zb), new Vector3(c.x, a.y + 0.3f, zb), 0.08f, 0.06f);
+                        b.Beam(0, new Vector3(a.x, a.y + 0.3f, zb), new Vector3(c.x, prev, zb), diag, dz);
+                        if (!scaffold) b.Beam(0, new Vector3(a.x, prev, zb), new Vector3(c.x, a.y + 0.3f, zb), diag, dz);
                     }
                 }
             }
