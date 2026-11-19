@@ -16,6 +16,8 @@ namespace Redline.Game.Render3D
     public sealed partial class Arena3DRenderer
     {
         private Material _streetFacadeMat, _streetSignMat, _streetBlinkMat;
+        /// <summary>Neon tube signs of the row being built (additive material).</summary>
+        private UvQuads _tubes;
         private readonly List<SignCell> _signCells = new List<SignCell>(64);
 
         private struct SignCell
@@ -38,6 +40,7 @@ namespace Redline.Game.Render3D
             for (int s = 1; s < FacadeStyles; s++)
                 facadeMats[s] = Own(Proto3DMaterials.FxMat("streetFacade" + s, Own(FacadeStyleTexture(_look.Seed, s)), Color.white, 2, 1f));
             _streetBoardMat = Own(Proto3DMaterials.FxMat("streetBoards", Own(BoardAtlas(_look.Seed, _look.SignColors, _boardCells)), Color.white, 2, 0.3f));
+            _streetTubeMat = Own(Proto3DMaterials.FxMat("streetNeonTubes", Own(NeonTubeAtlas(_look.Seed, _look.SignColors, _tubeCells)), Color.white * 1.35f, 0, 0.3f));
             StreetSky();
             _streetSignMat = Own(Proto3DMaterials.FxMat("streetSigns", atlas, Color.white, 2, 0.3f));
             _streetBlinkMat = Own(Proto3DMaterials.FxMat("streetSignsBlink", atlas, Color.white, 2, 0.3f));
@@ -60,6 +63,7 @@ namespace Redline.Game.Render3D
                 bodies[0] = facades;
                 for (int s = 1; s < FacadeStyles; s++) bodies[s] = new UvQuads();
                 var boards = new UvQuads();
+                _tubes = new UvQuads();
                 var signs = new UvQuads();
                 var blink = new UvQuads();
                 var halos = new QuadBatch();
@@ -106,6 +110,7 @@ namespace Redline.Game.Render3D
                 var bodyMeshes = new Mesh[FacadeStyles];
                 for (int s = 1; s < FacadeStyles; s++) if (bodies[s].Count > 0) bodyMeshes[s] = Own(bodies[s].Build("streetBodies" + s + "_" + r));
                 var boardMesh = boards.Count > 0 ? Own(boards.Build("streetBoards" + r)) : null;
+                var tubeMesh = _tubes.Count > 0 ? Own(_tubes.Build("streetTubes" + r)) : null;
                 var facadeMesh = Own(facades.Build("streetFacades" + r));
                 var signMesh = signs.Count > 0 ? Own(signs.Build("streetSigns" + r)) : null;
                 var blinkMesh = blink.Count > 0 ? Own(blink.Build("streetBlink" + r)) : null;
@@ -119,6 +124,7 @@ namespace Redline.Game.Render3D
                     StreetPart("facades", inst, facadeMesh, _streetFacadeMat, r > 0);
                     for (int s = 1; s < FacadeStyles; s++) if (bodyMeshes[s] != null) StreetPart("bodies" + s, inst, bodyMeshes[s], facadeMats[s], r > 0);
                     if (boardMesh != null) StreetPart("boards", inst, boardMesh, _streetBoardMat, r > 0);
+                    if (tubeMesh != null) StreetPart("tubes", inst, tubeMesh, _streetTubeMat, r > 0);
                     if (signMesh != null) StreetPart("signs", inst, signMesh, _streetSignMat, r > 0);
                     if (blinkMesh != null) StreetPart("blink", inst, blinkMesh, _streetBlinkMat, r > 0);
                     if (haloMesh != null) StreetPart("halos", inst, haloMesh, haloMat, true);
@@ -284,6 +290,23 @@ namespace Redline.Game.Render3D
             float yMin = FloorTop + 4f * scale, yMax = top - 1.5f * scale;
             for (int i = 0; i < n && yMax > yMin + 2f; i++)
             {
+                // Neon tube lettering hung on chains (about a third of the signs): no panel, glowing tubes only.
+                if (_tubes != null && _tubeCells.Count > 0 && R() < 0.35f)
+                {
+                    bool vert = R() < 0.45f;
+                    var tc = PickTube(rnd, vert);
+                    float tw = vert ? (0.75f + R() * 0.3f) * scale : Mathf.Min(w - 0.6f * scale, (2.6f + R() * 2f) * scale);
+                    float th = vert ? tw * 4f : tw * 0.25f;
+                    float tx = x + tw * 0.5f + 0.3f * scale + R() * Mathf.Max(0.1f, w - tw - 0.6f * scale);
+                    float ty = yMin + th * 0.5f + R() * Mathf.Max(0.1f, yMax - yMin - th);
+                    float tz = z - 0.5f * scale - i * 0.01f;
+                    if (R() < _look.DeadSigns * 0.5f) continue;   // the odd tube sign is just gone (dark)
+                    _tubes.Quad(new Vector3(tx, ty, tz), tw, th, tc.Uv, Color.white);
+                    for (int s2 = -1; s2 <= 1; s2 += 2)   // chains up to the wall
+                        facades.Line(new Vector3(tx + s2 * tw * 0.35f, ty + th * 0.5f, tz + 0.05f), new Vector3(tx + s2 * tw * 0.2f, ty + th * 0.5f + 0.7f * scale, tz + 0.3f), 0.04f * scale, PlasterUv, new Color(0.25f, 0.22f, 0.26f));
+                    halos.Billboard(new Vector3(tx, ty, tz - 0.3f), tw * 1.8f + 1.2f * scale, th * 1.8f + 1.2f * scale, tc.Tint * 0.16f);
+                    continue;
+                }
                 bool bladeSign = R() < 0.55f;
                 var cell = Pick(rnd, bladeSign ? 0 : 1);
                 float sw, sh, cx;
