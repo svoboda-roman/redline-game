@@ -114,6 +114,9 @@ namespace Redline.Game
 #endif
         }
 
+        /// <summary>Dev-only (AutoPlay bot): replaces the device input of each fixed step when set. Null in normal play.</summary>
+        internal static System.Func<InputFrame, InputFrame> DevFilter;
+
         /// <summary>Returns the input for one fixed step and clears the latched presses.</summary>
         public InputFrame Consume()
         {
@@ -130,7 +133,7 @@ namespace Redline.Game
                 RestartHeld = _restartHeld
             };
             ClearLatched();
-            return frame;
+            return DevFilter != null ? DevFilter(frame) : frame;
         }
 
         /// <summary>

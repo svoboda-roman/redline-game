@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Redline.Core;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -5,84 +6,100 @@ using UnityEngine.UIElements;
 namespace Redline.Game
 {
     /// <summary>
-    /// UI Toolkit HUD built from code, styled to match the neon arena: a speed panel (tier-coloured
-    /// border, zoned meter, live speed, tier badge, HP pips), a chain badge with a draining timer,
-    /// a wave panel (number + progress dots + enemies left) and an animated centre banner (the
-    /// controls are taught by the training level, see TrainingOverlay). Text is only rewritten when its value changes, and the speed readout
-    /// uses pre-built strings, so a steady frame allocates nothing.
+    /// The Replaced-style instrument-cluster HUD (design/ux/hud.md): thin orange line glyphs and
+    /// pixel-terminal text sitting directly on the picture. No panels, brackets, fills or shadows.
+    /// Everything is anchored to <see cref="LetterboxInfo.PictureRect"/> in HUD units (T = picture
+    /// width / 480, LetterboxInfo.Texel): HP diamonds top-left, level/wave/foes top-right, chain + speed meter + tier +
+    /// buffs bottom-left, banners centred, pickup toasts following the player. Text is rewritten only
+    /// when its value changes (cached string tables) and styles only when they change, so a steady
+    /// frame allocates nothing. Honours Reduced Motion and HUD Text Scale from <see cref="GameSettings"/>.
     /// </summary>
-    /// <remarks>Added by <see cref="RedlineGame"/>. Main-thread only. Font: Source Code Pro (SIL OFL, see Resources/Fonts).</remarks>
+    /// <example>
+    /// <code>
+    /// _hud = gameObject.AddComponent&lt;RedlineHud&gt;();
+    /// _hud.Init(this);
+    /// _hud.ShowPickup(OrbKind.Health);
+    /// _hud.SetPaused(true);   // dim to 40 %
+    /// </code>
+    /// </example>
+    /// <remarks>Added by <see cref="RedlineGame"/>. Main-thread only. Font: Departure Mono (SIL OFL 1.1, see Resources/Fonts).</remarks>
     public sealed class RedlineHud : MonoBehaviour
     {
-        private static readonly Color PanelColor = new Color(0.03f, 0.03f, 0.09f, 0.82f);
-        private static readonly Color Dim = new Color(0.62f, 0.68f, 0.9f);
-        private static readonly Color Cyan = new Color(0.3f, 0.85f, 1f);
-        private static readonly Color HpColor = new Color(1f, 0.3f, 0.45f);
-        private static readonly Color EnemyColor = new Color(1f, 0.62f, 0.3f);
-        private static readonly Color Gold = new Color(1f, 0.92f, 0.45f);
-        private static readonly Color Danger = new Color(1f, 0.25f, 0.4f);
-        /// <summary>Speed readout colour above maxSpeed (hook flings, air speed, speed buff).</summary>
-        private static readonly Color Overspeed = new Color(1f, 0.45f, 0.18f);
-        private const float ToastLife = 0.9f;
-        private const float ToastRise = 60f;
+        private const float M = 8f;          // safe margin in T
+        private const float LevelTagSeconds = 3f;
+        private const float ToastLife = 1.0f;
+        private const float BuffBlinkBelow = 2f;
+        private const int MarkerCount = 12;
 
         private RedlineGame _game;
         private PanelSettings _settings;
-        private Font _black;
-        private Font _bold;
-
-        private VisualElement _speedPanel;
-        private VisualElement _speedFill;
-        private Label _speedValue;
-        private Label _tierBadge;
-        private Label _armorTag;
-        private VisualElement[] _hpPips;
-        private VisualElement _hpRow;
-        private VisualElement _overFill;
-        private Label _overTag;
-        private BuffChip _speedBuff;
-        private BuffChip _hookBuff;
-        private Label _levelLabel;
-        private VisualElement _dotsRow;
-        private Label _toast;
-        private float _toastAge = 99f;
-        private string[] _toastTexts;
-        private float _overTop;
-        private VisualElement _chainBox;
-        private Label _chainLabel;
-        private VisualElement _chainTimer;
-        private Label _waveNumber;
-        private Label _waveTotal;
-        private VisualElement[] _waveDots;
-        private Label _enemiesLabel;
-        private VisualElement _bannerBox;
-        /// <summary>The wave panel (level label, wave number and dots, foes); hidden in training.</summary>
-        private VisualElement _wavePanel;
-        private bool _shownTraining;
-        private Label _banner;
-        private VisualElement _bannerLine;
-        private Label _subBanner;
-        private VisualElement[] _markers;
-        private const int MarkerCount = 12;
-        private static readonly Color DroneMarker = new Color(0.78f, 0.45f, 1f);
-        private static readonly Color BruteMarker = new Color(1f, 0.3f, 0.35f);
-
-        private string[] _speedTexts;
-        private int _shownSpeed = -1;
-        private int _shownTier = -1;
-        private int _shownHp = -1;
-        private int _shownChain = -1;
-        private int _shownWave = -1;
-        private int _shownEnemies = -1;
-        private int _shownCountdown = -1;
-        private int _shownBannerWave = -1;
-        private SimState _shownState = (SimState)(-1);
         private RedlineSim _shownSim;
-        private bool _shownOver;
-        private float _hpFlash;
+
+        // layout state
+        private VisualElement _pic;
+        private float _texel;
+        private int _scalePct;
+        private Rect _picShown;
+        private float _kShown;
+        private readonly List<Label> _labels = new List<Label>(32);
+        private readonly List<int> _labelT = new List<int>(32);
+        private readonly List<System.Action> _relayout = new List<System.Action>(16);
+
+        // zones
+        private VisualElement _tl, _tr, _bl;
+
+        // HP
+        private VisualElement _hpRow;
+        private VisualElement[] _hpCells, _hpDots;
+        private Label _hpLow;
+        private int _shownHp = -1;
         private int _hpFlashIndex = -1;
-        private float _chainPop;
-        private float _bannerAge = 99f;
+        private int _hpFlashUntilFrame;
+        private bool _hpBlinkOn = true;
+
+        // right column
+        private Label _levelTag, _waveValue, _foesValue, _waveCaption, _foesCaption;
+        private VisualElement _waveRow, _foesRow;
+        private float _levelAge = 99f;
+        private int _shownLevelStep = -1;
+        private int _shownWave = -1, _shownEnemies = -1;
+        private int _foesFlashUntilFrame;
+
+        // speed block
+        private VisualElement _meterBox, _meterLine, _meterFill, _tick2, _tick3, _overRow, _overLine, _blade;
+        private Label _tierNumeral, _speedValue, _overTag;
+        private VisualElement[] _pips;
+        private string[] _speedTexts;
+        private float _overTop;
+        private float _speedTextClock;
+        private int _shownSpeed = -1, _shownTier = -1, _shownFillPx = -1, _shownOverPx = -1;
+        private bool _shownOver;
+        private int _tierFlashUntilFrame;
+        private float _t2Frac, _t3Frac;
+
+        // chain
+        private VisualElement _chainBox, _chainDecay;
+        private Label _chainLabel;
+        private int _shownChain = -1, _shownDecayPx = -1;
+        private int _chainFlashUntilFrame;
+        private static readonly string[] ChainTexts = BuildNumbers("x", "", 100);
+
+        // buffs
+        private BuffChip _speedBuff, _hookBuff;
+        private VisualElement _buffRow;
+
+        // banner
+        private VisualElement _bannerBox;
+        private Label _banner, _subBanner, _prompt;
+        private SimState _shownState = (SimState)(-1);
+        private int _shownCountdown = -1, _shownBannerWave = -1;
+        private bool _shownTraining;
+
+        // toasts
+        private Label[] _toasts;
+        private float[] _toastAge;
+        private string[] _toastTexts;
+        private VisualElement[] _markers;
 
         /// <summary>The root element, exposed for screenshot tooling.</summary>
         public VisualElement Root { get; private set; }
@@ -90,46 +107,39 @@ namespace Redline.Game
         /// <summary>Builds the HUD for a game.</summary>
         public void Init(RedlineGame game)
         {
-            if (_game != null) return; // already built
+            if (_game != null) return;
             _game = game;
             var cfg = game.Sim.Config;
-            LoadFonts();
             BuildDocument();
-            BuildSpeedPanel(cfg);
-            BuildChainBadge();
-            BuildWavePanel(cfg);
+            BuildZones();
+            BuildHp(cfg);
+            BuildRightColumn();
+            BuildBottomLeft(cfg);
             BuildBanner();
+            BuildToasts(cfg);
             BuildMarkers();
-            BuildToast(cfg);
 
-            // Readout range: up to the buffed air cap with headroom for hook flings (clamped beyond).
             _overTop = Mathf.Max(cfg.airMaxSpeed, cfg.maxSpeed) * cfg.orbSpeedMultiplier;
             _speedTexts = new string[Mathf.CeilToInt(_overTop * 1.25f * 2f) + 1];
             for (int i = 0; i < _speedTexts.Length; i++) _speedTexts[i] = (i * 0.5f).ToString("0.0");
         }
 
-        // ------------------------------------------------------------------ building
+        private bool _paused;
 
-        private void LoadFonts()
+        /// <summary>Dims the whole HUD to 40 % while the game is paused (hud.md section 5); toast and level-tag ages freeze.</summary>
+        public void SetPaused(bool paused)
         {
-            var fallback = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            _black = Resources.Load<Font>("Fonts/SourceCodePro-Black");
-            _bold = Resources.Load<Font>("Fonts/SourceCodePro-Bold");
-            if (_black == null || _bold == null)
-            {
-                Debug.LogWarning("Redline: HUD fonts missing from Resources/Fonts; using the built-in font.");
-                _black = _black != null ? _black : fallback;
-                _bold = _bold != null ? _bold : fallback;
-            }
+            _paused = paused;
+            if (Root != null) Root.style.opacity = paused ? 0.4f : 1f;
         }
+
+        // ------------------------------------------------------------------ building
 
         private void BuildDocument()
         {
             _settings = ScriptableObject.CreateInstance<PanelSettings>();
             _settings.name = "RedlinePanelSettings";
             _settings.themeStyleSheet = Resources.Load<ThemeStyleSheet>("RedlineTheme");
-            if (_settings.themeStyleSheet == null)
-                Debug.LogWarning("Redline: Resources/RedlineTheme.tss not found; the HUD will use unstyled defaults.");
             _settings.scaleMode = PanelScaleMode.ScaleWithScreenSize;
             _settings.referenceResolution = new Vector2Int(1920, 1080);
             _settings.screenMatchMode = PanelScreenMatchMode.MatchWidthOrHeight;
@@ -144,300 +154,294 @@ namespace Redline.Game
 
             Root = doc.rootVisualElement;
             Root.pickingMode = PickingMode.Ignore;
-            Root.style.color = Color.white;
-            var body = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            if (body != null) Root.style.unityFontDefinition = new StyleFontDefinition(FontDefinition.FromFont(body));
+            Root.style.color = UiTheme.Orange;
+            Root.style.unityFontDefinition = new StyleFontDefinition(FontDefinition.FromFont(UiTheme.Font));
         }
 
-        private void BuildSpeedPanel(RedlineConfig cfg)
+        private void BuildZones()
         {
-            _speedPanel = Panel(left: 24f, top: 16f, Cyan);
-            _speedPanel.style.width = 560;
-            Root.Add(_speedPanel);
-
-            var header = Row(Justify.SpaceBetween);
-            header.Add(Caption("SPEED"));
-            _speedValue = Text("0.0", _black, 30, Cyan);
-            header.Add(_speedValue);
-            _speedPanel.Add(header);
-
-            _speedPanel.Add(BuildMeter(cfg));
-            _speedPanel.Add(BuildOverspeedStrip());
-
-            var status = Row(Justify.FlexStart);
-            status.style.marginTop = 10;
-            _tierBadge = Text("TIER 1", _black, 26, Color.black);
-            Pill(_tierBadge, Cyan);
-            status.Add(_tierBadge);
-            _armorTag = Text("BREAKS ARMOR", _bold, 20, Gold);
-            _armorTag.style.marginLeft = 12;
-            status.Add(_armorTag);
-            var spacer = new VisualElement();
-            spacer.style.flexGrow = 1;
-            status.Add(spacer);
-            status.Add(BuildHpPips(cfg));
-            _speedPanel.Add(status);
-
-            var buffs = Row(Justify.FlexStart);
-            buffs.style.marginTop = 8;
-            _speedBuff = new BuffChip(this, "SPEED", OrbRenderer.KindColor(OrbKind.Speed), cfg.orbSpeedDuration);
-            _hookBuff = new BuffChip(this, "HOOK", OrbRenderer.KindColor(OrbKind.Hook), cfg.orbHookDuration);
-            buffs.Add(_speedBuff.Root);
-            buffs.Add(_hookBuff.Root);
-            _speedPanel.Add(buffs);
-        }
-
-        /// <summary>A thin strip under the meter that fills from maxSpeed up to the buffed air cap.</summary>
-        private VisualElement BuildOverspeedStrip()
-        {
-            var row = Row(Justify.FlexStart);
-            row.style.marginTop = 4;
-            var track = new VisualElement();
-            track.style.height = 6;
-            track.style.flexGrow = 1;
-            track.style.backgroundColor = new Color(1f, 1f, 1f, 0.06f);
-            Round(track, 3);
-            track.style.overflow = Overflow.Hidden;
-            _overFill = new VisualElement();
-            _overFill.style.height = Length.Percent(100);
-            _overFill.style.width = Length.Percent(0);
-            _overFill.style.backgroundColor = Overspeed;
-            Round(_overFill, 3);
-            track.Add(_overFill);
-            row.Add(track);
-            _overTag = Text("OVERSPEED", _bold, 16, Overspeed);
-            _overTag.style.marginLeft = 10;
-            _overTag.style.letterSpacing = 3;
-            _overTag.style.opacity = 0f;
-            row.Add(_overTag);
-            return row;
-        }
-
-        private VisualElement BuildMeter(RedlineConfig cfg)
-        {
-            float t2 = cfg.tier2Speed / cfg.maxSpeed * 100f;
-            float t3 = cfg.tier3Speed / cfg.maxSpeed * 100f;
-            var track = new VisualElement();
-            track.style.height = 22;
-            track.style.marginTop = 6;
-            track.style.backgroundColor = new Color(0.06f, 0.07f, 0.14f, 1f);
-            Round(track, 5);
-            track.style.overflow = Overflow.Hidden;
-            track.Add(Zone(0f, t2, RedlineGame.TierColors[0]));
-            track.Add(Zone(t2, t3, RedlineGame.TierColors[1]));
-            track.Add(Zone(t3, 100f, RedlineGame.TierColors[2]));
-            _speedFill = new VisualElement();
-            _speedFill.style.position = Position.Absolute;
-            _speedFill.style.left = 0;
-            _speedFill.style.top = 0;
-            _speedFill.style.bottom = 0;
-            _speedFill.style.width = Length.Percent(0);
-            track.Add(_speedFill);
-            track.Add(Mark(t2));
-            track.Add(Mark(t3));
-
-            return track;
-        }
-
-        private VisualElement BuildHpPips(RedlineConfig cfg)
-        {
-            _hpRow = Row(Justify.FlexEnd);
-            FillHpPips(cfg.playerMaxHp);
-            return _hpRow;
-        }
-
-        /// <summary>(Re)creates one pip per max HP (max HP changes between runs with upgrades).</summary>
-        private void FillHpPips(int maxHp)
-        {
-            var row = _hpRow;
-            row.Clear();
-            _hpPips = new VisualElement[maxHp];
-            for (int i = 0; i < _hpPips.Length; i++)
+            _pic = Abs(Root);
+            _tl = Abs(_pic);
+            _tr = Abs(_pic);
+            _tr.style.alignItems = Align.FlexEnd;
+            _bl = Abs(_pic);
+            _bl.style.alignItems = Align.FlexStart;
+            _relayout.Add(() =>
             {
-                var pip = new VisualElement();
-                pip.style.width = 24;
-                pip.style.height = 24;
-                pip.style.marginLeft = 6;
-                Round(pip, 6);
-                Border(pip, 2f, HpColor);
-                row.Add(pip);
-                _hpPips[i] = pip;
+                float m = M * _texel;
+                _tl.style.left = m; _tl.style.top = m;
+                _tr.style.right = m; _tr.style.top = m;
+                _bl.style.left = m; _bl.style.bottom = m;
+            });
+        }
+
+        private void BuildHp(RedlineConfig cfg)
+        {
+            _hpRow = new VisualElement { pickingMode = PickingMode.Ignore };
+            _hpRow.style.flexDirection = FlexDirection.Row;
+            _hpRow.style.flexWrap = Wrap.Wrap;
+            _hpRow.style.alignItems = Align.Center;
+            _tl.Add(_hpRow);
+            _hpLow = Lbl("1", 12, UiTheme.Crimson);
+            _hpLow.style.display = DisplayStyle.None;
+            _hpRow.Add(_hpLow);
+            FillHp(cfg.playerMaxHp);
+            _relayout.Add(LayoutHp);
+        }
+
+        /// <summary>(Re)creates the diamonds; max HP changes between runs with upgrades.</summary>
+        private void FillHp(int maxHp)
+        {
+            if (_hpCells != null) for (int i = 0; i < _hpCells.Length; i++) _hpCells[i].RemoveFromHierarchy();
+            _hpCells = new VisualElement[maxHp];
+            _hpDots = new VisualElement[maxHp];
+            for (int i = 0; i < maxHp; i++)
+            {
+                var cell = new VisualElement { pickingMode = PickingMode.Ignore };
+                var dia = Abs(cell);
+                dia.style.rotate = new StyleRotate(new Rotate(45f));
+                var dot = Abs(cell);
+                cell.userData = dia;
+                _hpRow.Insert(i, cell);
+                _hpCells[i] = cell;
+                _hpDots[i] = dot;
             }
+            _hpLow.BringToFront();
+            _shownHp = -1;
+            if (_texel > 0f) LayoutHp();
         }
 
-        private void BuildChainBadge()
+        private void LayoutHp()
         {
-            _chainBox = new VisualElement();
-            // Top centre, in the strip between the HUD panels and the arena.
-            _chainBox.style.position = Position.Absolute;
-            _chainBox.style.left = 0;
-            _chainBox.style.right = 0;
-            _chainBox.style.top = 142;
-            _chainBox.style.alignItems = Align.Center;
-            _chainBox.pickingMode = PickingMode.Ignore;
-            Root.Add(_chainBox);
-            _chainLabel = Text("", _black, 26, Color.black);
-            Pill(_chainLabel, Gold);
-            _chainBox.Add(_chainLabel);
-            var bar = new VisualElement();
-            bar.style.height = 5;
-            bar.style.width = 150;
-            bar.style.marginTop = 5;
-            bar.style.backgroundColor = new Color(1f, 1f, 1f, 0.15f);
-            Round(bar, 2);
-            _chainTimer = new VisualElement();
-            _chainTimer.style.height = Length.Percent(100);
-            _chainTimer.style.backgroundColor = Gold;
-            Round(_chainTimer, 2);
-            bar.Add(_chainTimer);
-            _chainBox.Add(bar);
-            _chainBox.style.display = DisplayStyle.None;
+            float t = _texel;
+            float cellSize = 8f * t, side = Mathf.Round(5.6f * t), dot = 2f * t;
+            _hpRow.style.width = 10f * (cellSize + 3f * t) + 14f * t; // wraps after 10 diamonds
+            for (int i = 0; i < _hpCells.Length; i++)
+            {
+                var c = _hpCells[i];
+                c.style.width = cellSize; c.style.height = cellSize;
+                c.style.marginRight = 3f * t; c.style.marginBottom = 3f * t;
+                var dia = (VisualElement)c.userData;
+                dia.style.left = Mathf.Round((cellSize - side) * 0.5f); dia.style.top = dia.style.left;
+                dia.style.width = side; dia.style.height = side;
+                Border(dia, t);
+                var d = _hpDots[i];
+                d.style.width = dot; d.style.height = dot;
+                d.style.left = Mathf.Round((cellSize - dot) * 0.5f); d.style.top = d.style.left;
+            }
+            _hpLow.style.marginLeft = 2f * t;
+            _shownHp = -1; // restyle
         }
 
-        private void BuildWavePanel(RedlineConfig cfg)
+        private void BuildRightColumn()
         {
-            var panel = Panel(left: float.NaN, top: 16f, Cyan);
-            panel.style.right = 24;
-            panel.style.width = 330;
-            Root.Add(panel);
-            _wavePanel = panel;
-
-            _levelLabel = Text("", _bold, 18, Dim);
-            _levelLabel.style.letterSpacing = 3;
-            panel.Add(_levelLabel);
-
-            var top = Row(Justify.SpaceBetween);
-            top.style.alignItems = Align.FlexEnd;
-            var caption = Caption("WAVE");
-            caption.style.marginBottom = 10;
-            top.Add(caption);
-            var number = Row(Justify.FlexEnd);
-            number.style.alignItems = Align.FlexEnd;
-            _waveNumber = Text("1", _black, 54, Color.white);
-            number.Add(_waveNumber);
-            _waveTotal = Text("", _bold, 28, Dim);
-            _waveTotal.style.marginBottom = 8;
-            number.Add(_waveTotal);
-            top.Add(number);
-            panel.Add(top);
-
-            var bottom = Row(Justify.SpaceBetween);
-            bottom.style.marginTop = 4;
-            _dotsRow = Row(Justify.FlexStart);
-            _waveDots = new VisualElement[0];
-            bottom.Add(_dotsRow);
-            var enemies = Row(Justify.FlexEnd);
-            enemies.Add(Caption("FOES"));
-            _enemiesLabel = Text("0", _black, 30, EnemyColor);
-            _enemiesLabel.style.marginLeft = 10;
-            enemies.Add(_enemiesLabel);
-            bottom.Add(enemies);
-            panel.Add(bottom);
+            _levelTag = Lbl("", 8, UiTheme.Dim);
+            _tr.Add(_levelTag);
+            _waveRow = RowOf(_tr, Justify.FlexEnd);
+            _waveCaption = Lbl("WAVE", 8, UiTheme.Orange);
+            _waveRow.Add(_waveCaption);
+            _waveValue = Lbl("1/1", 12, UiTheme.Bone);
+            _waveRow.Add(_waveValue);
+            _foesRow = RowOf(_tr, Justify.FlexEnd);
+            _foesCaption = Lbl("FOES", 8, UiTheme.Orange);
+            _foesRow.Add(_foesCaption);
+            _relayout.Add(() =>
+            {
+                _waveCaption.style.marginRight = 3f * _texel;
+                _foesCaption.style.marginRight = 3f * _texel;
+                _foesRow.style.marginTop = _texel;
+            });
+            _foesValue = Lbl("0", 12, UiTheme.Bone);
+            _foesRow.Add(_foesValue);
         }
 
-        /// <summary>
-        /// Rebuilds the per-level parts (wave dots, wave total, level label) when a new level's
-        /// sim replaces the old one. Allocates, but only on a level change.
-        /// </summary>
         private void BindLevel(RedlineSim sim)
         {
             _shownSim = sim;
-            if (_hpRow != null && (_hpPips == null || _hpPips.Length != sim.Config.playerMaxHp)) FillHpPips(sim.Config.playerMaxHp);
-            _shownWave = -1;
-            _shownEnemies = -1;
-            _shownBannerWave = -1;
+            if (_hpCells == null || _hpCells.Length != sim.Config.playerMaxHp) FillHp(sim.Config.playerMaxHp);
+            _shownWave = -1; _shownEnemies = -1; _shownBannerWave = -1;
             _shownState = (SimState)(-1);
-            _waveTotal.text = "/" + sim.WaveCount;
-            _levelLabel.text = "LEVEL " + _game.LevelNumber + "/" + _game.LevelCount + "  ·  " + _game.LevelName.ToUpperInvariant();
-            _dotsRow.Clear();
-            _waveDots = new VisualElement[sim.WaveCount];
-            for (int i = 0; i < _waveDots.Length; i++)
+            _shownHp = -1;
+            _levelAge = 0f; _shownLevelStep = -1;
+            _levelTag.text = "LEVEL " + _game.LevelNumber + "/" + _game.LevelCount + " " + _game.LevelName.ToUpperInvariant();
+            _t2Frac = Mathf.Clamp01(sim.Config.tier2Speed / sim.Config.maxSpeed);
+            _t3Frac = Mathf.Clamp01(sim.Config.tier3Speed / sim.Config.maxSpeed);
+            _tick2.style.left = Length.Percent(_t2Frac * 100f);
+            _tick3.style.left = Length.Percent(_t3Frac * 100f);
+        }
+
+        private void BuildBottomLeft(RedlineConfig cfg)
+        {
+            // chain on top
+            _chainBox = new VisualElement { pickingMode = PickingMode.Ignore };
+            _chainLabel = Lbl("", 12, UiTheme.Bone);
+            _chainBox.Add(_chainLabel);
+            _chainDecay = new VisualElement { pickingMode = PickingMode.Ignore };
+            _chainDecay.style.backgroundColor = UiTheme.Orange;
+            _chainBox.Add(_chainDecay);
+            _chainBox.style.display = DisplayStyle.None;
+            _bl.Add(_chainBox);
+
+            // meter row: tier numeral, meter, pips
+            var meterRow = RowOf(_bl, Justify.FlexStart);
+            _tierNumeral = Lbl("1", 12, UiTheme.Tier[0]);
+            meterRow.Add(_tierNumeral);
+            _blade = new VisualElement { pickingMode = PickingMode.Ignore };
+            _blade.style.backgroundColor = UiTheme.Tier[2];
+            _blade.style.rotate = new StyleRotate(new Rotate(45f));
+            _blade.style.display = DisplayStyle.None;
+            meterRow.Add(_blade);
+            _meterBox = new VisualElement { pickingMode = PickingMode.Ignore };
+            meterRow.Add(_meterBox);
+            _meterLine = Abs(_meterBox);
+            _meterLine.style.backgroundColor = UiTheme.WithAlpha(UiTheme.Orange, 0.3f);
+            _meterFill = Abs(_meterBox);
+            _meterFill.style.backgroundColor = UiTheme.Tier[0];
+            _tick2 = Abs(_meterBox); _tick2.style.backgroundColor = UiTheme.Orange;
+            _tick3 = Abs(_meterBox); _tick3.style.backgroundColor = UiTheme.Orange;
+            var pipRow = RowOf(meterRow, Justify.FlexStart);
+            _pips = new VisualElement[3];
+            for (int i = 0; i < 3; i++)
             {
-                var dot = new VisualElement();
-                dot.style.width = 16;
-                dot.style.height = 16;
-                dot.style.marginRight = 6;
-                Round(dot, 8);
-                Border(dot, 2f, Cyan);
-                _dotsRow.Add(dot);
-                _waveDots[i] = dot;
+                var p = new VisualElement { pickingMode = PickingMode.Ignore };
+                pipRow.Add(p);
+                _pips[i] = p;
             }
+            _pipRow = pipRow;
+
+            // overspeed strip under the meter
+            _overRow = RowOf(_bl, Justify.FlexStart);
+            _overLine = new VisualElement { pickingMode = PickingMode.Ignore };
+            _overLine.style.backgroundColor = UiTheme.Orange;
+            _overRow.Add(_overLine);
+            _overTag = Lbl("OVER", 8, UiTheme.Orange);
+            _overRow.Add(_overTag);
+            _overRow.style.display = DisplayStyle.None;
+
+            // value + buffs
+            _buffRow = RowOf(_bl, Justify.FlexStart);
+            _speedValue = Lbl("0.0", 12, UiTheme.Bone);
+            _buffRow.Add(_speedValue);
+            _speedBuff = new BuffChip(this, BuffGlyph.Chevron, cfg.orbSpeedDuration);
+            _hookBuff = new BuffChip(this, BuffGlyph.Ring, cfg.orbHookDuration);
+            _buffRow.Add(_speedBuff.Root);
+            _buffRow.Add(_hookBuff.Root);
+
+            _relayout.Add(LayoutBottomLeft);
         }
 
-        /// <summary>A short label that rises from the player and fades after an orb pickup.</summary>
-        private void BuildToast(RedlineConfig cfg)
-        {
-            _toastTexts = new string[3];
-            _toastTexts[(int)OrbKind.Health] = "+" + cfg.orbHealAmount + " HP";
-            _toastTexts[(int)OrbKind.Speed] = "SPEED";
-            _toastTexts[(int)OrbKind.Hook] = "HOOK";
-            _toast = Text("", _black, 34, Color.white);
-            _toast.style.position = Position.Absolute;
-            _toast.style.width = 300;
-            _toast.style.unityTextAlign = TextAnchor.MiddleCenter;
-            _toast.style.letterSpacing = 4;
-            _toast.style.display = DisplayStyle.None;
-            Root.Add(_toast);
-        }
+        private VisualElement _pipRow;
 
-        /// <summary>Shows the pickup text for an orb kind above the player ("+1 HP", "SPEED", "HOOK").</summary>
-        public void ShowPickup(OrbKind kind)
+        private void LayoutBottomLeft()
         {
-            if (_toast == null) return;
-            _toast.text = _toastTexts[(int)kind];
-            _toast.style.color = OrbRenderer.KindColor(kind);
-            _toast.style.display = DisplayStyle.Flex;
-            _toastAge = 0f;
-        }
-
-        private void UpdateToast(RedlineSim sim, float dt)
-        {
-            if (_toastAge >= ToastLife) return;
-            _toastAge += dt;
-            if (_toastAge >= ToastLife)
+            float t = _texel;
+            _chainBox.style.marginBottom = 2f * t;
+            _chainDecay.style.height = t;
+            _chainDecay.style.width = 24f * t;
+            _tierNumeral.style.marginRight = 3f * t;
+            _tierNumeral.style.minWidth = 8f * t;
+            _meterBox.style.width = 80f * t;
+            _meterBox.style.height = 6f * t;
+            _meterLine.style.left = 0; _meterLine.style.right = 0;
+            _meterLine.style.top = 2f * t; _meterLine.style.height = 2f * t;
+            _meterFill.style.left = 0; _meterFill.style.top = 2f * t; _meterFill.style.height = 2f * t;
+            _shownFillPx = -1;
+            _tick2.style.top = t; _tick2.style.height = 4f * t; _tick2.style.width = t;
+            _tick3.style.top = t; _tick3.style.height = 4f * t; _tick3.style.width = t;
+            _blade.style.width = t; _blade.style.height = 6f * t;
+            _blade.style.marginRight = 3f * t; _blade.style.marginLeft = 2f * t;
+            _pipRow.style.marginLeft = 3f * t;
+            for (int i = 0; i < 3; i++)
             {
-                _toast.style.display = DisplayStyle.None;
-                return;
+                _pips[i].style.width = 4f * t; _pips[i].style.height = 4f * t;
+                _pips[i].style.marginRight = 2f * t;
+                Border(_pips[i], t);
             }
-            var cam = _game.Camera;
-            float w = Root.resolvedStyle.width;
-            float h = Root.resolvedStyle.height;
-            if (cam == null || float.IsNaN(w) || w <= 0f) return;
-            var p = sim.Player;
-            var vp = cam.WorldToViewportPoint(_game.ToDraw(new Vector2(p.X, p.MaxY + 0.6f)));
-            float t = _toastAge / ToastLife;
-            _toast.style.left = vp.x * w - 150f;
-            _toast.style.top = (1f - vp.y) * h - 24f - ToastRise * (1f - (1f - t) * (1f - t));
-            _toast.style.opacity = t < 0.6f ? 1f : 1f - (t - 0.6f) / 0.4f;
+            _shownTier = -1;
+            _overRow.style.marginTop = t;
+            _overLine.style.height = t;
+            _overTag.style.marginLeft = 2f * t;
+            _shownOverPx = -1;
+            _buffRow.style.marginTop = 2f * t;
+            _speedBuff.Layout(t);
+            _hookBuff.Layout(t);
         }
 
         private void BuildBanner()
         {
-            _bannerBox = new VisualElement();
+            _bannerBox = new VisualElement { pickingMode = PickingMode.Ignore };
             _bannerBox.style.position = Position.Absolute;
-            _bannerBox.style.left = 0;
-            _bannerBox.style.right = 0;
-            _bannerBox.style.top = 210;
+            _bannerBox.style.left = 0; _bannerBox.style.right = 0;
             _bannerBox.style.alignItems = Align.Center;
-            _bannerBox.pickingMode = PickingMode.Ignore;
-            Root.Add(_bannerBox);
-            _banner = Text("", _black, 124, Color.white);
-            _banner.style.letterSpacing = 12;
+            _pic.Add(_bannerBox);
+            _banner = Lbl("", 16, UiTheme.Bone);
             _banner.style.unityTextAlign = TextAnchor.MiddleCenter;
             _bannerBox.Add(_banner);
-            _bannerLine = new VisualElement();
-            _bannerLine.style.height = 6;
-            _bannerLine.style.width = 0;
-            _bannerLine.style.marginTop = 2;
-            Round(_bannerLine, 3);
-            _bannerBox.Add(_bannerLine);
-            _subBanner = Text("", _bold, 34, new Color(0.9f, 0.92f, 1f));
+            _subBanner = Lbl("", 8, UiTheme.Orange);
             _subBanner.style.unityTextAlign = TextAnchor.MiddleCenter;
-            _subBanner.style.marginTop = 14;
             _bannerBox.Add(_subBanner);
+            _prompt = Lbl("", 8, UiTheme.Bone);
+            _prompt.style.unityTextAlign = TextAnchor.MiddleCenter;
+            _bannerBox.Add(_prompt);
+            _bannerBox.style.display = DisplayStyle.None;
+            _relayout.Add(() =>
+            {
+                _bannerBox.style.top = Length.Percent(36f);
+                _subBanner.style.marginTop = 4f * _texel;
+                _prompt.style.marginTop = 4f * _texel;
+            });
         }
 
-        /// <summary>Edge markers pointing at enemies outside the view (the camera follows the player).</summary>
+        private void BuildToasts(RedlineConfig cfg)
+        {
+            _toastTexts = new string[3];
+            _toastTexts[(int)OrbKind.Health] = "+" + cfg.orbHealAmount + " HP";
+            _toastTexts[(int)OrbKind.Speed] = "> SPEED";
+            _toastTexts[(int)OrbKind.Hook] = "O HOOK";
+            _toasts = new Label[3];
+            _toastAge = new[] { 99f, 99f, 99f };
+            for (int i = 0; i < 3; i++)
+            {
+                var l = Lbl(_toastTexts[i], 8, UiTheme.Orange);
+                l.style.position = Position.Absolute;
+                l.style.unityTextAlign = TextAnchor.MiddleCenter;
+                l.style.display = DisplayStyle.None;
+                Root.Add(l);
+                _toasts[i] = l;
+            }
+        }
+
+        /// <summary>Shows the pickup toast (glyph + word) above the player; the same kind within 0.5 s merges into one.</summary>
+        public void ShowPickup(OrbKind kind)
+        {
+            if (_toasts == null) return;
+            int i = (int)kind;
+            _toasts[i].style.display = DisplayStyle.Flex;
+            if (_toastAge[i] > 0.5f || _toastAge[i] >= ToastLife) _toastAge[i] = 0f;
+        }
+
+        private void UpdateToasts(RedlineSim sim, float dt, float k)
+        {
+            var cam = _game.Camera;
+            float w = Root.resolvedStyle.width, h = Root.resolvedStyle.height;
+            bool rm = UiTheme.ReducedMotion;
+            for (int i = 0; i < 3; i++)
+            {
+                if (_toastAge[i] >= ToastLife) continue;
+                _toastAge[i] += dt;
+                if (_toastAge[i] >= ToastLife) { _toasts[i].style.display = DisplayStyle.None; continue; }
+                if (cam == null || float.IsNaN(w) || w <= 0f) continue;
+                var p = sim.Player;
+                var vp = cam.WorldToViewportPoint(_game.ToDraw(new Vector2(p.X, p.MaxY + 0.6f)));
+                int step = rm ? 0 : Mathf.Min(3, (int)(_toastAge[i] / ToastLife * 4f)); // 3-step rise of 4 T
+                _toasts[i].style.left = vp.x * w - 20f * _texel;
+                _toasts[i].style.width = 40f * _texel;
+                _toasts[i].style.top = (1f - vp.y) * h - 6f * _texel - step * (4f * _texel / 3f) - i * 10f * _texel;
+                // vanish in the last 2 frames' worth of time
+                _toasts[i].style.opacity = _toastAge[i] > ToastLife - 0.033f ? 0f : 1f;
+            }
+        }
+
         private void BuildMarkers()
         {
             _markers = new VisualElement[MarkerCount];
@@ -445,179 +449,262 @@ namespace Redline.Game
             {
                 var m = new VisualElement { pickingMode = PickingMode.Ignore };
                 m.style.position = Position.Absolute;
-                m.style.width = 20;
-                m.style.height = 20;
                 m.style.rotate = new StyleRotate(new Rotate(45f));
-                Border(m, 2f, Color.white);
                 m.style.display = DisplayStyle.None;
                 Root.Add(m);
                 _markers[i] = m;
             }
+            _relayout.Add(() =>
+            {
+                for (int i = 0; i < MarkerCount; i++)
+                {
+                    _markers[i].style.width = 4f * _texel; _markers[i].style.height = 4f * _texel;
+                    Border(_markers[i], _texel);
+                    SetBorderColor(_markers[i], UiTheme.Bone);
+                }
+            });
         }
 
-        private void UpdateMarkers(RedlineSim sim)
+        private void UpdateMarkers(RedlineSim sim, float k)
         {
             var cam = _game.Camera;
-            float w = Root.resolvedStyle.width;
-            float h = Root.resolvedStyle.height;
+            float w = Root.resolvedStyle.width, h = Root.resolvedStyle.height;
             int used = 0;
             if (cam != null && !float.IsNaN(w) && w > 0f && (sim.State == SimState.Fighting || sim.State == SimState.Training))
             {
-                foreach (var e in sim.Enemies)
+                float m = M * _texel;
+                float top = _picShown.y + m, bottom = _picShown.yMax - m;
+                var view = LetterboxInfo.ViewportRectIn(w, h);   // the world camera's viewport (integer upscale, bars)
+                var enemies = sim.Enemies;                        // by index: foreach over IReadOnlyList boxes the enumerator
+                for (int i = 0; i < enemies.Count; i++)
                 {
+                    var e = enemies[i];
                     if (used >= MarkerCount) break;
                     if (!e.Alive) continue;
                     var vp = cam.WorldToViewportPoint(_game.ToDraw(new Vector2(e.Center.X, e.Center.Y)));
                     if (vp.x >= 0f && vp.x <= 1f && vp.y >= 0f && vp.y <= 1f) continue;
-                    var m = _markers[used++];
-                    m.style.display = DisplayStyle.Flex;
-                    m.style.left = Mathf.Clamp(vp.x, 0.02f, 0.97f) * w - 10f;
-                    m.style.top = (1f - Mathf.Clamp(vp.y, 0.06f, 0.78f)) * h - 10f;
-                    var c = e.Kind == EnemyKind.Brute ? BruteMarker : e.Kind == EnemyKind.Drone ? DroneMarker : EnemyColor;
-                    m.style.backgroundColor = c;
+                    var mk = _markers[used++];
+                    mk.style.display = DisplayStyle.Flex;
+                    mk.style.left = Mathf.Clamp(view.x + vp.x * view.width, _picShown.x + m, _picShown.xMax - m) - 2f * _texel;
+                    mk.style.top = Mathf.Clamp(view.y + (1f - vp.y) * view.height, top, bottom) - 2f * _texel;
                 }
             }
-            for (int i = used; i < MarkerCount; i++) _markers[i].style.display = DisplayStyle.None;
+            for (int i = used; i < MarkerCount; i++)
+                if (_markers[i].resolvedStyle.display != DisplayStyle.None) _markers[i].style.display = DisplayStyle.None;
         }
 
         // ------------------------------------------------------------------ per frame
 
         private void LateUpdate()
         {
-            if (_game == null || _speedFill == null) return;
+            if (_game == null || _meterFill == null) return;
+            float pw = Root.resolvedStyle.width;
+            if (float.IsNaN(pw) || pw <= 0f || Screen.width <= 0) return;
+            float k = pw / Screen.width;
+            UpdateLayout(k);
             var sim = _game.Sim;
-            float dt = Time.unscaledDeltaTime;
+            // Toast and level-tag ages (and the 10 Hz speed readout) stand still while paused or behind the menu.
+            bool frozen = _paused || Root.style.display.value == DisplayStyle.None;
+            float dt = frozen ? 0f : Time.unscaledDeltaTime;
             if (sim != _shownSim) BindLevel(sim);
-            UpdateSpeed(sim);
-            _speedBuff.Update(sim.Player.SpeedBuffTimer);
-            _hookBuff.Update(sim.Player.HookBuffTimer);
-            UpdateToast(sim, dt);
-            UpdateHp(sim, dt);
-            UpdateChain(sim, dt);
-            // Training has no waves: no wave panel and no wave banners (its own overlay draws the steps).
-            bool training = sim.State == SimState.Training;
-            if (training != _shownTraining)
+
+            var state = sim.State;
+            bool training = state == SimState.Training;
+            bool ended = state == SimState.GameOver || state == SimState.Victory;
+            bool breakState = state == SimState.WaveBreak;
+            ShowZones(training, ended, breakState);
+
+            if (!ended)
             {
-                _shownTraining = training;
-                _wavePanel.style.display = training ? DisplayStyle.None : DisplayStyle.Flex;
-                if (training) SetBanner("", Color.white, Color.clear, "");
+                UpdateSpeed(sim, dt);
+                UpdateBuffs(sim);
+                UpdateHp(sim);
+                UpdateChain(sim);
+                if (!training) UpdateRight(sim, dt);
             }
-            if (!training)
-            {
-                UpdateWave(sim);
-                UpdateBanner(sim, dt);
-            }
-            UpdateMarkers(sim);
+            UpdateToasts(sim, dt, k);
+            if (!training) UpdateBanner(sim); else if (!_shownTraining || _bannerBox.resolvedStyle.display != DisplayStyle.None) HideBanner();
+            _shownTraining = training;
+            UpdateMarkers(sim, k);
         }
 
-        private void UpdateSpeed(RedlineSim sim)
+        private bool _zonesInit;
+        private bool _zTraining, _zEnded, _zBreak;
+
+        private void ShowZones(bool training, bool ended, bool breakState)
+        {
+            if (_zonesInit && training == _zTraining && ended == _zEnded && breakState == _zBreak) return;
+            _zonesInit = true; _zTraining = training; _zEnded = ended; _zBreak = breakState;
+            _tl.style.display = ended ? DisplayStyle.None : DisplayStyle.Flex;
+            _bl.style.display = ended ? DisplayStyle.None : DisplayStyle.Flex;
+            _tr.style.display = ended || training ? DisplayStyle.None : DisplayStyle.Flex;
+            _tr.style.opacity = breakState ? 0.5f : 1f;
+            if (breakState) { _chainBox.style.display = DisplayStyle.None; _shownChain = -1; }
+        }
+
+        private void UpdateLayout(float k)
+        {
+            // Picture rect in panel units (proportional to the screen, so a capture render texture of a
+            // different aspect still lines up).
+            var rect = LetterboxInfo.PictureRectIn(Root.resolvedStyle.width, Root.resolvedStyle.height);
+            int scale = UiTheme.HudTextScale;
+            float texel = LetterboxInfo.Texel(rect.width);
+            if (texel == _texel && scale == _scalePct && rect == _picShown) return;
+            _texel = texel; _scalePct = scale; _picShown = rect; _kShown = k;
+            _pic.style.left = rect.x; _pic.style.top = rect.y;
+            _pic.style.width = rect.width; _pic.style.height = rect.height;
+            for (int i = 0; i < _labels.Count; i++)
+                _labels[i].style.fontSize = LetterboxInfo.FontPx(_labelT[i], texel, scale);
+            for (int i = 0; i < _relayout.Count; i++) _relayout[i]();
+        }
+
+        private void UpdateSpeed(RedlineSim sim, float dt)
         {
             var p = sim.Player;
-            int tier = sim.PlayerTier;
-            _speedFill.style.width = Length.Percent(CombatRules.SpeedFraction(p.Vx, sim.Config) * 100f);
-            int half = Mathf.Clamp(Mathf.RoundToInt(Mathf.Abs(p.Vx) * 2f), 0, _speedTexts.Length - 1);
-            if (half != _shownSpeed)
-            {
-                _shownSpeed = half;
-                _speedValue.text = _speedTexts[half];
-            }
-            bool armor = tier == 3;
-            _armorTag.style.opacity = armor ? 0.65f + 0.35f * Mathf.Sin(Time.unscaledTime * 10f) : 0f;
-
+            int tier = Mathf.Clamp(sim.PlayerTier, 1, 3);
             float speed = Mathf.Abs(p.Vx);
+            // The fill tracks speed directly (no lerp); rewrite only when the pixel width changes.
+            int fillPx = Mathf.RoundToInt(CombatRules.SpeedFraction(p.Vx, sim.Config) * 80f * _texel);
+            if (fillPx != _shownFillPx)
+            {
+                _shownFillPx = fillPx;
+                _meterFill.style.width = fillPx;
+            }
+            // Speed value at 10 Hz.
+            _speedTextClock += dt;
+            if (_speedTextClock >= 0.1f)
+            {
+                _speedTextClock = 0f;
+                int half = Mathf.Clamp(Mathf.RoundToInt(speed * 2f), 0, _speedTexts.Length - 1);
+                if (half != _shownSpeed) { _shownSpeed = half; _speedValue.text = _speedTexts[half]; }
+            }
+            // Overspeed: 1 T line beyond the max mark + OVER.
             float cap = sim.Config.maxSpeed;
             bool over = speed > cap + 0.05f;
-            _overFill.style.width = Length.Percent(over ? Mathf.Clamp01((speed - cap) / (_overTop - cap)) * 100f : 0f);
-            _overTag.style.opacity = over ? 0.7f + 0.3f * Mathf.Sin(Time.unscaledTime * 14f) : 0f;
             if (over != _shownOver)
             {
                 _shownOver = over;
-                var vc = over ? Overspeed : RedlineGame.TierColors[tier - 1];
-                _speedValue.style.color = vc;
-                _speedFill.style.backgroundColor = vc;
+                _overRow.style.display = over ? DisplayStyle.Flex : DisplayStyle.None;
             }
-
-            if (tier == _shownTier) return;
-            _shownTier = tier;
-            var c = RedlineGame.TierColors[tier - 1];
-            _speedFill.style.backgroundColor = over ? Overspeed : c;
-            _speedValue.style.color = over ? Overspeed : c;
-            _tierBadge.text = "TIER " + tier;
-            _tierBadge.style.backgroundColor = c;
-            Border(_speedPanel, 2f, c);
+            if (over)
+            {
+                int px = Mathf.RoundToInt(Mathf.Clamp01((speed - cap) / Mathf.Max(0.01f, _overTop - cap)) * 20f * _texel);
+                if (px != _shownOverPx) { _shownOverPx = px; _overLine.style.width = px + 1f; }
+            }
+            if (tier != _shownTier)
+            {
+                bool first = _shownTier < 0;
+                _shownTier = tier;
+                var c = UiTheme.Tier[tier - 1];
+                _meterFill.style.backgroundColor = c;
+                _tierNumeral.text = TierTexts[tier - 1];
+                for (int i = 0; i < 3; i++)
+                {
+                    bool lit = i < tier;
+                    _pips[i].style.backgroundColor = lit ? c : Color.clear;
+                    SetBorderColor(_pips[i], lit ? c : UiTheme.Faint);
+                }
+                _blade.style.display = tier == 3 ? DisplayStyle.Flex : DisplayStyle.None;
+                if (!first) _tierFlashUntilFrame = Time.frameCount + (UiTheme.ReducedMotion ? 1 : 3);
+            }
+            bool flash = Time.frameCount < _tierFlashUntilFrame;
+            var nc = flash ? UiTheme.Bone : UiTheme.Tier[tier - 1];
+            if (flash && UiTheme.ReducedMotion) nc = Color.Lerp(UiTheme.Tier[tier - 1], UiTheme.Bone, 0.5f);
+            if (_tierNumeral.resolvedStyle.color != nc) _tierNumeral.style.color = nc;
         }
 
-        private void UpdateHp(RedlineSim sim, float dt)
+        private static readonly string[] TierTexts = { "1", "2", "3" };
+
+        private void UpdateBuffs(RedlineSim sim)
+        {
+            _speedBuff.Update(sim.Player.SpeedBuffTimer);
+            _hookBuff.Update(sim.Player.HookBuffTimer);
+        }
+
+        private void UpdateHp(RedlineSim sim)
         {
             int hp = sim.Player.Hp;
+            bool rm = UiTheme.ReducedMotion;
+            bool low = hp == 1;
+            bool blinkOn = rm || !low || ((int)(Time.unscaledTime * 4f) & 1) == 0; // 2 Hz, stepped
+            bool flashing = Time.frameCount < _hpFlashUntilFrame;
+            if (hp == _shownHp && blinkOn == _hpBlinkOn && !flashing && _hpFlashIndex < 0) return;
             if (hp != _shownHp)
             {
                 if (hp < _shownHp && _shownHp > 0)
                 {
-                    _hpFlash = 0.35f;
                     _hpFlashIndex = hp;
+                    _hpFlashUntilFrame = Time.frameCount + (rm ? 1 : 3);
+                    flashing = true;
                 }
-                _shownHp = hp;
-                for (int i = 0; i < _hpPips.Length; i++)
-                {
-                    _hpPips[i].style.backgroundColor = i < hp ? HpColor : new Color(0f, 0f, 0f, 0f);
-                    _hpPips[i].style.scale = new StyleScale(new Scale(Vector2.one));
-                }
+                _hpLow.style.display = low ? DisplayStyle.Flex : DisplayStyle.None;
             }
-            if (_hpFlash > 0f && _hpFlashIndex >= 0 && _hpFlashIndex < _hpPips.Length)
+            _shownHp = hp;
+            _hpBlinkOn = blinkOn;
+            for (int i = 0; i < _hpCells.Length; i++)
             {
-                _hpFlash -= dt;
-                _hpPips[_hpFlashIndex].style.backgroundColor = _hpFlash > 0f ? Color.white : new Color(0f, 0f, 0f, 0f);
+                var dia = (VisualElement)_hpCells[i].userData;
+                bool full = i < hp;
+                Color border = full ? UiTheme.Orange : UiTheme.Faint;
+                Color dot = full ? UiTheme.Orange : Color.clear;
+                if (full && low) { border = UiTheme.Crimson; dot = UiTheme.Crimson; if (!blinkOn) { border = Color.clear; dot = Color.clear; } }
+                if (flashing && i == _hpFlashIndex) { border = rm ? Color.Lerp(UiTheme.Faint, UiTheme.Bone, 0.5f) : UiTheme.Bone; }
+                SetBorderColor(dia, border);
+                _hpDots[i].style.backgroundColor = dot;
             }
-            // Low HP: the remaining pips pulse.
-            float pulse = hp <= 2 && hp > 0 ? 1f + 0.18f * Mathf.Abs(Mathf.Sin(Time.unscaledTime * 8f)) : 1f;
-            for (int i = 0; i < hp && i < _hpPips.Length; i++)
-                _hpPips[i].style.scale = new StyleScale(new Scale(new Vector2(pulse, pulse)));
+            if (!flashing) _hpFlashIndex = -1;
         }
 
-        private void UpdateChain(RedlineSim sim, float dt)
+        private void UpdateChain(RedlineSim sim)
         {
             var p = sim.Player;
             int chain = p.Chain >= 2 ? p.Chain : 0;
             if (chain != _shownChain)
             {
-                if (chain > _shownChain && chain >= 2) _chainPop = 0.25f;
+                if (chain > _shownChain && chain >= 2) _chainFlashUntilFrame = Time.frameCount + (UiTheme.ReducedMotion ? 1 : 2);
                 _shownChain = chain;
                 _chainBox.style.display = chain >= 2 ? DisplayStyle.Flex : DisplayStyle.None;
-                if (chain >= 2) _chainLabel.text = "CHAIN ×" + chain;
+                if (chain >= 2) _chainLabel.text = chain < ChainTexts.Length ? ChainTexts[chain] : "x" + chain;
             }
             if (chain < 2) return;
-            _chainPop = Mathf.Max(0f, _chainPop - dt);
-            float s = 1f + _chainPop * 1.2f;
-            _chainLabel.style.scale = new StyleScale(new Scale(new Vector2(s, s)));
-            _chainTimer.style.width = Length.Percent(Mathf.Clamp01(p.ChainTimer / sim.Config.chainWindow) * 100f);
+            var c = Time.frameCount < _chainFlashUntilFrame ? Color.white : UiTheme.Bone;
+            if (_chainLabel.resolvedStyle.color != c) _chainLabel.style.color = c;
+            int px = Mathf.RoundToInt(Mathf.Clamp01(p.ChainTimer / sim.Config.chainWindow) * 24f * _texel);
+            if (px != _shownDecayPx) { _shownDecayPx = px; _chainDecay.style.width = px; }
         }
 
-        private void UpdateWave(RedlineSim sim)
+        private void UpdateRight(RedlineSim sim, float dt)
         {
+            // Level tag: 3 s, then a 3-step fade (hard cut under Reduced Motion).
+            if (_levelAge < LevelTagSeconds + 0.6f)
+            {
+                _levelAge += dt;
+                int step = _levelAge < LevelTagSeconds ? 0 : UiTheme.ReducedMotion ? 4 : Mathf.Min(4, 1 + (int)((_levelAge - LevelTagSeconds) / 0.2f));
+                if (step != _shownLevelStep)
+                {
+                    _shownLevelStep = step;
+                    _levelTag.style.opacity = step == 0 ? 1f : step >= 4 ? 0f : 1f - step * 0.25f;
+                    _levelTag.style.display = step >= 4 ? DisplayStyle.None : DisplayStyle.Flex;
+                }
+            }
             if (sim.CurrentWave != _shownWave || sim.State == SimState.Victory)
             {
                 _shownWave = sim.CurrentWave;
-                _waveNumber.text = sim.CurrentWave.ToString();
-                int cleared = sim.State == SimState.Victory ? sim.WaveCount : sim.CurrentWave - 1;
-                for (int i = 0; i < _waveDots.Length; i++)
-                {
-                    _waveDots[i].style.backgroundColor = i < cleared ? Cyan : new Color(0f, 0f, 0f, 0f);
-                    _waveDots[i].style.opacity = 1f;
-                }
+                _waveValue.text = sim.CurrentWave + "/" + sim.WaveCount;
             }
             if (sim.EnemiesAlive != _shownEnemies)
             {
+                if (_shownEnemies >= 0) _foesFlashUntilFrame = Time.frameCount + (UiTheme.ReducedMotion ? 1 : 2);
                 _shownEnemies = sim.EnemiesAlive;
-                _enemiesLabel.text = sim.EnemiesAlive.ToString();
+                _foesValue.text = EnemyTexts[Mathf.Clamp(sim.EnemiesAlive, 0, EnemyTexts.Length - 1)];
             }
-            // The current wave's dot breathes.
-            int current = sim.CurrentWave - 1;
-            if (sim.State != SimState.Victory && current >= 0 && current < _waveDots.Length)
-                _waveDots[current].style.opacity = 0.5f + 0.5f * Mathf.Abs(Mathf.Sin(Time.unscaledTime * 3f));
+            var c = Time.frameCount < _foesFlashUntilFrame ? Color.white : UiTheme.Bone;
+            if (_foesValue.resolvedStyle.color != c) _foesValue.style.color = c;
         }
 
-        private void UpdateBanner(RedlineSim sim, float dt)
+        private static readonly string[] EnemyTexts = BuildNumbers("", "", 100);
+
+        private void UpdateBanner(RedlineSim sim)
         {
             bool stale = sim.State == SimState.WaveBreak && sim.CurrentWave != _shownBannerWave;
             if (sim.State != _shownState || stale) ShowBanner(sim);
@@ -627,55 +714,61 @@ namespace Redline.Game
                 if (countdown != _shownCountdown)
                 {
                     _shownCountdown = countdown;
-                    _subBanner.text = (sim.CurrentWave == sim.WaveCount ? "FINAL WAVE" : "GET READY") + "  ·  " + countdown;
+                    _banner.text = (sim.CurrentWave == sim.WaveCount ? "FINAL WAVE - " : "GET READY - ") + countdown;
                 }
             }
-            _bannerAge += dt;
-            float t = Mathf.Clamp01(_bannerAge / 0.25f);
-            float ease = 1f - (1f - t) * (1f - t);
-            float scale = 1f + 0.3f * (1f - ease);
-            _banner.style.scale = new StyleScale(new Scale(new Vector2(scale, scale)));
-            _bannerBox.style.opacity = Mathf.Clamp01(_bannerAge / 0.15f);
-            _bannerLine.style.width = 420f * ease;
+            if (_prompt.text.Length > 0)
+            {
+                // Stepped 1 Hz blink; steady under Reduced Motion.
+                bool on = UiTheme.ReducedMotion || ((int)Time.unscaledTime & 1) == 0;
+                float o = on ? 1f : 0f;
+                if (_prompt.resolvedStyle.opacity != o) _prompt.style.opacity = o;
+            }
         }
 
         private void ShowBanner(RedlineSim sim)
         {
             _shownState = sim.State;
-            _bannerAge = 0f;
             _shownCountdown = -1;
             switch (sim.State)
             {
                 case SimState.WaveBreak:
                     _shownBannerWave = sim.CurrentWave;
-                    SetBanner("WAVE " + sim.CurrentWave, Color.white, Cyan, "");
-                    break;
-                case SimState.Fighting:
-                    SetBanner("", Color.white, Color.clear, "");
+                    SetBanner("", sim.CurrentWave == sim.WaveCount ? "WAVE " + sim.CurrentWave + "/" + sim.WaveCount : "WAVE " + sim.CurrentWave + "/" + sim.WaveCount, "");
                     break;
                 case SimState.GameOver:
-                    SetBanner("GAME OVER", Danger, Danger,
-                        "REACHED WAVE " + sim.CurrentWave + "  ·  " + sim.Kills + " KILLS\nPRESS " + ControlLabels.Get(GameAction.Restart) + " / SELECT FOR UPGRADES");
+                    SetBanner("RUN ENDED", "WAVE " + sim.CurrentWave + " - " + sim.Kills + " KILLS",
+                        "[" + ControlLabels.Get(GameAction.Restart) + "] / [SELECT] UPGRADES");
                     break;
                 case SimState.Victory:
                     string next = _game.NextLevelName;
                     if (next != null)
-                        SetBanner("LEVEL CLEAR", Gold, Gold,
-                            "NEXT: " + next.ToUpperInvariant() + "  ·  " + sim.Kills + " KILLS");
+                        SetBanner("LEVEL CLEAR", "NEXT: " + next.ToUpperInvariant() + " - " + sim.Kills + " KILLS", "");
                     else
-                        SetBanner("VICTORY", Gold, Gold,
-                            "ALL " + _game.LevelCount + " LEVELS CLEARED  ·  " + sim.Kills + " KILLS\nPRESS " + ControlLabels.Get(GameAction.Restart) + " / SELECT FOR UPGRADES");
+                        SetBanner("ALL " + _game.LevelCount + " LEVELS CLEARED", sim.Kills + " KILLS",
+                            "[" + ControlLabels.Get(GameAction.Restart) + "] / [SELECT] UPGRADES");
+                    break;
+                default:
+                    HideBanner();
+                    _shownState = sim.State;   // cache the hidden state so the banner isn't rebuilt every frame
                     break;
             }
         }
 
-        private void SetBanner(string title, Color color, Color line, string sub)
+        private void SetBanner(string title, string sub, string prompt)
         {
             _banner.text = title;
-            _banner.style.color = color;
-            _bannerLine.style.backgroundColor = line;
             _subBanner.text = sub;
-            _bannerBox.style.display = title.Length > 0 ? DisplayStyle.Flex : DisplayStyle.None;
+            _prompt.text = prompt;
+            _prompt.style.opacity = 1f;
+            _bannerBox.style.display = DisplayStyle.Flex;
+        }
+
+        private void HideBanner()
+        {
+            _banner.text = ""; _subBanner.text = ""; _prompt.text = "";
+            _bannerBox.style.display = DisplayStyle.None;
+            _shownState = (SimState)(-1);
         }
 
         private void OnDestroy()
@@ -685,51 +778,70 @@ namespace Redline.Game
 
         // ------------------------------------------------------------------ buff chip
 
+        private enum BuffGlyph { Chevron, Ring }
+
         /// <summary>
-        /// A small "NAME [bar] 6s" chip for a timed orb buff, hidden while the buff is off. The
-        /// seconds text comes from a pre-built table, so updating it allocates nothing.
+        /// A timed-buff chip: glyph (chevron = speed, ring = hook; shape, not colour, tells them apart)
+        /// plus the remaining seconds. Hidden while the buff is off; under 2 s the number blinks bone
+        /// (stepped 2 Hz; steady under Reduced Motion).
         /// </summary>
         private sealed class BuffChip
         {
-            private static readonly string[] Seconds = BuildSeconds();
-            private readonly VisualElement _fill;
+            private static readonly string[] Seconds = BuildNumbers("", "S", 100);
+            private readonly RedlineHud _hud;
+            private readonly BuffGlyph _kind;
+            private readonly VisualElement _glyph;
             private readonly Label _secs;
-            private readonly float _duration;
             private int _shownSecs = -1;
             private bool _shown = true;
+            private bool _blinkBone;
 
-            /// <summary>The chip's element (add it to a row).</summary>
+            /// <summary>The chip's element.</summary>
             public readonly VisualElement Root;
 
-            /// <summary>Builds a chip for a buff lasting <paramref name="duration"/> seconds.</summary>
-            public BuffChip(RedlineHud hud, string name, Color color, float duration)
+            public BuffChip(RedlineHud hud, BuffGlyph kind, float duration)
             {
-                _duration = Mathf.Max(0.01f, duration);
-                Root = Row(Justify.FlexStart);
-                Root.style.marginRight = 18;
-                var tag = Text(name, hud._black, 18, Color.black);
-                Pill(tag, color);
-                Root.Add(tag);
-                var bar = new VisualElement();
-                bar.style.width = 110;
-                bar.style.height = 8;
-                bar.style.marginLeft = 8;
-                bar.style.backgroundColor = new Color(1f, 1f, 1f, 0.12f);
-                Round(bar, 4);
-                _fill = new VisualElement();
-                _fill.style.height = Length.Percent(100);
-                _fill.style.backgroundColor = color;
-                Round(_fill, 4);
-                bar.Add(_fill);
-                Root.Add(bar);
-                _secs = Text("", hud._bold, 18, color);
-                _secs.style.marginLeft = 8;
-                _secs.style.width = 34;
+                _hud = hud;
+                _kind = kind;
+                Root = new VisualElement { pickingMode = PickingMode.Ignore };
+                Root.style.flexDirection = FlexDirection.Row;
+                Root.style.alignItems = Align.Center;
+                _glyph = new VisualElement { pickingMode = PickingMode.Ignore };
+                Root.Add(_glyph);
+                _secs = hud.Lbl("", 8, UiTheme.Orange);
                 Root.Add(_secs);
-                Update(0f);
+                Root.style.display = DisplayStyle.None;
+                _shown = false;
             }
 
-            /// <summary>Shows the remaining time (hidden at 0); the last 1.5 s blink.</summary>
+            public void Layout(float t)
+            {
+                Root.style.marginLeft = 4f * t;
+                _glyph.style.width = 4f * t; _glyph.style.height = 4f * t;
+                _glyph.style.marginRight = 2f * t; _glyph.style.marginLeft = 2f * t;
+                _glyph.style.borderTopWidth = 0; _glyph.style.borderLeftWidth = 0;
+                if (_kind == BuffGlyph.Chevron)
+                {
+                    _glyph.style.borderRightWidth = t; _glyph.style.borderBottomWidth = t;
+                    _glyph.style.rotate = new StyleRotate(new Rotate(-45f));
+                    SetSideColor(_glyph, UiTheme.Orange);
+                }
+                else
+                {
+                    _glyph.style.borderTopWidth = t; _glyph.style.borderLeftWidth = t;
+                    _glyph.style.borderRightWidth = t; _glyph.style.borderBottomWidth = t;
+                    float r = 3f * t;
+                    _glyph.style.borderTopLeftRadius = r; _glyph.style.borderTopRightRadius = r;
+                    _glyph.style.borderBottomLeftRadius = r; _glyph.style.borderBottomRightRadius = r;
+                    SetBorderColor(_glyph, UiTheme.Orange);
+                }
+            }
+
+            private static void SetSideColor(VisualElement e, Color c)
+            {
+                e.style.borderRightColor = c; e.style.borderBottomColor = c;
+            }
+
             public void Update(float timeLeft)
             {
                 bool on = timeLeft > 0f;
@@ -739,126 +851,71 @@ namespace Redline.Game
                     Root.style.display = on ? DisplayStyle.Flex : DisplayStyle.None;
                 }
                 if (!on) return;
-                _fill.style.width = Length.Percent(Mathf.Clamp01(timeLeft / _duration) * 100f);
                 int secs = Mathf.Clamp(Mathf.CeilToInt(timeLeft), 0, Seconds.Length - 1);
-                if (secs != _shownSecs)
+                if (secs != _shownSecs) { _shownSecs = secs; _secs.text = Seconds[secs]; }
+                bool bone = timeLeft < BuffBlinkBelow && !UiTheme.ReducedMotion && (((int)(Time.unscaledTime * 4f)) & 1) == 0;
+                if (bone != _blinkBone)
                 {
-                    _shownSecs = secs;
-                    _secs.text = Seconds[secs];
+                    _blinkBone = bone;
+                    _secs.style.color = bone ? UiTheme.Bone : UiTheme.Orange;
                 }
-                Root.style.opacity = timeLeft < 1.5f ? 0.45f + 0.55f * Mathf.Abs(Mathf.Sin(Time.unscaledTime * 9f)) : 1f;
-            }
-
-            private static string[] BuildSeconds()
-            {
-                var s = new string[100];
-                for (int i = 0; i < s.Length; i++) s[i] = i + "s";
-                return s;
             }
         }
 
         // ------------------------------------------------------------------ element helpers
 
-        private VisualElement Panel(float left, float top, Color border)
+        private static string[] BuildNumbers(string prefix, string suffix, int count)
         {
-            var e = new VisualElement();
+            var s = new string[count];
+            for (int i = 0; i < count; i++) s[i] = prefix + i + suffix;
+            return s;
+        }
+
+        private static VisualElement Abs(VisualElement parent)
+        {
+            var e = new VisualElement { pickingMode = PickingMode.Ignore };
             e.style.position = Position.Absolute;
-            if (!float.IsNaN(left)) e.style.left = left;
-            if (!float.IsNaN(top)) e.style.top = top;
-            e.style.backgroundColor = PanelColor;
-            e.style.paddingLeft = 18;
-            e.style.paddingRight = 18;
-            e.style.paddingTop = 12;
-            e.style.paddingBottom = 12;
-            Round(e, 10);
-            Border(e, 2f, border);
-            e.pickingMode = PickingMode.Ignore;
+            parent.Add(e);
             return e;
         }
 
-        private static VisualElement Row(Justify justify)
+        private static VisualElement RowOf(VisualElement parent, Justify justify)
         {
-            var e = new VisualElement();
+            var e = new VisualElement { pickingMode = PickingMode.Ignore };
             e.style.flexDirection = FlexDirection.Row;
             e.style.justifyContent = justify;
             e.style.alignItems = Align.Center;
-            e.pickingMode = PickingMode.Ignore;
+            parent.Add(e);
             return e;
         }
 
-        private Label Caption(string text)
-        {
-            var label = Text(text, _bold, 20, Dim);
-            label.style.letterSpacing = 5;
-            return label;
-        }
-
-        private static Label Text(string text, Font font, int size, Color color)
+        /// <summary>A label in the terminal font, sized tUnits * T (rescaled by the layout pass).</summary>
+        private Label Lbl(string text, int tUnits, Color color)
         {
             var label = new Label(text) { pickingMode = PickingMode.Ignore };
-            label.style.fontSize = size;
             label.style.color = color;
-            label.style.unityFontDefinition = new StyleFontDefinition(FontDefinition.FromFont(font));
-            label.style.paddingLeft = 0;
-            label.style.paddingRight = 0;
-            label.style.marginLeft = 0;
-            label.style.marginRight = 0;
+            label.style.unityFontDefinition = new StyleFontDefinition(FontDefinition.FromFont(UiTheme.Font));
+            label.style.paddingLeft = 0; label.style.paddingRight = 0;
+            label.style.paddingTop = 0; label.style.paddingBottom = 0;
+            label.style.marginLeft = 0; label.style.marginRight = 0;
+            label.style.marginTop = 0; label.style.marginBottom = 0;
+            label.style.fontSize = LetterboxInfo.FontPx(tUnits, Mathf.Max(_texel, 4f), 100);
+            label.style.whiteSpace = WhiteSpace.NoWrap;
+            _labels.Add(label);
+            _labelT.Add(tUnits);
             return label;
         }
 
-        private static void Pill(Label label, Color background)
+        private static void Border(VisualElement e, float width)
         {
-            label.style.backgroundColor = background;
-            label.style.paddingLeft = 12;
-            label.style.paddingRight = 12;
-            label.style.paddingTop = 2;
-            label.style.paddingBottom = 2;
-            Round(label, 6);
+            e.style.borderTopWidth = width; e.style.borderBottomWidth = width;
+            e.style.borderLeftWidth = width; e.style.borderRightWidth = width;
         }
 
-        private static VisualElement Zone(float fromPercent, float toPercent, Color color)
+        private static void SetBorderColor(VisualElement e, Color c)
         {
-            var zone = new VisualElement();
-            zone.style.position = Position.Absolute;
-            zone.style.left = Length.Percent(fromPercent);
-            zone.style.width = Length.Percent(toPercent - fromPercent);
-            zone.style.top = 0;
-            zone.style.bottom = 0;
-            color.a = 0.14f;
-            zone.style.backgroundColor = color;
-            return zone;
-        }
-
-        private static VisualElement Mark(float percent)
-        {
-            var mark = new VisualElement();
-            mark.style.position = Position.Absolute;
-            mark.style.left = Length.Percent(percent);
-            mark.style.top = 0;
-            mark.style.bottom = 0;
-            mark.style.width = 3;
-            mark.style.backgroundColor = new Color(1f, 1f, 1f, 0.85f);
-            return mark;
-        }
-
-        private static void Round(VisualElement e, float radius)
-        {
-            e.style.borderTopLeftRadius = radius;
-            e.style.borderTopRightRadius = radius;
-            e.style.borderBottomLeftRadius = radius;
-            e.style.borderBottomRightRadius = radius;
-        }
-
-        private static void Border(VisualElement e, float width, Color color)
-        {
-            e.style.borderTopWidth = width;
-            e.style.borderBottomWidth = width;
-            e.style.borderLeftWidth = width;
-            e.style.borderRightWidth = width;
-            e.style.borderTopColor = color;
-            e.style.borderBottomColor = color;
-            e.style.borderLeftColor = color;
-            e.style.borderRightColor = color;
+            e.style.borderTopColor = c; e.style.borderBottomColor = c;
+            e.style.borderLeftColor = c; e.style.borderRightColor = c;
         }
     }
 }

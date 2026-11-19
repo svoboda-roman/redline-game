@@ -187,12 +187,13 @@ namespace Redline.Tests
         public void Kamikaze_KilledBeforeTheBlast_DoesNotExplode()
         {
             var bomb = _sim.SpawnEnemy(EnemyKind.Kamikaze, new Vec2(28f, 1f));
+            _sim.Player.Vx = _cfg.runSpeed; // a tier 2 strike: a tier 1 hit would only light the fuse (kamikazeHp 2)
             int hp = _sim.Player.Hp;
             bool boom = false;
             for (int i = 0; i < 240; i++)
             {
                 bool swing = bomb.Alive && bomb.X - _sim.Player.X < 2f;
-                _sim.Step(new InputFrame { AttackPressed = swing }, Dt);
+                _sim.Step(new InputFrame { MoveX = 1f, AttackPressed = swing }, Dt);
                 boom |= Saw(_sim, SimEventType.Explode);
             }
 

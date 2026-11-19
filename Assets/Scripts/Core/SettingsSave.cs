@@ -28,6 +28,21 @@ namespace Redline.Core
         /// launch. Optional in the file: absent (older files, no file) reads as false.
         /// </summary>
         public bool TrainingDone;
+        /// <summary>
+        /// Graphics: true = Classic 2D view, false = Cinematic 3D (the default). Optional in the file:
+        /// absent (older files, no file) reads as false.
+        /// </summary>
+        public bool Classic2D;
+        /// <summary>
+        /// Reduced Motion: UI transitions, blinks and flashes are replaced by steady or instant states.
+        /// Optional in the file: absent reads as false.
+        /// </summary>
+        public bool ReducedMotion;
+        /// <summary>
+        /// HUD text scale in percent: 100, 125 or 150. Optional in the file: absent reads as 100;
+        /// any other value is repaired to 100.
+        /// </summary>
+        public int HudTextScale = 100;
         /// <summary>Keyboard bindings.</summary>
         public readonly ControlBindings Bindings = ControlBindings.CreateDefaults();
 
@@ -42,6 +57,9 @@ namespace Redline.Core
             HintsEnabled = other.HintsEnabled;
             TutorialSeen = other.TutorialSeen ?? "";
             TrainingDone = other.TrainingDone;
+            Classic2D = other.Classic2D;
+            ReducedMotion = other.ReducedMotion;
+            HudTextScale = other.HudTextScale;
             Bindings.CopyFrom(other.Bindings);
         }
     }
@@ -79,6 +97,9 @@ namespace Redline.Core
             sb.Append(",\"tutorialSeen\":");
             AppendString(sb, s.TutorialSeen ?? "");
             sb.Append(",\"trainingDone\":").Append(s.TrainingDone ? "true" : "false");
+            sb.Append(",\"classic2d\":").Append(s.Classic2D ? "true" : "false");
+            sb.Append(",\"reducedMotion\":").Append(s.ReducedMotion ? "true" : "false");
+            sb.Append(",\"hudTextScale\":").Append(s.HudTextScale.ToString(CultureInfo.InvariantCulture));
             sb.Append(",\"bindings\":{");
             var actions = ControlBindings.Actions;
             for (int i = 0; i < actions.Length; i++)
@@ -150,6 +171,23 @@ namespace Redline.Core
             if (root.TryGetValue("trainingDone", out var done))
             {
                 if (done is bool d) s.TrainingDone = d;
+                else repaired = true;
+            }
+            // Optional too: absent means the default Cinematic 3D view.
+            if (root.TryGetValue("classic2d", out var classic))
+            {
+                if (classic is bool c) s.Classic2D = c;
+                else repaired = true;
+            }
+            // Optional too: Reduced Motion and the HUD text scale (100/125/150).
+            if (root.TryGetValue("reducedMotion", out var rm))
+            {
+                if (rm is bool r) s.ReducedMotion = r;
+                else repaired = true;
+            }
+            if (root.TryGetValue("hudTextScale", out var ts))
+            {
+                if (ts is double td && (td == 100d || td == 125d || td == 150d)) s.HudTextScale = (int)td;
                 else repaired = true;
             }
             if (!ReadBindings(root, s.Bindings, isKnownKey))

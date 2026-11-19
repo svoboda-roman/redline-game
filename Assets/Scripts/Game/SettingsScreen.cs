@@ -10,9 +10,9 @@ using UnityEngine.InputSystem.Controls;
 namespace Redline.Game
 {
     /// <summary>
-    /// Settings screen (UI Toolkit, neon style), opened from the main menu or the pause menu.
-    /// Left column: master / music / effects volume sliders, fullscreen and tutorial hints toggles.
-    /// Right column: keyboard rebinding, one row per <see cref="GameAction"/> with three key slots and
+    /// Settings screen (UI Toolkit, terminal style), opened from the main menu or the pause menu.
+    /// One scrolling list: master / music / effects block-bar sliders, fullscreen, tutorial hints,
+    /// Reduced Motion and HUD Text Scale choices, then keyboard rebinding, one row per <see cref="GameAction"/> with three key slots and
     /// the fixed gamepad control shown read-only. Edits <see cref="GameSettings.Current"/> in place,
     /// raises <see cref="GameSettings.NotifyChanged"/> on every change and saves on close.
     /// </summary>
@@ -36,15 +36,21 @@ namespace Redline.Game
         private const int SliderCount = 3;
         private const int FullscreenIndex = 3;
         private const int HintsIndex = 4;
-        private const int FirstBindIndex = 5;
+        private const int MotionIndex = 5;
+        private const int ScaleIndex = 6;
+        private const int FirstBindIndex = 7;
         private static readonly int BindCount = ControlBindings.Actions.Length;
         private static readonly int ResetIndex = FirstBindIndex + BindCount;
         private static readonly int BackIndex = ResetIndex + 1;
         private static readonly int ItemCount = BackIndex + 1;
         private const int VolumeStep = 5;
         private static readonly string[] SliderNames = { "MASTER", "MUSIC", "EFFECTS" };
+        private static readonly int[] ScaleSteps = { 100, 125, 150 };
 
-        private static readonly string[] Percent = BuildPercent();
+        /// <summary>Status line shown when the settings file could not be written.</summary>
+        public const string SaveFailed = "SAVE FAILED - SETTINGS NOT KEPT";
+
+        private static readonly string[] Bars = BuildBars();
 
         private Action _preview;
         private Action _onClose;
@@ -56,15 +62,21 @@ namespace Redline.Game
         private bool _capturing;
         private int _captureFrame = -1;
 
-        private readonly VisualElement[] _rows = new VisualElement[16];
-        private readonly VisualElement[] _sliderFill = new VisualElement[SliderCount];
-        private readonly Label[] _sliderValue = new Label[SliderCount];
-        private Button _fullscreen;
-        private Button _hints;
-        private readonly Button[][] _slots = new Button[ControlBindings.Actions.Length][];
-        private Button _reset;
-        private Button _back;
+        private sealed class RowView
+        {
+            public VisualElement Root;
+            public Label Name;
+            public Label Value;   // value, or key slot 1
+            public Label Value2;  // key slot 2 (bind rows)
+            public Label Extra;   // read-only gamepad label (bind rows)
+        }
+
+        private readonly RowView[] _views = new RowView[64];
+        private ScrollView _scroll;
         private Label _status;
+        private bool _saveFailedShown;
+        private bool _blinkOn = true;
+        private int _scrolledTo = -1;
 
         /// <summary>The root element, exposed for screenshot tooling.</summary>
         public VisualElement Root { get; private set; }
@@ -93,6 +105,8 @@ namespace Redline.Game
             _openedFrame = Time.frameCount;
             _selected = 0;
             _slot = 0;
+            _saveFailedShown = false;
+            _scrolledTo = -1;
             SetStatus("", MenuKit.Dim);
             Root.style.display = DisplayStyle.Flex;
             Refresh();
@@ -108,7 +122,13 @@ namespace Redline.Game
 
         private void Close()
         {
-            GameSettings.Save();
+            if (!GameSettings.Save() && !_saveFailedShown)
+            {
+                // Stay open once so the player sees it; a second BACK leaves anyway.
+                _saveFailedShown = true;
+                SetStatus(SaveFailed, MenuKit.Danger);
+                return;
+            }
             Hide();
             var cb = _onClose;
             _onClose = null;
@@ -122,6 +142,8 @@ namespace Redline.Game
             if (!Visible || Time.frameCount == _openedFrame) return;
             if (_capturing)
             {
+                bool on = UiTheme.ReducedMotion || ((int)Time.unscaledTime & 1) == 0; // 1 Hz blink
+                if (on != _blinkOn) { _blinkOn = on; Refresh(); }
                 if (Time.frameCount != _captureFrame) Capture();
                 return;
             }
@@ -142,7 +164,8 @@ namespace Redline.Game
         private void Side(int dir)
         {
             if (_selected < SliderCount) AddVolume(_selected, dir * VolumeStep);
-            else if (_selected == FullscreenIndex || _selected == HintsIndex) Activate(_selected);
+            else if (_selected == ScaleIndex) CycleScale(dir);
+            else if (_selected == FullscreenIndex || _selected == HintsIndex || _selected == MotionIndex) Activate(_selected);
             else if (IsBindRow(_selected)) { _slot = Mathf.Clamp(_slot + dir, 0, ControlBindings.SlotsPerAction - 1); Refresh(); }
             else Select(_selected == ResetIndex ? BackIndex : ResetIndex);
         }
@@ -151,6 +174,8 @@ namespace Redline.Game
         {
             var s = GameSettings.Current;
             if (index == FullscreenIndex) { s.Fullscreen = !s.Fullscreen; Changed(); }
+            else if (index == ScaleIndex) CycleScale(1);
+            else if (index == MotionIndex) { s.ReducedMotion = !s.ReducedMotion; Changed(); }
             else if (index == HintsIndex) { s.HintsEnabled = !s.HintsEnabled; Changed(); }
             else if (IsBindRow(index)) BeginCapture();
             else if (index == ResetIndex)
@@ -160,6 +185,15 @@ namespace Redline.Game
                 Changed();
             }
             else if (index == BackIndex) Close();
+        }
+
+        private void CycleScale(int dir)
+        {
+            var s = GameSettings.Current;
+            int i = Array.IndexOf(ScaleSteps, s.HudTextScale);
+            if (i < 0) i = 0;
+            s.HudTextScale = ScaleSteps[(i + dir + ScaleSteps.Length) % ScaleSteps.Length];
+            Changed();
         }
 
         private void AddVolume(int slider, int delta) => SetVolume(slider, GetVolume(slider) + delta);
@@ -195,7 +229,7 @@ namespace Redline.Game
             _capturing = true;
             _captureFrame = Time.frameCount;
             var action = ControlBindings.Actions[_selected - FirstBindIndex];
-            SetStatus("PRESS A KEY FOR " + KeyLabels.ActionName(action) + "  ·  ESC CANCELS", MenuKit.Gold);
+            SetStatus("PRESS A KEY FOR " + KeyLabels.ActionName(action) + " - ESC CANCELS", MenuKit.Gold);
             Refresh();
         }
 
@@ -288,32 +322,47 @@ namespace Redline.Game
         private void Refresh()
         {
             var s = GameSettings.Current;
-            for (int i = 0; i < SliderCount; i++)
-            {
-                int v = GetVolume(i);
-                _sliderFill[i].style.width = Length.Percent(v);
-                _sliderValue[i].text = Percent[v];
-            }
-            MenuKit.StyleButton(_fullscreen, s.Fullscreen ? "ON" : "OFF", MenuKit.Cyan, s.Fullscreen, _selected == FullscreenIndex);
-            MenuKit.StyleButton(_hints, s.HintsEnabled ? "ON" : "OFF", MenuKit.Cyan, s.HintsEnabled, _selected == HintsIndex);
+            for (int i = 0; i < SliderCount; i++) _views[i].Value.text = Bars[GetVolume(i)];
+            _views[FullscreenIndex].Value.text = Choice(s.Fullscreen ? "ON" : "OFF");
+            _views[HintsIndex].Value.text = Choice(s.HintsEnabled ? "ON" : "OFF");
+            _views[MotionIndex].Value.text = Choice(s.ReducedMotion ? "ON" : "OFF");
+            _views[ScaleIndex].Value.text = Choice(s.HudTextScale + "%");
 
             var b = s.Bindings;
             for (int r = 0; r < BindCount; r++)
             {
                 var action = ControlBindings.Actions[r];
                 bool rowSelected = _selected == FirstBindIndex + r;
+                var v = _views[FirstBindIndex + r];
                 for (int k = 0; k < ControlBindings.SlotsPerAction; k++)
                 {
                     bool here = rowSelected && _slot == k;
-                    string text = here && _capturing ? "..." : KeyLabels.Label(b.Get(action, k));
-                    MenuKit.StyleButton(_slots[r][k], text, b.Get(action, k) == null ? MenuKit.Locked : MenuKit.Cyan, here && _capturing, here);
+                    string key = KeyLabels.Label(b.Get(action, k));
+                    string text = here && _capturing ? (_blinkOn ? "PRESS A KEY" : "") : here ? "< " + key + " >" : key;
+                    (k == 0 ? v.Value : v.Value2).text = text;
                 }
             }
-            for (int i = 0; i < ResetIndex; i++)
-                if (_rows[i] != null) MenuKit.Border(_rows[i], 2f, _selected == i ? MenuKit.Gold : new Color(0.3f, 0.85f, 1f, 0.2f));
-            MenuKit.StyleButton(_reset, "RESET CONTROLS", MenuKit.Danger, false, _selected == ResetIndex);
-            MenuKit.StyleButton(_back, "BACK", MenuKit.Cyan, true, _selected == BackIndex);
+            for (int i = 0; i < ItemCount; i++)
+            {
+                var v = _views[i];
+                bool sel = _selected == i;
+                v.Root.style.backgroundColor = sel ? UiTheme.Orange : Color.clear;
+                var nameColor = sel ? UiTheme.Ground : UiTheme.Orange;
+                var valColor = sel ? UiTheme.Ground : UiTheme.Bone;
+                v.Name.style.color = (i == ResetIndex || i == BackIndex) ? nameColor : nameColor;
+                if (v.Value != null) v.Value.style.color = valColor;
+                if (v.Value2 != null) v.Value2.style.color = valColor;
+                if (v.Extra != null) v.Extra.style.color = sel ? UiTheme.Ground : UiTheme.Dim;
+            }
+            if (_scrolledTo != _selected)
+            {
+                _scrolledTo = _selected;
+                var root = _views[_selected].Root;
+                _scroll.schedule.Execute(() => _scroll.ScrollTo(root)).StartingIn(0);
+            }
         }
+
+        private static string Choice(string v) => "< " + v + " >";
 
         // ------------------------------------------------------------------ building
 
@@ -321,178 +370,139 @@ namespace Redline.Game
 
         private void Build()
         {
-            var panel = MenuKit.Panel(1680f, MenuKit.Cyan);
-            Root.Add(panel);
-            panel.Add(MenuKit.Text("SETTINGS", MenuKit.Black, 54, MenuKit.Cyan));
-            var line = new VisualElement();
-            line.style.height = 3;
-            line.style.marginTop = 6;
-            line.style.marginBottom = 12;
-            line.style.backgroundColor = MenuKit.Cyan;
-            panel.Add(line);
+            Root.Add(MenuKit.Text("SETTINGS", MenuKit.Black, MenuKit.Heading, UiTheme.Orange));
+            _scroll = new ScrollView(ScrollViewMode.Vertical);
+            _scroll.verticalScrollerVisibility = ScrollerVisibility.Hidden;
+            _scroll.horizontalScrollerVisibility = ScrollerVisibility.Hidden;
+            _scroll.style.width = 190f * MenuKit.T;
+            _scroll.style.height = 8f * 18f * MenuKit.T; // about 9 rows of 16 T plus headers
+            _scroll.style.marginTop = 2f * MenuKit.T;
+            _scroll.style.flexShrink = 1;
+            Root.Add(_scroll);
 
-            var columns = MenuKit.Row(Justify.SpaceBetween);
-            columns.style.alignItems = Align.FlexStart;
-            panel.Add(columns);
+            _scroll.Add(Section("AUDIO"));
+            for (int i = 0; i < SliderCount; i++) AddSlider(i);
+            _scroll.Add(Section("DISPLAY"));
+            AddChoice(FullscreenIndex, "FULLSCREEN");
+            _scroll.Add(Section("GAMEPLAY"));
+            AddChoice(HintsIndex, "TUTORIAL HINTS");
+            AddChoice(MotionIndex, "REDUCED MOTION");
+            AddChoice(ScaleIndex, "HUD TEXT SCALE");
+            _scroll.Add(Section("CONTROLS - KEYBOARD - GAMEPAD IS FIXED"));
+            for (int r = 0; r < BindCount; r++) AddBind(r);
+            AddPlain(ResetIndex, "RESET CONTROLS");
+            AddPlain(BackIndex, "BACK");
 
-            var left = new VisualElement();
-            left.style.width = 560;
-            left.pickingMode = PickingMode.Ignore;
-            columns.Add(left);
-            left.Add(Section("AUDIO"));
-            for (int i = 0; i < SliderCount; i++) left.Add(SliderRow(i));
-            left.Add(Section("DISPLAY"));
-            _fullscreen = MenuKit.MakeButton(() => { Select(FullscreenIndex); Activate(FullscreenIndex); }, ClickAllowed, 130, 44, 22);
-            left.Add(ToggleRow(FullscreenIndex, "FULLSCREEN", _fullscreen));
-            left.Add(Section("GAMEPLAY"));
-            _hints = MenuKit.MakeButton(() => { Select(HintsIndex); Activate(HintsIndex); }, ClickAllowed, 130, 44, 22);
-            left.Add(ToggleRow(HintsIndex, "TUTORIAL HINTS", _hints));
-
-            var right = new VisualElement();
-            right.style.width = 1000;
-            right.pickingMode = PickingMode.Ignore;
-            columns.Add(right);
-            right.Add(Section("KEYBOARD  ·  GAMEPAD IS FIXED"));
-            for (int r = 0; r < BindCount; r++) right.Add(BindRow(r));
-
-            _status = MenuKit.Text("", MenuKit.Bold, 20, MenuKit.Dim);
-            _status.style.marginTop = 16;
-            _status.style.height = 28;
-            panel.Add(_status);
-
-            var footer = MenuKit.Row(Justify.SpaceBetween);
-            footer.style.marginTop = 10;
-            _reset = MenuKit.MakeButton(() => { Select(ResetIndex); Activate(ResetIndex); }, ClickAllowed, 300);
-            _back = MenuKit.MakeButton(() => { Select(BackIndex); Activate(BackIndex); }, ClickAllowed, 300);
-            _reset.RegisterCallback<PointerEnterEvent>(_ => Select(ResetIndex));
-            _back.RegisterCallback<PointerEnterEvent>(_ => Select(BackIndex));
-            footer.Add(_reset);
-            footer.Add(_back);
-            panel.Add(footer);
-            panel.Add(MenuKit.Text("ENTER REBIND  ·  BACKSPACE CLEAR  ·  A/D PICK SLOT OR CHANGE VALUE  ·  ESC BACK", MenuKit.Bold, 16, MenuKit.Dim));
+            _status = MenuKit.Text("", MenuKit.Bold, MenuKit.Label, MenuKit.Gold);
+            _status.style.marginTop = 2f * MenuKit.T;
+            _status.style.height = 8f * MenuKit.T;
+            Root.Add(_status);
+            var hint = MenuKit.Text("ENTER REBIND - BACKSPACE CLEAR - A/D PICK SLOT OR CHANGE VALUE - ESC BACK", MenuKit.Bold, MenuKit.Label, MenuKit.Dim);
+            Root.Add(hint);
         }
 
         private static Label Section(string text)
         {
             var c = MenuKit.Caption(text);
-            c.style.marginTop = 14;
-            c.style.marginBottom = 4;
+            c.style.marginTop = 3f * MenuKit.T;
+            c.style.marginBottom = MenuKit.T;
             return c;
         }
 
-        private VisualElement ItemRow(int index)
+        private RowView NewRow(int index, string name)
         {
-            var row = MenuKit.Row(Justify.SpaceBetween);
-            row.style.marginTop = 6;
-            row.style.paddingLeft = 16;
-            row.style.paddingRight = 10;
-            row.style.height = 56;
-            row.style.backgroundColor = MenuKit.RowColor;
-            MenuKit.Round(row, 8);
+            var row = MenuKit.Row(Justify.FlexStart);
+            row.style.height = MenuKit.RowHeight;
+            row.style.paddingLeft = 4f * MenuKit.T;
             row.pickingMode = PickingMode.Position;
             row.RegisterCallback<PointerEnterEvent>(_ => Select(index));
-            _rows[index] = row;
-            return row;
+            var v = new RowView { Root = row };
+            v.Name = MenuKit.Text(name, null, MenuKit.Entry, UiTheme.Orange);
+            v.Name.style.width = 66f * MenuKit.T;
+            v.Name.style.whiteSpace = WhiteSpace.NoWrap;
+            row.Add(v.Name);
+            _views[index] = v;
+            _scroll.Add(row);
+            return v;
         }
 
-        private VisualElement SliderRow(int i)
+        private void AddPlain(int index, string name)
         {
-            var row = ItemRow(i);
-            var name = MenuKit.Text(SliderNames[i], MenuKit.Black, 24, Color.white);
-            name.style.width = 150;
-            row.Add(name);
+            var v = NewRow(index, name);
+            v.Root.RegisterCallback<ClickEvent>(_ => { if (ClickAllowed()) { Select(index); Activate(index); } });
+        }
 
-            var track = new VisualElement();
-            track.style.flexGrow = 1;
-            track.style.height = 16;
-            track.style.marginLeft = 10;
-            track.style.marginRight = 16;
-            track.style.backgroundColor = MenuKit.PipOff;
-            MenuKit.Round(track, 4);
-            track.pickingMode = PickingMode.Position;
-            var fill = new VisualElement { pickingMode = PickingMode.Ignore };
-            fill.style.height = Length.Percent(100);
-            fill.style.backgroundColor = MenuKit.Cyan;
-            MenuKit.Round(fill, 4);
-            track.Add(fill);
-            _sliderFill[i] = fill;
-            track.RegisterCallback<PointerDownEvent>(e => { Select(i); SetFromPointer(i, track, e.localPosition.x); });
-            track.RegisterCallback<PointerMoveEvent>(e =>
+        private void AddChoice(int index, string name)
+        {
+            var v = NewRow(index, name);
+            v.Value = MenuKit.Text("", null, MenuKit.Entry, UiTheme.Bone);
+            v.Root.Add(v.Value);
+            v.Root.RegisterCallback<ClickEvent>(_ => { if (ClickAllowed()) { Select(index); Activate(index); } });
+        }
+
+        private void AddSlider(int i)
+        {
+            var v = NewRow(i, SliderNames[i]);
+            v.Value = MenuKit.Text("", null, MenuKit.Entry, UiTheme.Bone);
+            v.Value.pickingMode = PickingMode.Position;
+            v.Value.style.whiteSpace = WhiteSpace.NoWrap;
+            v.Root.Add(v.Value);
+            // Click or drag along the block bar sets the value (bar cells span the label after "[").
+            v.Value.RegisterCallback<PointerDownEvent>(e => { Select(i); SetFromPointer(i, v.Value, e.localPosition.x); });
+            v.Value.RegisterCallback<PointerMoveEvent>(e =>
             {
-                if ((e.pressedButtons & 1) != 0) SetFromPointer(i, track, e.localPosition.x);
+                if ((e.pressedButtons & 1) != 0) SetFromPointer(i, v.Value, e.localPosition.x);
             });
-            row.Add(track);
-
-            _sliderValue[i] = MenuKit.Text("100%", MenuKit.Bold, 22, MenuKit.Gold);
-            _sliderValue[i].style.width = 76;
-            _sliderValue[i].style.unityTextAlign = TextAnchor.MiddleRight;
-            row.Add(_sliderValue[i]);
-            return row;
         }
 
-        private void SetFromPointer(int slider, VisualElement track, float x)
-        {
-            if (_capturing || Time.frameCount == _openedFrame) return;
-            float w = track.resolvedStyle.width;
-            if (!(w > 1f)) return;
-            int v = Mathf.RoundToInt(Mathf.Clamp01(x / w) * 100f);
-            SetVolume(slider, v);
-        }
-
-        private VisualElement ToggleRow(int index, string label, Button toggle)
-        {
-            var row = ItemRow(index);
-            row.Add(MenuKit.Text(label, MenuKit.Black, 24, Color.white));
-            row.Add(toggle);
-            return row;
-        }
-
-        private VisualElement BindRow(int r)
+        private void AddBind(int r)
         {
             int index = FirstBindIndex + r;
             var action = ControlBindings.Actions[r];
-            var row = ItemRow(index);
-            row.style.height = 50;
-            row.style.marginTop = 5;
-            var name = MenuKit.Text(KeyLabels.ActionName(action), MenuKit.Black, 22, Color.white);
-            name.style.width = 190;
-            row.Add(name);
-
-            var slots = MenuKit.Row(Justify.FlexStart);
-            _slots[r] = new Button[ControlBindings.SlotsPerAction];
+            var v = NewRow(index, KeyLabels.ActionName(action));
             for (int k = 0; k < ControlBindings.SlotsPerAction; k++)
             {
                 int slot = k;
-                var b = MenuKit.MakeButton(() =>
-                {
-                    _selected = index;
-                    _slot = slot;
-                    BeginCapture();
-                }, ClickAllowed, 170, 38, 18);
-                b.style.marginLeft = 8;
-                b.RegisterCallback<PointerEnterEvent>(_ =>
+                var l = MenuKit.Text("", null, MenuKit.Entry, UiTheme.Bone);
+                l.style.width = 36f * MenuKit.T;
+                l.style.whiteSpace = WhiteSpace.NoWrap;
+                l.pickingMode = PickingMode.Position;
+                l.RegisterCallback<PointerEnterEvent>(_ =>
                 {
                     if (_capturing) return;
-                    _selected = index;
-                    _slot = slot;
-                    Refresh();
+                    _selected = index; _slot = slot; Refresh();
                 });
-                _slots[r][k] = b;
-                slots.Add(b);
+                l.RegisterCallback<ClickEvent>(_ =>
+                {
+                    if (!ClickAllowed()) return;
+                    _selected = index; _slot = slot; BeginCapture();
+                });
+                if (k == 0) v.Value = l; else v.Value2 = l;
+                v.Root.Add(l);
             }
-            row.Add(slots);
-
-            var pad = MenuKit.Text(KeyLabels.GamepadLabel(action), MenuKit.Bold, 16, MenuKit.Dim);
-            pad.style.width = 230;
-            pad.style.unityTextAlign = TextAnchor.MiddleRight;
-            row.Add(pad);
-            return row;
+            v.Extra = MenuKit.Text(KeyLabels.GamepadLabel(action), null, MenuKit.Label, UiTheme.Dim);
+            v.Root.Add(v.Extra);
         }
 
-        private static string[] BuildPercent()
+        private void SetFromPointer(int slider, Label bar, float x)
+        {
+            if (_capturing || Time.frameCount == _openedFrame) return;
+            float w = bar.resolvedStyle.width;
+            if (!(w > 1f)) return;
+            float cell = w / Bars[0].Length;
+            int v = Mathf.RoundToInt(Mathf.Clamp01((x - cell) / (cell * 10f)) * 10f) * 10;
+            SetVolume(slider, v);
+        }
+
+        /// <summary>"[||||||||..]  80": ten block cells (one per 10 %) plus the number.</summary>
+        private static string[] BuildBars()
         {
             var p = new string[101];
-            for (int i = 0; i <= 100; i++) p[i] = i + "%";
+            for (int i = 0; i <= 100; i++)
+            {
+                int n = Mathf.RoundToInt(i / 10f);
+                p[i] = "[" + new string('|', n) + new string('.', 10 - n) + "] " + i.ToString().PadLeft(3);
+            }
             return p;
         }
 

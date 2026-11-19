@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using Redline.Core;
 using Redline.Game.Audio;
+using Redline.Game.Render3D;
+using Redline.Game.Render3D.Actors3D;
+using Redline.Game.Render3D.Integration;
 using UnityEngine;
 
 namespace Redline.Game
@@ -13,7 +16,7 @@ namespace Redline.Game
     /// <see cref="EffectsRenderer"/>) and <see cref="PostFx"/>. All rules live in Redline.Core.
     /// </summary>
     /// <remarks>Created by <see cref="RedlineBootstrap"/>. Main-thread only.</remarks>
-    public sealed class RedlineGame : MonoBehaviour
+    public sealed partial class RedlineGame : MonoBehaviour
     {
         /// <summary>
         /// The levels played in order (Resources text files). After a level's victory moment
@@ -21,8 +24,11 @@ namespace Redline.Game
         /// invalid level is skipped with a logged warning. After the last one the victory stays.
         /// </summary>
         private static readonly string[] Levels = { "Loop01", "Loop02", "Loop03" };
-        /// <summary>Half the view height in tiles: a close camera that follows the player.</summary>
-        private const float CameraSize = 8f;
+        /// <summary>
+        /// Half the view height in tiles: a close camera that follows the player. 6.75 frames the
+        /// 40 px-per-tile character art at an exact 2× on a 1080p screen (13.5 tiles × 40 px = 540 px).
+        /// </summary>
+        private const float CameraSize = 6.75f;
         /// <summary>Seconds of the player's velocity the camera looks ahead by.</summary>
         private const float Lookahead = 0.35f;
         private static readonly Color Background = new Color(0.01f, 0.01f, 0.04f);
@@ -33,12 +39,15 @@ namespace Redline.Game
         private static readonly Color HurtColor = new Color(1f, 0.25f, 0.4f);
         private static readonly Color ClangColor = new Color(0.7f, 0.8f, 1f);
 
-        /// <summary>Colour of each speed tier (index = tier - 1). Shared with the HUD and renderers.</summary>
+        /// <summary>
+        /// Colour of each speed tier (index = tier - 1). Shared with the HUD and renderers. Art bible section 4:
+        /// tier 1 cold blue #9CC8FF, tier 2 amber #FFB347, tier 3 white-hot #FFF4E8 (luminance rises with tier).
+        /// </summary>
         public static readonly Color[] TierColors =
         {
-            new Color(0.25f, 0.85f, 1f),
-            new Color(1f, 0.3f, 0.9f),
-            new Color(1f, 0.95f, 0.45f)
+            new Color(0.612f, 0.784f, 1f),
+            new Color(1f, 0.702f, 0.278f),
+            new Color(1f, 0.957f, 0.91f)
         };
 
         /// <summary>Where the game is: the sim steps only while Playing (and no upgrade screen is up).</summary>
@@ -69,10 +78,10 @@ namespace Redline.Game
         private float _victoryTimer;
         /// <summary>The last level's victory: nothing left to load.</summary>
         private bool _finalVictory;
-        private ActorRenderer _actors;
-        private EffectsRenderer _effects;
+        private IGameActors _actors;
+        private IGameEffects _effects;
         private PostFx _postFx;
-        private OrbRenderer _orbs;
+        private IGameOrbs _orbs;
         private RedlineHud _hud;
         private RedlineAudio _audio;
         private Func<Vector2, Vector2> _toDraw;
@@ -104,7 +113,7 @@ namespace Redline.Game
         private TutorialOverlay _tutorial;
         private Func<string, string> _hintLabels;
 
-        // The training level (Resources/Training.txt + Training.json): non-null while it runs.
+        // The training level (Resources/Training.txt + TrainingSteps.json): non-null while it runs.
         private TrainingScript _training;
         private TrainingOverlay _trainingOverlay;
         private MenuScreen _trainingPauseMenu;
@@ -141,10 +150,7 @@ namespace Redline.Game
             SetupCamera();
             _audio = gameObject.AddComponent<RedlineAudio>();
             _audio.Init(_camera);
-            BuildArena();
-            _effects = new EffectsRenderer(_world, _camera);
-            _actors = new ActorRenderer(_world, _effects);
-            _orbs = new OrbRenderer(_world, _config.orbMaxCount);
+            BuildViews(); // the arena, effects, actors and orbs in the chosen render mode (Render3D region)
             _toDraw = ToDraw;
             _postFx = gameObject.AddComponent<PostFx>();
             _postFx.Init(_camera);
@@ -174,6 +180,7 @@ namespace Redline.Game
         {
             _input.Poll();
             float dt = Mathf.Min(Time.deltaTime, 0.1f);
+            SyncPresentation();
 
             // Pause toggles (bound pause key or gamepad Start); the menus read their own input.
             bool canToggle = Time.frameCount != _flowFrame && !_settingsScreen.Visible;
@@ -226,11 +233,13 @@ namespace Redline.Game
             if (_flow == Flow.Paused) return; // the whole view is frozen behind the pause menu
             if (stepping) AdvanceLevelAfterVictory(dt);
 
-            UpdateCamera(dt);
+            if (_render3D && MenuBackdropFlow) _pixelCam.SetTarget(MenuBackdrop.Drift(Time.time, Sim.Map, _camX, _camY)); // live menu backdrop
+            else UpdateCamera(dt);
             var feet = InterpolatedFeet();
             _actors.Sync(Sim, feet, _drawEnemyFeet, dt);
             _orbs.Sync(Sim, _toDraw, Time.time);
-            _arena.Update(dt, _camera.transform.position);
+            if (_render3D) _arena3D?.Update(dt, _pixelCam.CameraPosition);
+            else _arena.Update(dt, _camera.transform.position);
             SpawnSpeedTrail(dt);
             _effects.Update(dt);
         }
@@ -280,7 +289,7 @@ namespace Redline.Game
             Sim.Map.WrapsX ? new Vector2(_camX + Sim.Map.Dx(_camX, world.x), world.y) : world;
 
         /// <summary>The game camera (for HUD tooling).</summary>
-        public Camera Camera => _camera;
+        public Camera Camera => _render3D && _pixelCam != null ? _pixelCam.WorldCamera : _camera;
 
         /// <summary>Name of the level being played (its Resources file, e.g. "Loop01").</summary>
         public string LevelName => Levels[_levelIndex];
@@ -418,6 +427,38 @@ namespace Redline.Game
 
         // ------------------------------------------------------------------ menus and flow
 
+        private bool _hudPaused;
+
+        /// <summary>
+        /// Derives the presentation state from the flow and the sim every frame, so no flow path can forget it
+        /// (art bible sections 2 and 7): the 2.4:1 cinematic letterbox in menus, upgrades, between waves and at
+        /// the end of a run (2.0:1 in play); the key light by tier; the calm grade between waves; the HUD's
+        /// picture rect and its paused dim. Reduced Motion makes the bar change instant.
+        /// </summary>
+        private void SyncPresentation()
+        {
+            bool render3D = _render3D && _pixelCam != null;
+            LetterboxInfo.BarPixels = render3D ? _pixelCam.LetterboxPixels : -1f;
+            if (render3D) LetterboxInfo.SetPicture(_pixelCam.PictureFraction, _pixelCam.ViewportFraction); // integer upscale: picture incl. side bars
+            if (_hud != null && _hudPaused != (_flow == Flow.Paused))
+            {
+                _hudPaused = _flow == Flow.Paused;
+                _hud.SetPaused(_hudPaused);
+            }
+            if (_hud != null) MenuBackdrop.SetHidden(_hud.Root, _flow == Flow.Menu || _flow == Flow.Upgrades); // no HUD over the menu backdrop
+            if (!render3D || Sim == null) return;
+            var state = Sim.State;
+            bool betweenWaves = _training == null && state == SimState.WaveBreak;
+            bool runOver = state == SimState.Victory || state == SimState.GameOver;
+            _pixelCam.CinematicSeconds = UiTheme.ReducedMotion ? 0f : 0.4f;
+            _pixelCam.SetCinematic(_flow == Flow.Menu || _flow == Flow.Upgrades || betweenWaves || runOver);
+            _pixelCam.SetCalm(betweenWaves);
+            if (MenuBackdropFlow) _pixelCam.SetCalm(false); // menu backdrop: full level grade (the sim idles in WaveBreak behind it)
+            _pixelCam.SetTier(Sim.PlayerTier);
+        }
+
+        private bool MenuBackdropFlow => _flow == Flow.Menu || (_flow == Flow.Upgrades && _upgradesReturnToMenu); // menu, or a screen opened from it
+
         private void SetFlow(Flow flow)
         {
             _flow = flow;
@@ -545,6 +586,7 @@ namespace Redline.Game
             _audio.SetVolumes(s.MasterVolume / 100f, s.MusicVolume / 100f, s.SfxVolume / 100f);
             if (Screen.fullScreen != s.Fullscreen) Screen.fullScreen = s.Fullscreen;
             if (_tutorial != null) _tutorial.SetLabels(_hintLabels); // keys may have been rebound
+            if (_flow == Flow.Menu && _world != null && Want3D() != _render3D) BuildViews(); // render mode: now in the menu, else at the next level load
             if (_trainingOverlay != null) _trainingOverlay.SetLabels(_hintLabels);
         }
 
@@ -553,6 +595,7 @@ namespace Redline.Game
         private void OnDestroy()
         {
             if (_onSettingsChanged != null) GameSettings.Changed -= _onSettingsChanged;
+            Render3DMode.Disable();
         }
 
         // ------------------------------------------------------------------ training
@@ -578,7 +621,7 @@ namespace Redline.Game
                 var errors = data.Validate(map);
                 if (errors.Count > 0)
                 {
-                    Debug.LogError("Redline: Training.json does not fit Training.txt: " + string.Join("; ", errors));
+                    Debug.LogError("Redline: TrainingSteps.json does not fit Training.txt: " + string.Join("; ", errors));
                     return;
                 }
                 script = new TrainingScript(new RedlineSim(_config, map), data);
@@ -645,7 +688,8 @@ namespace Redline.Game
         /// <summary>A new Sim replaced the old one: rebuild the level view and snap the camera.</summary>
         private void OnLevelChanged()
         {
-            BuildArena();
+            if (Want3D() != _render3D) BuildViews(); // also rebuilds the arena
+            else BuildArena();
             _prevRunId = -1;
             _accumulator = 0f;
             _camX = Sim.Player.X;
@@ -656,10 +700,13 @@ namespace Redline.Game
         /// <summary>(Re)builds the arena view for the current map under its own host object.</summary>
         private void BuildArena()
         {
+            _arena3D?.Dispose();
+            _arena3D = null;
             if (_arenaHost != null) Destroy(_arenaHost);
             _arenaHost = new GameObject("Level " + Levels[_levelIndex]);
             _arenaHost.transform.SetParent(_world, false);
-            _arena = new ArenaRenderer(_arenaHost.transform, Sim.Map);
+            if (_render3D) BuildArena3D();
+            else _arena = new ArenaRenderer(_arenaHost.transform, Sim.Map);
         }
 
         // ------------------------------------------------------------------ camera
@@ -685,6 +732,7 @@ namespace Redline.Game
         /// </summary>
         private void UpdateCamera(float dt)
         {
+            if (_render3D) { UpdateCamera3D(dt); return; } // 3D: CameraFollow (RedlineGame.Camera3D.cs)
             var p = Sim.Player;
             var map = Sim.Map;
             _camera.orthographicSize = CameraSize;
@@ -702,6 +750,7 @@ namespace Redline.Game
                 ? new Vector3(UnityEngine.Random.Range(-1f, 1f), UnityEngine.Random.Range(-1f, 1f), 0f) * _shake
                 : Vector3.zero;
             _camera.transform.position = new Vector3(_camX, _camY, -10f) + offset;
+            if (_render3D) _pixelCam.SetTarget(new Vector2(_camX + offset.x, _camY + offset.y));
         }
 
         /// <summary>Keeps a view of half-size <paramref name="half"/> inside [-1, size+1], centring when it is larger.</summary>
@@ -871,6 +920,7 @@ namespace Redline.Game
         private void SpawnSpeedTrail(float dt)
         {
             if (Sim.State == SimState.GameOver) return;
+            if (_render3D) { SpawnSpeedTrail3D(dt); return; }
             var p = Sim.Player;
             int tier = Sim.PlayerTier;
             var view = _actors.PlayerView;
@@ -893,5 +943,93 @@ namespace Redline.Game
                 _effects.SpeedLine(new Vector2(pos.x, pos.y), Mathf.Sign(p.Vx), color);
             }
         }
+        #region Render3D
+        // Cinematic 3D view (Render3D/*, Ronin/*) or the classic 2D view, chosen by the Graphics setting or
+        // -render3d / -render2d (RenderModeSwitch). Both share the call sites through IGameEffects/IGameActors/IGameOrbs.
+
+        private bool _render3D;
+        private Transform _viewHost;
+        private Pixel3DCamera _pixelCam;
+        private Arena3DRenderer _arena3D;
+        private Actors3DView _actors3D;
+
+        /// <summary>True while the game draws through the 3D renderer.</summary>
+        public bool Render3DActive => _render3D;
+
+        private static bool Want3D() => RenderModeSwitch.Want3D(GameSettings.Cinematic3D);
+
+        /// <summary>
+        /// (Re)builds every view in the render mode the settings ask for: tears down the previous mode's arena,
+        /// renderers and camera rig, switches the URP pipeline asset, then builds effects, actors, orbs and the arena.
+        /// </summary>
+        private void BuildViews()
+        {
+            bool want = Want3D();
+            if (want && !Render3DMode.Enable()) want = false; // the 3D pipeline asset is missing: stay 2D
+            _arena3D?.Dispose();
+            _arena3D = null;
+            if (_arenaHost != null) Destroy(_arenaHost);
+            _arenaHost = null;
+            if (_viewHost != null) Destroy(_viewHost.gameObject);
+            if (_pixelCam != null) Destroy(_pixelCam.gameObject);
+            _pixelCam = null;
+            _actors3D?.Dispose();
+            _actors3D = null;
+            _arena = null;
+            if (!want) Render3DMode.Disable();
+            _render3D = want;
+
+            _viewHost = new GameObject(want ? "View3D" : "View2D").transform;
+            _viewHost.SetParent(_world, false);
+            _camera.enabled = !want;
+            if (want)
+            {
+                var rig = new GameObject("Pixel3DRig");
+                rig.transform.SetParent(transform, false);
+                _pixelCam = rig.AddComponent<Pixel3DCamera>();
+                PlayerBuildFixes.Apply(_pixelCam);
+                var fx = new Effects3DRenderer(_viewHost, _pixelCam.WorldCamera);
+                _effects = new Effects3D(fx);
+                _actors3D = new Actors3DView(_viewHost, fx, _runConfig.playerHeight);
+                _actors = _actors3D;
+                _orbs = new Orbs3D(new Orb3DRenderer(_viewHost, _config.orbMaxCount));
+            }
+            else
+            {
+                var fx = new EffectsRenderer(_viewHost, _camera);
+                _effects = new Effects2D(fx);
+                _actors = new Actors2D(new ActorRenderer(_viewHost, fx));
+                _orbs = new Orbs2D(new OrbRenderer(_viewHost, _config.orbMaxCount));
+            }
+            BuildArena();
+            if (_render3D) _pixelCam.SetTarget(new Vector2(_camX, _camY));
+        }
+
+        /// <summary>The 3D arena for the current level, with its look applied to the camera rig.</summary>
+        private void BuildArena3D()
+        {
+            var look = Arena3DLook.For(Levels[_levelIndex]);
+            _pixelCam.ApplyLook(look);
+            _arena3D = new Arena3DRenderer(_arenaHost.transform, Sim.Map, look);
+            _arena = null;
+        }
+
+        /// <summary>Tier 3 speed lines around the ronin (the 3D model has no sprite afterimage).</summary>
+        private void SpawnSpeedTrail3D(float dt)
+        {
+            if (_actors3D == null) return;
+            var p = Sim.Player;
+            int tier = Sim.PlayerTier;
+            _speedLineTimer -= dt;
+            // Only while actually sprinting (tier 3 alone also holds against a wall or in the air).
+            if (tier == 3 && p.Grounded && p.WallDir != (int)Mathf.Sign(p.Vx) && Mathf.Abs(p.Vx) >= EffectsRenderer.SpeedLineMinSpeed
+                && _speedLineTimer <= 0f)
+            {
+                _speedLineTimer = EffectsRenderer.SpeedLineInterval;
+                var feet = _actors3D.PlayerFeet;
+                _effects.SpeedLine(new Vector2(feet.x, feet.y + p.Height * 0.5f), Mathf.Sign(p.Vx), TierColors[tier - 1]);
+            }
+        }
+        #endregion
     }
 }

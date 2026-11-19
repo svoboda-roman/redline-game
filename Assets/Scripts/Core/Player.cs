@@ -24,6 +24,15 @@ namespace Redline.Core
         public bool Sliding;
         public float SlideTimer;
         public float SlideCooldownTimer;
+        /// <summary>True once this airtime's air slide is spent; cleared on landing, wall jump and hook attach.</summary>
+        public bool AirSlideUsed;
+
+        /// <summary>Capacity of <see cref="SlideHits"/> (more enemies than that cannot be tracked per slide).</summary>
+        public const int MaxSlideHits = 32;
+        /// <summary>Enemies the current slide has already hit (first <see cref="SlideHitCount"/> entries): one hit per enemy per slide.</summary>
+        public readonly Enemy[] SlideHits = new Enemy[MaxSlideHits];
+        /// <summary>How many entries of <see cref="SlideHits"/> are valid.</summary>
+        public int SlideHitCount;
 
         public bool Hooked;
         public Vec2 HookAnchor;

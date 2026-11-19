@@ -25,7 +25,7 @@
     { "id": "enemy.shield", "title": "SHIELD",
       "body": "Its shield blocks strikes from the front. Hit it from behind or from above; it turns slowly." },
     { "id": "enemy.kamikaze", "title": "KAMIKAZE",
-      "body": "Rushes you and lights a fuse. Kill it before the fuse ends, or get clear. The blast hurts enemies too." },
+      "body": "Rushes you, leaps, and lights a fuse. A weak hit only shortens the fuse: hit it at tier 2 or faster to kill it, or get clear. The blast hurts enemies too." },
     { "id": "enemy.summoner", "title": "SUMMONER",
       "body": "Runs away and summons drones until it dies. Chase it down. A hit during its cast stops the summon." },
 

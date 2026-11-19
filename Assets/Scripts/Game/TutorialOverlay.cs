@@ -26,10 +26,12 @@ namespace Redline.Game
         private const float CardTop = 118f;
         private const float CardWidth = 760f;
 
-        private static readonly Color PanelColor = new Color(0.03f, 0.03f, 0.09f, 0.86f);
-        private static readonly Color Cyan = new Color(0.3f, 0.85f, 1f);
-        private static readonly Color EnemyColor = new Color(1f, 0.62f, 0.3f);
-        private static readonly Color BodyColor = new Color(0.85f, 0.88f, 1f);
+        private VisualElement[] _brackets;
+        private static readonly Color PanelColor = new Color(0.035f, 0.045f, 0.062f, 0.74f);
+        /// <summary>Default card accent (steel; system hints are neutral).</summary>
+        private static readonly Color Cyan = MenuKit.Steel;
+        private static readonly Color EnemyColor = MenuKit.Amber;
+        private static readonly Color BodyColor = new Color(0.84f, 0.87f, 0.9f);
 
         private TutorialHints _hints;
         private Func<string, string> _labels;
@@ -130,8 +132,9 @@ namespace Redline.Game
             _title.text = TutorialText.Resolve(hint.Title, _labels);
             _body.text = TutorialText.Resolve(hint.Body, _labels);
             var accent = Accent(hint.Id);
-            _title.style.color = accent;
-            accent.a = 0.55f;
+            _title.style.color = UiTheme.Dim; // colour never carries meaning alone; the orb/enemy accent is dropped
+            if (_brackets != null) MenuKit.TintBrackets(_brackets, accent);
+            accent.a = 0.22f;
             _card.style.borderTopColor = accent;
             _card.style.borderBottomColor = accent;
             _card.style.borderLeftColor = accent;
@@ -153,8 +156,8 @@ namespace Redline.Game
             _drawnAlpha = _alpha;
             _card.style.display = _alpha > 0f ? DisplayStyle.Flex : DisplayStyle.None;
             _card.style.opacity = _alpha;
-            float eased = 1f - (1f - _alpha) * (1f - _alpha);
-            _card.style.top = CardTop - (1f - eased) * SlideDistance;
+            // Stepped 2-frame in/out (hud.md section 8): no slide; snap opacity to 0 / 0.5 / 1.
+            _card.style.opacity = UiTheme.ReducedMotion ? (_alpha > 0f ? 1f : 0f) : Mathf.Ceil(_alpha * 2f) * 0.5f;
         }
 
         private void Build()
@@ -179,8 +182,8 @@ namespace Redline.Game
             root.pickingMode = PickingMode.Ignore;
 
             var fallback = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            var black = Resources.Load<Font>("Fonts/SourceCodePro-Black") ?? fallback;
-            var bold = Resources.Load<Font>("Fonts/SourceCodePro-Bold") ?? fallback;
+            var black = UiTheme.Font != null ? UiTheme.Font : fallback;
+            var bold = black;
 
             // A full-width strip centres the card horizontally without measuring it.
             var strip = new VisualElement { pickingMode = PickingMode.Ignore };
@@ -194,31 +197,27 @@ namespace Redline.Game
 
             _card = new VisualElement { pickingMode = PickingMode.Ignore };
             _card.style.position = Position.Absolute;
-            _card.style.top = CardTop;
+            _card.style.bottom = 140f + 32f; // bottom-centre, above the 2.4:1 bar plus the 8 T margin
             _card.style.maxWidth = CardWidth;
-            _card.style.backgroundColor = PanelColor;
+            _card.style.backgroundColor = Color.clear; // no panel (art bible section 7)
             _card.style.paddingLeft = 22;
             _card.style.paddingRight = 22;
             _card.style.paddingTop = 12;
             _card.style.paddingBottom = 14;
             _card.style.alignItems = Align.Center;
-            _card.style.borderTopWidth = 2;
-            _card.style.borderBottomWidth = 2;
-            _card.style.borderLeftWidth = 2;
-            _card.style.borderRightWidth = 2;
-            _card.style.borderTopLeftRadius = 8;
-            _card.style.borderTopRightRadius = 8;
-            _card.style.borderBottomLeftRadius = 8;
-            _card.style.borderBottomRightRadius = 8;
+            _card.style.borderTopWidth = 0;
+            _card.style.borderBottomWidth = 0;
+            _card.style.borderLeftWidth = 0;
+            _card.style.borderRightWidth = 0;
+            _brackets = MenuKit.Brackets(_card, Cyan, 12f, 2f, -1f);
             _card.style.display = DisplayStyle.None;
             _card.style.opacity = 0f;
             strip.Add(_card);
 
-            _title = MakeLabel(black, 26, Cyan);
-            _title.style.letterSpacing = 4;
+            _title = MakeLabel(black, 32, UiTheme.Dim);
             _title.style.marginBottom = 4;
             _card.Add(_title);
-            _body = MakeLabel(bold, 21, BodyColor);
+            _body = MakeLabel(bold, 32, UiTheme.Orange);
             _body.style.whiteSpace = WhiteSpace.Normal;
             _body.style.unityTextAlign = TextAnchor.MiddleCenter;
             _card.Add(_body);

@@ -1,12 +1,13 @@
 using System;
 using System.Collections.Generic;
+using Redline.Game.Audio;
 using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace Redline.Game
 {
     /// <summary>
-    /// A full-screen vertical button menu in the neon style: used for the main menu (big "REDLINE"
+    /// A full-screen vertical selection-bar menu in the Replaced terminal style: used for the main menu (big "REDLINE"
     /// title) and the pause menu. Items are added once with <see cref="AddItem"/>; a notice line
     /// under the title can carry a short message (e.g. points banked by the last run).
     /// </summary>
@@ -32,9 +33,15 @@ namespace Redline.Game
         private PanelSettings _settings;
         private VisualElement _list;
         private Label _notice;
+        private Label _hint;
         private MenuNav _nav;
         private int _selected;
         private int _openedFrame = -1;
+        private CreditsScreen _credits;
+        private bool _creditsAdded;
+
+        /// <summary>The screen name given to <see cref="Init"/> ("MainMenu" for the main menu).</summary>
+        public string ScreenName { get; private set; }
 
         /// <summary>Invoked on Esc / gamepad East; null means back does nothing.</summary>
         public Action Cancelled;
@@ -49,61 +56,53 @@ namespace Redline.Game
         /// <param name="screenName">GameObject and panel name.</param>
         /// <param name="sortingOrder">UI layer (HUD is below 100, the upgrade screen at 100).</param>
         /// <param name="title">Heading text.</param>
-        /// <param name="neonTitle">True for the large glowing logo title of the main menu.</param>
+        /// <param name="neonTitle">True for the main menu (left scrim over the live level; the pause menu dims the scene instead).</param>
         public void Init(string screenName, float sortingOrder, string title, bool neonTitle)
         {
             if (Root != null) return;
+            ScreenName = screenName;
             _settings = MenuKit.CreatePanel(screenName + "PanelSettings", sortingOrder);
             Root = MenuKit.CreateRoot(transform, _settings, screenName, neonTitle ? MenuKit.OpaqueOverlay : MenuKit.Overlay);
+            // Title menu: dense ground under the left text column, the live level clear on the right.
+            if (neonTitle) MenuKit.ApplyScrim(Root, 0.97f, 0.06f, 0.56f, 0.9f); // dense past the hint line's end (~51 %)
 
             var column = new VisualElement();
-            column.style.alignItems = Align.Center;
+            column.style.alignItems = Align.FlexStart;
             column.pickingMode = PickingMode.Ignore;
             Root.Add(column);
 
-            if (neonTitle)
-            {
-                var logo = MenuKit.Text(title, MenuKit.Black, 168, MenuKit.Magenta);
-                logo.style.letterSpacing = 24;
-                logo.style.textShadow = new TextShadow { offset = new Vector2(0f, 0f), blurRadius = 24f, color = MenuKit.Cyan };
-                column.Add(logo);
-                var line = new VisualElement();
-                line.style.width = 720;
-                line.style.height = 4;
-                line.style.backgroundColor = MenuKit.Cyan;
-                line.style.marginBottom = 48;
-                column.Add(line);
-            }
-            else
-            {
-                var heading = MenuKit.Text(title, MenuKit.Black, 72, MenuKit.Cyan);
-                heading.style.letterSpacing = 12;
-                heading.style.marginBottom = 36;
-                column.Add(heading);
-            }
+            // Heading 16 T, left; the main menu title is the same size (no logo art, no glow).
+            var heading = MenuKit.Text(title, MenuKit.Black, MenuKit.Heading, UiTheme.Orange);
+            heading.style.marginBottom = 4f * MenuKit.T * 3f;
+            column.Add(heading);
 
-            _notice = MenuKit.Text("", MenuKit.Bold, 22, MenuKit.Gold);
-            _notice.style.marginBottom = 24;
+            _notice = MenuKit.Text("", MenuKit.Bold, MenuKit.Label, UiTheme.Bone);
+            _notice.style.marginBottom = 4f * MenuKit.T;
             _notice.style.display = DisplayStyle.None;
             column.Add(_notice);
 
             _list = new VisualElement();
-            _list.style.alignItems = Align.Center;
+            _list.style.alignItems = Align.FlexStart;
             _list.pickingMode = PickingMode.Ignore;
             column.Add(_list);
 
-            var hint = MenuKit.Text("W/S · D-PAD  SELECT     ENTER · A  CONFIRM", MenuKit.Bold, 18, MenuKit.Dim);
-            hint.style.marginTop = 40;
-            column.Add(hint);
+            _hint = MenuKit.Text("W/S - D-PAD  SELECT      ENTER - A  CONFIRM", MenuKit.Bold, MenuKit.Label, MenuKit.Dim);
+            _hint.style.marginTop = 8f * MenuKit.T;
+            column.Add(_hint);
             Hide();
         }
 
         /// <summary>Adds a button. Items keep their order; the first is selected on open.</summary>
         public void AddItem(string label, Action onActivate)
         {
+            // The main menu gets CREDITS after SETTINGS, right before QUIT (the audio attribution).
+            if (!_creditsAdded && ScreenName == "MainMenu" && label == "QUIT")
+            {
+                _creditsAdded = true;
+                AddItem("CREDITS", OpenCredits);
+            }
             int index = _buttons.Count;
-            var b = MenuKit.MakeButton(() => { Select(index); Activate(index); }, () => Time.frameCount != _openedFrame, 420f, 64f, 28);
-            b.style.marginTop = 14;
+            var b = MenuKit.MakeButton(() => { Select(index); Activate(index); }, () => Time.frameCount != _openedFrame, 90f * MenuKit.T, MenuKit.RowHeight);
             b.RegisterCallback<PointerEnterEvent>(_ => Select(index));
             _buttons.Add(b);
             _labels.Add(label);
@@ -111,6 +110,9 @@ namespace Redline.Game
             _list.Add(b);
             Refresh();
         }
+
+        /// <summary>Replaces the 8 T hint line under the list.</summary>
+        public void SetHint(string text) => _hint.text = text;
 
         /// <summary>Sets (or clears, with null/empty) the notice line under the title.</summary>
         public void SetNotice(string text)
@@ -147,6 +149,17 @@ namespace Redline.Game
             else if (_nav.Cancel) Cancelled?.Invoke();
         }
 
+        private void OpenCredits()
+        {
+            if (_credits == null)
+            {
+                _credits = gameObject.AddComponent<CreditsScreen>();
+                _credits.Closed += Show;
+            }
+            Hide();
+            _credits.Show();
+        }
+
         private void Activate(int index)
         {
             if (!Visible || index < 0 || index >= _actions.Count) return;
@@ -163,7 +176,7 @@ namespace Redline.Game
         private void Refresh()
         {
             for (int i = 0; i < _buttons.Count; i++)
-                MenuKit.StyleButton(_buttons[i], _labels[i], MenuKit.Cyan, i == _selected, i == _selected);
+                MenuKit.StyleButton(_buttons[i], _labels[i], MenuKit.Steel, i == _selected, i == _selected);
         }
 
         private void OnDestroy()

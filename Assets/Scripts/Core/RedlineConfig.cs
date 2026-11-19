@@ -56,6 +56,10 @@ namespace Redline.Core
         public float slideDuration = 0.45f;
         public float slideMinSpeed = 5f;
         public float slideCooldown = 0.4f;
+        /// <summary>A sliding player hits enemies in its body plus this much reach in front.</summary>
+        public float slideHitReach = 0.4f;
+        /// <summary>Slide hit damage as a multiple of the sword's damage at the current tier.</summary>
+        public float slideDamageMultiplier = 1.0f;
 
         // --- Grappling hook ---
         public float hookRange = 11f;
@@ -89,8 +93,13 @@ namespace Redline.Core
         /// <summary>Knockback speed applied to enemies for tiers 1, 2, 3.</summary>
         public float[] tierKnockback = { 5f, 9f, 14f };
         public float attackRange = 1.5f;
-        /// <summary>How far above the player's head the sword arc reaches (tiles); the strike box starts at the feet.</summary>
+        /// <summary>How far above the player's head the sword arc reaches (tiles); the strike box starts at the feet (below them while falling: strikeDownReach).</summary>
         public float attackReachUp = 0.6f;
+        /// <summary>
+        /// How far below the feet the strike box reaches while the player is airborne and falling
+        /// (tiles), so a dive hits an enemy before the body touches it. 0 = never below the feet.
+        /// </summary>
+        public float strikeDownReach = 0.6f;
         public float attackActiveTime = 0.15f;
         public float attackCooldown = 0.25f;
         public float killMomentumRefund = 2.5f;
@@ -211,21 +220,29 @@ namespace Redline.Core
         // --- Kamikaze ---
         public float kamikazeWidth = 0.9f;
         public float kamikazeHeight = 1.0f;
-        public float kamikazeHp = 1.0f;
+        public float kamikazeHp = 2.0f;
         /// <summary>Touch damage (0: only the blast hurts, so touching it never grants invulnerability through the blast).</summary>
         public int kamikazeContactDamage = 0;
         /// <summary>Walk speed while guarding its post.</summary>
         public float kamikazeSpeed = 3.0f;
         public float kamikazeJumpSpeed = 13.0f;
         /// <summary>Starts its rush when the player is this close horizontally, with line of sight.</summary>
-        public float kamikazeAggroRange = 10.0f;
-        /// <summary>Rush speed (below runSpeed, so a running player outpaces it).</summary>
-        public float kamikazeRushSpeed = 8.0f;
+        public float kamikazeAggroRange = 14.0f;
+        /// <summary>Rush speed (above runSpeed: a plain run no longer outpaces it, a slide or a hit does).</summary>
+        public float kamikazeRushSpeed = 12.0f;
         /// <summary>Stops and lights its fuse this close to the player (centre to centre).</summary>
-        public float kamikazeFuseRange = 1.8f;
+        public float kamikazeFuseRange = 2.2f;
         /// <summary>Telegraph: seconds from lighting the fuse to the blast. A kill before the blast defuses it.</summary>
-        public float kamikazeFuseTime = 0.6f;
-        public float kamikazeBlastRadius = 2.5f;
+        public float kamikazeFuseTime = 0.5f;
+        /// <summary>Fuse length when a non-lethal hit lights it (shorter than <see cref="kamikazeFuseTime"/>).</summary>
+        public float kamikazeHitFuseTime = 0.35f;
+        public float kamikazeBlastRadius = 3.2f;
+        /// <summary>While rushing and grounded within this horizontal distance, it leaps at the player once.</summary>
+        public float kamikazeLungeRange = 4.5f;
+        /// <summary>Horizontal speed of the lunge (towards the player).</summary>
+        public float kamikazeLungeSpeedX = 16.0f;
+        /// <summary>Vertical speed of the lunge.</summary>
+        public float kamikazeLungeSpeedY = 9.0f;
         /// <summary>Blast damage to the player.</summary>
         public int kamikazeBlastDamage = 2;
         /// <summary>Blast damage to each other enemy in the radius (ignores armor and shields).</summary>
@@ -332,6 +349,7 @@ namespace Redline.Core
             Positive(nameof(jumpSpeed), jumpSpeed);
             Positive(nameof(hookRange), hookRange);
             Positive(nameof(attackRange), attackRange);
+            if (strikeDownReach < 0f) errors.Add("strikeDownReach must be >= 0");
             Positive(nameof(attackCooldown), attackCooldown);
             Positive(nameof(inputBufferTime), inputBufferTime);
             Positive(nameof(spawnSpacing), spawnSpacing);
@@ -406,6 +424,12 @@ namespace Redline.Core
             Positive(nameof(kamikazeFuseRange), kamikazeFuseRange);
             Positive(nameof(kamikazeFuseTime), kamikazeFuseTime);
             Positive(nameof(kamikazeBlastRadius), kamikazeBlastRadius);
+            Positive(nameof(kamikazeHitFuseTime), kamikazeHitFuseTime);
+            Positive(nameof(kamikazeLungeRange), kamikazeLungeRange);
+            Positive(nameof(kamikazeLungeSpeedX), kamikazeLungeSpeedX);
+            Positive(nameof(kamikazeLungeSpeedY), kamikazeLungeSpeedY);
+            Positive(nameof(slideDamageMultiplier), slideDamageMultiplier);
+            if (!(slideHitReach >= 0f)) errors.Add($"slideHitReach must be >= 0 (was {slideHitReach})");
             Positive(nameof(summonerWidth), summonerWidth);
             Positive(nameof(summonerHeight), summonerHeight);
             Positive(nameof(summonerHp), summonerHp);

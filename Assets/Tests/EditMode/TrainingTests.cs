@@ -6,7 +6,7 @@ using static Redline.Tests.TestSupport;
 namespace Redline.Tests
 {
     /// <summary>
-    /// The training level (Resources/Training.txt + Training.json) and <see cref="TrainingScript"/>:
+    /// The training level (Resources/Training.txt + TrainingSteps.json) and <see cref="TrainingScript"/>:
     /// no waves, each step's goal met by scripted input, the fallback tip, respawn into the station,
     /// skipping, and the TrainingDone setting.
     /// </summary>
@@ -17,7 +17,7 @@ namespace Redline.Tests
         private static TrainingScript NewScript()
         {
             var sim = new RedlineSim(Config(), TileMap.Parse(ReadResource("Training.txt")));
-            return new TrainingScript(sim, TrainingData.Parse(ReadResource("Training.json")));
+            return new TrainingScript(sim, TrainingData.Parse(ReadResource("TrainingSteps.json")));
         }
 
         /// <summary>Skips steps (through their success flash) until the step with this id is active.</summary>
@@ -60,7 +60,7 @@ namespace Redline.Tests
             Assert.IsTrue(map.Training);
             Assert.IsFalse(map.WrapsX);
             Assert.AreEqual(0, map.Hints.Count);
-            var data = TrainingData.Parse(ReadResource("Training.json"));
+            var data = TrainingData.Parse(ReadResource("TrainingSteps.json"));
             CollectionAssert.IsEmpty(data.Validate(map));
             Assert.AreEqual(16, data.Steps.Count);
             CollectionAssert.AreEqual(

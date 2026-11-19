@@ -6,9 +6,10 @@ using UnityEngine;
 namespace Redline.Game
 {
     /// <summary>
-    /// Draws the orbs lying in the level (<see cref="RedlineSim.Orbs"/>): a pixel-art token per
-    /// kind (Health: pink-red with a plus, Speed: yellow with a chevron, Hook: cyan with a hook)
-    /// over a soft pulsing glow, bobbing gently and blinking during its last
+    /// Draws the orbs lying in the level (<see cref="RedlineSim.Orbs"/>): an unlit pixel-art
+    /// talisman per kind, distinct in colour AND silhouette (Health: crimson diamond with a cross,
+    /// Speed: tier-gold capsule with up-chevrons, Hook: cyan ring with a hook) over a soft pulsing
+    /// glow, bobbing gently and blinking during its last
     /// <see cref="BlinkSeconds"/>. One pooled pair of sprites per orb slot (orbMaxCount), so a
     /// frame allocates nothing. On a ring level each orb is drawn at the copy nearest the camera
     /// (<see cref="RedlineGame.ToDraw(Vector2)"/>).
@@ -29,56 +30,67 @@ namespace Redline.Game
         private const float BobHeight = 0.12f;
         private const float BobRate = 4f;
         private const float GlowSize = 1.9f;
-        private const int Px = 11;
-        /// <summary>Pixels per world unit: the 11 px token is ~0.8 tiles, a bit larger than the 0.6 hitbox.</summary>
-        private const float PixelsPerUnit = 14f;
+        private const int Px = 13;
+        /// <summary>Pixels per world unit: the 13 px token is ~0.8 tiles, a bit larger than the 0.6 hitbox.</summary>
+        private const float PixelsPerUnit = 16f;
+        /// <summary>Token "breathing" scale amplitude (the soft pulse).</summary>
+        private const float PulseAmount = 0.06f;
 
-        private static readonly Color HealthColor = new Color(1f, 0.3f, 0.45f);
-        private static readonly Color SpeedColor = new Color(1f, 0.92f, 0.45f);
-        private static readonly Color HookColor = new Color(0.3f, 0.85f, 1f);
+        private static readonly Color HealthColor = new Color(1f, 0.22f, 0.3f);
+        private static readonly Color SpeedColor = new Color(1f, 0.84f, 0.34f);
+        private static readonly Color HookColor = new Color(0.36f, 0.88f, 1f);
 
-        // 'O' rim (kind colour), 'd' dark fill, 'W' glyph (near white), '.' transparent.
+        // Each kind has its own silhouette as well as its own colour (colourblind safety):
+        // health = crimson diamond with a cross, speed = gold capsule with up-chevrons,
+        // hook = cyan ring with a hook. 'O' rim (kind colour), 'L' rim highlight, 'd' dark
+        // fill, 'W' glyph (near white), '.' transparent.
         private static readonly string[] HealthPattern =
         {
-            "...OOOOO...",
-            ".OOdddddOO.",
-            ".OddWWWddO.",
-            "OdddWWWdddO",
-            "OdWWWWWWWdO",
-            "OdWWWWWWWdO",
-            "OdWWWWWWWdO",
-            "OdddWWWdddO",
-            ".OddWWWddO.",
-            ".OOdddddOO.",
-            "...OOOOO..."
+            "......O......",
+            ".....OLO.....",
+            "....OLddO....",
+            "...OLdWddO...",
+            "..OddDWdddO..",
+            ".OddddWddddO.",
+            "OddWWWWWWWddO",
+            ".OddddWddddO.",
+            "..OdddWdddO..",
+            "...OddWddO...",
+            "....OdddO....",
+            ".....OdO.....",
+            "......O......"
         };
         private static readonly string[] SpeedPattern =
         {
-            "...OOOOO...",
-            ".OOdddddOO.",
-            ".OdWWddddO.",
-            "OddWWWddddO",
-            "OdddWWWdddO",
-            "OddddWWWddO",
-            "OdddWWWdddO",
-            "OddWWWddddO",
-            ".OdWWddddO.",
-            ".OOdddddOO.",
-            "...OOOOO..."
+            "....OOOOO....",
+            "...OLddddO...",
+            "..OLddddddO..",
+            "..OdddWdddO..",
+            "..OddWWWddO..",
+            "..OdWWdWWdO..",
+            "..OWWdddWWO..",
+            "..OdddWdddO..",
+            "..OddWWWddO..",
+            "..OdWWdWWdO..",
+            "..OWWdddWWO..",
+            "...OdddddO...",
+            "....OOOOO...."
         };
         private static readonly string[] HookPattern =
         {
-            "...OOOOO...",
-            ".OOdddddOO.",
-            ".OddddWWdO.",
-            "OdddddWWddO",
-            "OdddddWWddO",
-            "OddWddWWddO",
-            "OddWWdWWddO",
-            "OddWWWWWddO",
-            ".OddWWWddO.",
-            ".OOdddddOO.",
-            "...OOOOO..."
+            "....OOOOO....",
+            "..OOLddddOO..",
+            ".OLdddWWdddO.",
+            ".OLddddWdddO.",
+            "OddddddWddddO",
+            "OddddddWddddO",
+            "OdWddddWddddO",
+            "OdWWdddWddddO",
+            "OddWWWWWddddO",
+            ".OddWWWddddO.",
+            ".OdddddddddO.",
+            "..OOdddddOO..",
+            "....OOOOO...."
         };
 
         private static Sprite[] _tokens;
@@ -148,6 +160,8 @@ namespace Redline.Game
             token.transform.localPosition = pos;
             glow.transform.localPosition = pos;
             token.sprite = Token(orb.Kind);
+            float pulse = 1f + PulseAmount * Mathf.Sin(time * 4.5f + orb.Age * 1.7f);
+            token.transform.localScale = new Vector3(pulse, pulse, 1f);
 
             var g = KindColor(orb.Kind);
             g.a = 0.45f + 0.15f * Mathf.Sin(time * 5f + orb.Age);
@@ -183,6 +197,7 @@ namespace Redline.Game
             Color32 rim = color;
             Color32 fill = new Color(color.r * 0.28f, color.g * 0.28f, color.b * 0.28f, 1f);
             Color32 glyph = Color.Lerp(color, Color.white, 0.8f);
+            Color32 light = Color.Lerp(color, Color.white, 0.45f);
             var pixels = new Color32[Px * Px];
             for (int y = 0; y < Px; y++)
             {
@@ -190,7 +205,7 @@ namespace Redline.Game
                 for (int x = 0; x < Px; x++)
                 {
                     char ch = x < row.Length ? row[x] : '.';
-                    pixels[y * Px + x] = ch == 'O' ? rim : ch == 'd' ? fill : ch == 'W' ? glyph : new Color32(0, 0, 0, 0);
+                    pixels[y * Px + x] = ch == 'O' ? rim : ch == 'L' ? light : ch == 'd' || ch == 'D' ? fill : ch == 'W' ? glyph : new Color32(0, 0, 0, 0);
                 }
             }
             var tex = new Texture2D(Px, Px, TextureFormat.RGBA32, false)

@@ -38,6 +38,9 @@ namespace Redline.Game
         /// <summary>Whether tutorial hints should be shown.</summary>
         public static bool HintsEnabled => Current.HintsEnabled;
 
+        /// <summary>Graphics setting: true = Cinematic 3D (default), false = Classic 2D.</summary>
+        public static bool Cinematic3D => !Current.Classic2D;
+
         /// <summary>How the file was read by the last <see cref="Load"/>.</summary>
         public static SaveLoadStatus LoadStatus { get; private set; } = SaveLoadStatus.Missing;
 

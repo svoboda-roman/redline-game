@@ -14,7 +14,7 @@ namespace Redline.Game
     /// <remarks>
     /// Call <see cref="Tick"/> once per frame. Text is resolved only when the script's
     /// <see cref="TrainingScript.Revision"/> changes (or keys are rebound); a steady frame
-    /// allocates nothing. Step text: Resources/Training.json. Main-thread only.
+    /// allocates nothing. Step text: Resources/TrainingSteps.json. Main-thread only.
     /// </remarks>
     public sealed class TrainingOverlay : MonoBehaviour
     {
@@ -52,13 +52,13 @@ namespace Redline.Game
             Build();
         }
 
-        /// <summary>Loads Resources/Training.json; null (with a logged error) when it is missing or invalid.</summary>
+        /// <summary>Loads Resources/TrainingSteps.json; null (with a logged error) when it is missing or invalid.</summary>
         public static TrainingData LoadData()
         {
-            var asset = Resources.Load<TextAsset>("Training");
+            var asset = Resources.Load<TextAsset>("TrainingSteps");
             if (asset == null)
             {
-                Debug.LogError("Redline: Resources/Training.json not found; the training is unavailable.");
+                Debug.LogError("Redline: Resources/TrainingSteps.json not found; the training is unavailable.");
                 return null;
             }
             try
@@ -67,7 +67,7 @@ namespace Redline.Game
             }
             catch (FormatException ex)
             {
-                Debug.LogError("Redline: Resources/Training.json is invalid; the training is unavailable: " + ex.Message);
+                Debug.LogError("Redline: Resources/TrainingSteps.json is invalid; the training is unavailable: " + ex.Message);
                 return null;
             }
         }
@@ -117,7 +117,7 @@ namespace Redline.Game
             if (flashing)
             {
                 float t = Mathf.Clamp01(s.PhaseTime / Mathf.Max(0.01f, s.Data.Settings.successTime));
-                float scale = 1f + 0.35f * (1f - Mathf.Clamp01(t * 5f));
+                float scale = 1f; // no scale pop (menus.md section 10)
                 _flash.style.scale = new StyleScale(new Scale(new Vector2(scale, scale)));
                 _flash.style.opacity = t < 0.7f ? 1f : 1f - (t - 0.7f) / 0.3f;
             }
@@ -135,7 +135,7 @@ namespace Redline.Game
             {
                 _counter.text = "";
                 _title.text = CompleteTitle;
-                _title.style.color = Gold;
+                _title.style.color = UiTheme.Bone;
                 _body.text = CompleteBody;
                 _tip.style.display = DisplayStyle.None;
                 _skipRow.style.display = DisplayStyle.None;
@@ -144,14 +144,14 @@ namespace Redline.Game
             }
             _counter.text = _counterTexts[Mathf.Clamp(s.StepIndex, 0, _counterTexts.Length - 1)];
             _title.text = TutorialText.Resolve(step.Title, _labels);
-            _title.style.color = Cyan;
+            _title.style.color = UiTheme.Bone;
             _body.text = TutorialText.Resolve(step.Body, _labels);
             _tip.text = TutorialText.Resolve(step.Tip, _labels);
             _tip.style.display = s.TipVisible ? DisplayStyle.Flex : DisplayStyle.None;
             _skip.text = TutorialText.Resolve(SkipText, _labels);
             _skipRow.style.display = DisplayStyle.Flex;
             _flash.text = s.Skipped ? "SKIPPED" : "NICE";
-            _flash.style.color = s.Skipped ? Dim : Good;
+            _flash.style.color = s.Skipped ? UiTheme.Dim : UiTheme.Bone;
             SetBorder(Cyan);
         }
 
@@ -211,8 +211,8 @@ namespace Redline.Game
             root.pickingMode = PickingMode.Ignore;
 
             var fallback = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            var black = Resources.Load<Font>("Fonts/SourceCodePro-Black") ?? fallback;
-            var bold = Resources.Load<Font>("Fonts/SourceCodePro-Bold") ?? fallback;
+            var black = UiTheme.Font != null ? UiTheme.Font : fallback;
+            var bold = black;
 
             _marker = new VisualElement { pickingMode = PickingMode.Ignore };
             _marker.style.position = Position.Absolute;
@@ -232,18 +232,18 @@ namespace Redline.Game
 
             _card = new VisualElement { pickingMode = PickingMode.Ignore };
             _card.style.position = Position.Absolute;
-            _card.style.top = CardTop;
+            _card.style.bottom = 140f + 32f; // bottom-centre hint card (hud.md 4.2), above the bar + 8 T
             _card.style.maxWidth = CardWidth;
-            _card.style.backgroundColor = PanelColor;
+            _card.style.backgroundColor = Color.clear; // no panel
             _card.style.paddingLeft = 24;
             _card.style.paddingRight = 24;
             _card.style.paddingTop = 10;
             _card.style.paddingBottom = 14;
             _card.style.alignItems = Align.Center;
-            _card.style.borderTopWidth = 2;
-            _card.style.borderBottomWidth = 2;
-            _card.style.borderLeftWidth = 2;
-            _card.style.borderRightWidth = 2;
+            _card.style.borderTopWidth = 0;
+            _card.style.borderBottomWidth = 0;
+            _card.style.borderLeftWidth = 0;
+            _card.style.borderRightWidth = 0;
             _card.style.borderTopLeftRadius = 8;
             _card.style.borderTopRightRadius = 8;
             _card.style.borderBottomLeftRadius = 8;
@@ -251,18 +251,16 @@ namespace Redline.Game
             _card.style.display = DisplayStyle.None;
             strip.Add(_card);
 
-            _counter = MakeLabel(bold, 16, Dim);
-            _counter.style.letterSpacing = 3;
+            _counter = MakeLabel(bold, 32, UiTheme.Dim);
             _card.Add(_counter);
-            _title = MakeLabel(black, 30, Cyan);
-            _title.style.letterSpacing = 4;
+            _title = MakeLabel(black, 32, UiTheme.Bone);
             _title.style.marginBottom = 4;
             _card.Add(_title);
-            _body = MakeLabel(bold, 22, BodyColor);
+            _body = MakeLabel(bold, 32, UiTheme.Orange);
             _body.style.whiteSpace = WhiteSpace.Normal;
             _body.style.unityTextAlign = TextAnchor.MiddleCenter;
             _card.Add(_body);
-            _tip = MakeLabel(bold, 20, Gold);
+            _tip = MakeLabel(bold, 32, UiTheme.Dim);
             _tip.style.whiteSpace = WhiteSpace.Normal;
             _tip.style.unityTextAlign = TextAnchor.MiddleCenter;
             _tip.style.marginTop = 6;
@@ -272,25 +270,24 @@ namespace Redline.Game
             _skipRow.style.flexDirection = FlexDirection.Row;
             _skipRow.style.alignItems = Align.Center;
             _skipRow.style.marginTop = 8;
-            _skip = MakeLabel(bold, 14, Dim);
+            _skip = MakeLabel(bold, 32, UiTheme.Dim);
             _skip.style.marginRight = 10;
             _skipRow.Add(_skip);
             var bar = new VisualElement { pickingMode = PickingMode.Ignore };
             bar.style.width = SkipBarWidth;
-            bar.style.height = 5;
-            bar.style.backgroundColor = new Color(1f, 1f, 1f, 0.15f);
+            bar.style.height = 4;
+            bar.style.backgroundColor = UiTheme.Faint;
             _skipFill = new VisualElement { pickingMode = PickingMode.Ignore };
             _skipFill.style.height = Length.Percent(100);
             _skipFill.style.width = 0;
-            _skipFill.style.backgroundColor = Dim;
+            _skipFill.style.backgroundColor = UiTheme.Orange;
             bar.Add(_skipFill);
             _skipRow.Add(bar);
             _card.Add(_skipRow);
 
-            _flash = MakeLabel(black, 96, Good);
+            _flash = MakeLabel(black, 64, UiTheme.Bone);
             _flash.style.position = Position.Absolute;
             _flash.style.top = 380;
-            _flash.style.letterSpacing = 10;
             _flash.style.display = DisplayStyle.None;
             strip.Add(_flash);
         }

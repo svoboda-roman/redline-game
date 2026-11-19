@@ -102,7 +102,7 @@ namespace Redline.Core
         public TrainingSpawn[] Orbs = Array.Empty<TrainingSpawn>();
     }
 
-    /// <summary>Training timing values (Training.json "settings").</summary>
+    /// <summary>Training timing values (TrainingSteps.json "settings").</summary>
     public sealed class TrainingSettings
     {
         /// <summary>Seconds the success flash shows before the next step starts.</summary>
@@ -120,7 +120,7 @@ namespace Redline.Core
     }
 
     /// <summary>
-    /// The training script's data, parsed from Resources/Training.json:
+    /// The training script's data, parsed from Resources/TrainingSteps.json:
     /// <c>{ "settings": {...}, "stations": [ { "id": "runway", "box": [x0, y0, x1, y1], "checkpoint": [x, y] } ],
     /// "steps": [ { "id": "move", "station": "runway", "goal": "move", "amount": 6, "title": "...", "body": "...",
     /// "tip": "...", "target": "grunt", "marker": 120, "enemies": [ { "kind": "grunt", "at": [x, y] } ],
@@ -150,10 +150,10 @@ namespace Redline.Core
             Steps = steps;
         }
 
-        /// <summary>Parses Training.json. Throws FormatException naming the bad entry.</summary>
+        /// <summary>Parses TrainingSteps.json. Throws FormatException naming the bad entry.</summary>
         public static TrainingData Parse(string json)
         {
-            if (!(MiniJson.Parse(json) is Dictionary<string, object> root)) throw new FormatException("Training.json must be a JSON object");
+            if (!(MiniJson.Parse(json) is Dictionary<string, object> root)) throw new FormatException("TrainingSteps.json must be a JSON object");
             var settings = new TrainingSettings();
             if (root.TryGetValue("settings", out var so))
             {
@@ -216,7 +216,7 @@ namespace Redline.Core
                 step.Orbs = Spawns(o, "orbs", where, false);
                 steps.Add(step);
             }
-            if (steps.Count == 0) throw new FormatException("Training.json has no steps");
+            if (steps.Count == 0) throw new FormatException("TrainingSteps.json has no steps");
             return new TrainingData(settings, stations, steps);
         }
 
@@ -310,7 +310,7 @@ namespace Redline.Core
 
         private static IEnumerable<Dictionary<string, object>> Objects(Dictionary<string, object> root, string key)
         {
-            if (!root.TryGetValue(key, out var v) || !(v is List<object> list)) throw new FormatException($"Training.json needs a '{key}' array");
+            if (!root.TryGetValue(key, out var v) || !(v is List<object> list)) throw new FormatException($"TrainingSteps.json needs a '{key}' array");
             for (int i = 0; i < list.Count; i++)
             {
                 if (!(list[i] is Dictionary<string, object> o)) throw new FormatException($"{key}[{i}] must be an object");

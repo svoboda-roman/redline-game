@@ -10,8 +10,17 @@ namespace Redline.Game
     /// Dev-only screenshot tour for QA evidence. Active only when the player is started with
     /// <c>-redlineCapture &lt;directory&gt;</c>; it captures wave 1 in progress, an armored brute in
     /// wave 2, the same fight at tier 3 (brute breakable), the GAME OVER screen and the VICTORY
-    /// screen, then quits. Never runs in normal play.
+    /// screen, then quits. With <c>-redlineCaptureUi</c> as well it runs the UI tour instead
+    /// (<c>ui-main-menu.png</c>, <c>ui-hud-play.png</c>, <c>ui-orbs-effects.png</c>, <c>ui-pause.png</c>,
+    /// <c>ui-upgrades.png</c> at 1280x720: the game camera and every UI panel are rendered into
+    /// textures and composited, so it also works in a batchmode editor). Never runs in normal play.
     /// </summary>
+    /// <example>
+    /// <code>
+    /// Unity -batchmode -projectPath . -executeMethod Redline.Game.RedlineCapture.RunFromCommandLine \
+    ///   -redlineCapture /abs/dir -redlineCaptureUi
+    /// </code>
+    /// </example>
     public sealed class RedlineCapture : MonoBehaviour
     {
         private static bool _parsed;
@@ -35,12 +44,27 @@ namespace Redline.Game
         /// <summary>True when the command line asked for a capture tour.</summary>
         public static bool Requested => !string.IsNullOrEmpty(Directory);
 
+        /// <summary>True when the command line asked for the UI tour.</summary>
+        public static bool UiRequested => Array.IndexOf(Environment.GetCommandLineArgs(), "-redlineCaptureUi") >= 0;
+
+#if UNITY_EDITOR
+        /// <summary>Entry for <c>-executeMethod</c>: enters Play Mode; the game starts the tour itself.</summary>
+        public static void RunFromCommandLine() => UnityEditor.EditorApplication.EnterPlaymode();
+#endif
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStatics()
+        {
+            _parsed = false;
+            _directory = null;
+        }
+
         /// <summary>Starts the tour for a game.</summary>
         public void Init(RedlineGame game)
         {
             _game = game;
             System.IO.Directory.CreateDirectory(Directory);
-            StartCoroutine(Tour());
+            StartCoroutine(UiRequested ? UiTour() : Tour());
         }
 
         private IEnumerator Tour()
@@ -50,6 +74,7 @@ namespace Redline.Game
             // 1. Wave 1 in progress: grunts closing in.
             yield return WaitForFight(sim, 1.2f);
             yield return Shot("hud-wave1.png");
+
 
             // 2. Wave 2: a brute appears, armored while the player is slow (steel colour).
             foreach (var e in sim.Enemies) e.Hp = 0f;
@@ -116,6 +141,138 @@ namespace Redline.Game
 
             Debug.Log("REDLINE_CAPTURE_DONE " + Directory);
             Application.Quit();
+        }
+
+        // ------------------------------------------------------------------ UI tour
+
+        private const int ShotWidth = 1280, ShotHeight = 720;
+        private RenderTexture _world;
+
+        private IEnumerator UiTour()
+        {
+            var sim = _game.Sim;
+            _world = new RenderTexture(ShotWidth, ShotHeight, 24, RenderTextureFormat.ARGB32);
+            _game.Camera.targetTexture = _world;
+            yield return new WaitForSecondsRealtime(0.6f);
+
+            // 1. In play: tier 2 run, a chain, one HP lost (a run replaces the sim, so re-read it).
+            Call("StartRun");
+            yield return null;
+            sim = _game.Sim;
+            yield return WaitForFight(sim, 1.0f);
+            var p = sim.Player;
+            p.InvulnTimer = 30f;
+            p.Hp = Mathf.Max(1, p.Hp - 1);
+            p.Vx = sim.Config.tier2Speed + 0.6f;
+            p.Chain = 4;
+            p.ChainTimer = sim.Config.chainWindow;
+            yield return new WaitForSecondsRealtime(0.1f);
+            yield return UiShot("ui-hud-play.png");
+
+            // 3. Orbs of every kind beside the player, and a kill burst mid-frame.
+            p.InvulnTimer = 30f;
+            var at = p.Center;
+            sim.SpawnOrb(OrbKind.Health, new Vec2(at.X + 2.5f, at.Y));
+            sim.SpawnOrb(OrbKind.Speed, new Vec2(at.X + 4f, at.Y));
+            sim.SpawnOrb(OrbKind.Hook, new Vec2(at.X + 5.5f, at.Y));
+            yield return new WaitForSecondsRealtime(0.25f);
+            _game.PreviewKillEffects(_game.ToDraw(new Vector2(at.X - 2.5f, at.Y + 0.5f)), false);
+            yield return new WaitForSecondsRealtime(0.05f);
+            yield return UiShot("ui-orbs-effects.png");
+
+            // 4. Pause menu over the frozen game.
+            Call("Pause");
+            yield return new WaitForSecondsRealtime(0.3f);
+            yield return UiShot("ui-pause.png");
+            Call("Resume");
+
+            // 5. Upgrades.
+            Call("OpenUpgradesFromMenu");
+            yield return new WaitForSecondsRealtime(0.3f);
+            yield return UiShot("ui-upgrades.png");
+
+            // 6. Title menu (the training may have hidden it at launch, so open it explicitly).
+            var shop = GetComponent<UpgradeScreen>();
+            if (shop != null) shop.Hide();
+            Call("ShowMainMenu", new object[] { null });
+            yield return new WaitForSecondsRealtime(0.3f);
+            yield return UiShot("ui-main-menu.png");
+
+            Debug.Log("REDLINE_CAPTURE_DONE " + Directory);
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.Exit(0);
+#else
+            Application.Quit();
+#endif
+        }
+
+        /// <summary>Calls a private RedlineGame flow method (dev tool only).</summary>
+        private void Call(string method, object[] args = null)
+        {
+            var m = typeof(RedlineGame).GetMethod(method, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            if (m == null) Debug.LogWarning("REDLINE_CAPTURE: no method " + method);
+            else m.Invoke(_game, args);
+        }
+
+        /// <summary>
+        /// Renders every visible UI panel into its own transparent texture and composites them, in
+        /// sorting order, over the game camera's texture (UI Toolkit output is premultiplied).
+        /// </summary>
+        private IEnumerator UiShot(string fileName)
+        {
+            var docs = FindObjectsByType<UnityEngine.UIElements.UIDocument>(FindObjectsSortMode.None);
+            var targets = new System.Collections.Generic.List<(float order, RenderTexture rt, UnityEngine.UIElements.PanelSettings ps)>();
+            var seen = new System.Collections.Generic.HashSet<UnityEngine.UIElements.PanelSettings>();
+            foreach (var d in docs)
+            {
+                var ps = d.panelSettings;
+                if (ps == null || !seen.Add(ps)) continue;
+                var rt = new RenderTexture(ShotWidth, ShotHeight, 24, RenderTextureFormat.ARGB32);
+                ps.targetTexture = rt;
+                ps.clearColor = true;
+                ps.colorClearValue = new Color(0f, 0f, 0f, 0f);
+                targets.Add((ps.sortingOrder, rt, ps));
+            }
+            targets.Sort((a, b) => a.order.CompareTo(b.order));
+            // No WaitForEndOfFrame: it never fires in a batchmode editor. Panels render during the
+            // frame, so a few frames later every target texture holds the current UI.
+            for (int i = 0; i < 4; i++) yield return null;
+
+            var px = Read(_world);
+            foreach (var t in targets)
+            {
+                var ui = Read(t.rt);
+                for (int i = 0; i < px.Length; i++)
+                {
+                    float a = ui[i].a;
+                    if (a <= 0f) continue;
+                    px[i] = new Color(ui[i].r + px[i].r * (1f - a), ui[i].g + px[i].g * (1f - a), ui[i].b + px[i].b * (1f - a), 1f);
+                }
+                t.ps.targetTexture = null;
+                t.ps.clearColor = false;
+                t.rt.Release();
+                Destroy(t.rt);
+            }
+            var tex = new Texture2D(ShotWidth, ShotHeight, TextureFormat.RGBA32, false);
+            tex.SetPixels(px);
+            tex.Apply();
+            string path = Path.Combine(Directory, fileName);
+            File.WriteAllBytes(path, tex.EncodeToPNG());
+            Destroy(tex);
+            Debug.Log("REDLINE_CAPTURE " + path);
+        }
+
+        private static Color[] Read(RenderTexture rt)
+        {
+            var prev = RenderTexture.active;
+            RenderTexture.active = rt;
+            var tex = new Texture2D(rt.width, rt.height, TextureFormat.RGBA32, false);
+            tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
+            tex.Apply();
+            RenderTexture.active = prev;
+            var px = tex.GetPixels();
+            Destroy(tex);
+            return px;
         }
 
         private static IEnumerator ClearUntilWave(RedlineSim sim, int wave)

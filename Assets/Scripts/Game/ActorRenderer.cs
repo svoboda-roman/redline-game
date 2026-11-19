@@ -1,15 +1,22 @@
 using System.Collections.Generic;
 using Redline.Core;
+using Redline.Game.Art;
+using Redline.Game.Atmosphere;
 using UnityEngine;
+using UnityEngine.Rendering.Universal;
 
 namespace Redline.Game
 {
     /// <summary>
-    /// Draws the moving actors: the player (pose: idle, speed-timed run cycle, jump, fall, slide,
-    /// rope swing; facing, lean, squash and stretch, tier glow),
-    /// the sword (held, swung in an arc with a ghost trail), enemies (drawn larger than their
-    /// hitboxes; bob, hit pop, brute armor state, the shield bearer's shield side, shooter, kamikaze
-    /// and summoner telegraphs), shooter projectiles and the grappling rope. Positions arrive in
+    /// Draws the moving actors: the player as the animated cyberpunk samurai (sheet
+    /// <c>Resources/Art/Characters/Samurai</c> via <see cref="CharacterSheet"/>; lit body with a normal
+    /// map, unlit emissive blade/visor/arm overlays; facing, lean, squash and stretch). The speed tier
+    /// reads from the blade (tier colour, glow, slash ghosts) and a tier-tinted key/rim light that
+    /// follows the player. Also the seven enemy kinds from their own sheets
+    /// (<c>Resources/Art/Characters/&lt;Kind&gt;</c>, see <see cref="EnemyLook"/>: state-driven animations,
+    /// kind-coloured emissive strips, hit pop and flash, brute armor state, the shield bearer's shield
+    /// side and turn, shooter, kamikaze and summoner telegraphs, and a death animation that holds and
+    /// fades where the enemy fell), shooter projectiles and the grappling rope. Positions arrive in
     /// draw space (the ring already unrolled around the camera).
     /// </summary>
     /// <example>
@@ -22,48 +29,38 @@ namespace Redline.Game
     /// <remarks>Main-thread only. Enemy views are pooled and grow only when a wave is larger than any before.</remarks>
     public sealed class ActorRenderer
     {
-        private static readonly Color GruntColor = new Color(1f, 0.55f, 0.15f);
-        private static readonly Color BruteArmored = new Color(0.55f, 0.65f, 0.82f);
-        private static readonly Color BruteBreakable = new Color(1f, 0.2f, 0.28f);
         private static readonly Color RopeCore = new Color(0.9f, 0.97f, 1f);
-        private static readonly Color DroneColor = new Color(0.78f, 0.45f, 1f);
-        private static readonly Color WindupColor = new Color(1f, 0.85f, 0.4f);
-        private static readonly Color ShooterColor = new Color(0.5f, 1f, 0.4f);
-        private static readonly Color ShieldColor = new Color(0.95f, 0.6f, 0.35f);
-        private static readonly Color KamikazeColor = new Color(1f, 0.22f, 0.2f);
-        private static readonly Color SummonerColor = new Color(0.55f, 0.4f, 1f);
         private static readonly Color ShotColor = new Color(1f, 0.4f, 0.15f);
 
         private readonly Transform _root;
         private readonly SpriteRenderer _player;
         private readonly SpriteRenderer _playerGlow;
-        private readonly SpriteRenderer _sword;
+        private readonly Light2D _playerLight;
+        // Samurai sheet (design: cyberpunk-samurai player art): body is lit with its normal map;
+        // blade (tier colour), visor (red) and arm strips (cyan) are unlit emissive overlays above it.
+        private readonly SpriteRenderer _blade;
+        private readonly SpriteRenderer _visor;
+        private readonly SpriteRenderer _arm;
+        private readonly SpriteAnimator _anim = new SpriteAnimator();
+        private readonly SheetAnimation _idle, _run, _slide, _jump, _fall, _wallSlide, _hookSwing,
+            _attack, _airAttack, _hurt, _death;
         private readonly EffectsRenderer _effects;
-        private float _swingHold;
-        private float _swingAngle = RestAngle;
-        private const float RestAngle = 28f;
-        // While hanging on the rope the sword trails low behind, clear of the rope and the raised arms.
-        private const float HookedRestAngle = 150f;
-        private const float SwingFrom = 115f;
-        private const float SwingTo = -120f;
-        private const float SwordLength = 1.7f;
+        private int _lastHp = int.MinValue;
+        private float _hurtTimer;
+        private int _lastStrike = -1;
         private readonly SpriteRenderer _rope;
         private readonly SpriteRenderer _ropeGlow;
         private readonly SpriteRenderer _anchor;
-        private readonly List<SpriteRenderer> _enemies = new List<SpriteRenderer>(32);
-        private readonly List<SpriteRenderer> _enemyGlows = new List<SpriteRenderer>(32);
+        // Enemy sheets (Resources/Art/Characters/<Kind>) by (int)EnemyKind; live views per sim slot; corpse pool.
+        private readonly EnemyAnimations[] _enemyAnims = new EnemyAnimations[7];
+        private readonly List<EnemyView> _enemyViews = new List<EnemyView>(32);
+        private readonly List<EnemyView> _corpses = new List<EnemyView>(16);
+        private RedlineSim _lastSim;
         private readonly List<SpriteRenderer> _shots = new List<SpriteRenderer>(24);
         private readonly List<SpriteRenderer> _shotGlows = new List<SpriteRenderer>(24);
         private float _stretch = 1f;
         private float _time;
         private float _fuseTime;
-        private float _runPhase;
-        // Run cycle: frames advanced per tile travelled, so the legs speed up with |Vx|
-        // (about 11 frames/s at run speed 9, 26 at 22).
-        private const float RunFramesPerTile = 1.2f;
-        private const float RunMinSpeed = 0.6f;
-        // |Vy| below this reads as the top of the arc and keeps the rising pose.
-        private const float FallPoseSpeed = 1.5f;
 
         /// <summary>The player's drawn sprite, position, scale and flip (for afterimages).</summary>
         public SpriteRenderer PlayerView => _player;
@@ -78,8 +75,28 @@ namespace Redline.Game
             _ropeGlow = SpriteFactory.Create("RopeGlow", _root, SpriteFactory.Square, Color.clear, 6);
             _rope = SpriteFactory.Create("Rope", _root, SpriteFactory.Square, RopeCore, 7);
             _anchor = SpriteFactory.Create("Anchor", _root, PixelArt.Glow, RopeCore, 7);
-            _sword = SpriteFactory.Create("Sword", _root, PixelArt.Sword, Color.white, 11);
-            _player = SpriteFactory.Create("Player", _root, PixelArt.Player, Color.white, 10);
+            var sheet = CharacterSheet.Load(SamuraiLook.SheetPath);
+            _idle = sheet.Animation(SamuraiLook.Idle);
+            _run = sheet.Animation(SamuraiLook.Run);
+            _slide = sheet.Animation(SamuraiLook.Slide);
+            _jump = sheet.Animation(SamuraiLook.Jump);
+            _fall = sheet.Animation(SamuraiLook.Fall);
+            _wallSlide = sheet.Animation(SamuraiLook.WallSlide);
+            _hookSwing = sheet.Animation(SamuraiLook.HookSwing);
+            _attack = sheet.Animation(SamuraiLook.Attack);
+            _airAttack = sheet.Animation(SamuraiLook.AirAttack);
+            _hurt = sheet.Animation(SamuraiLook.Hurt);
+            _death = sheet.Animation(SamuraiLook.Death);
+            _anim.Play(_idle);
+            for (int k = 0; k < _enemyAnims.Length; k++) _enemyAnims[k] = EnemyAnimations.Load((EnemyKind)k);
+            _player = SpriteFactory.CreateLit("Player", _root, _idle.Frame(0), SamuraiLook.BodyTint, SamuraiLook.BodyOrder);
+            // Overlays ride on the body transform (same position, squash, tilt); flip is copied per frame.
+            _blade = SpriteFactory.Create("Blade", _player.transform, null, Color.white, SamuraiLook.BladeOrder);
+            _visor = SpriteFactory.Create("Visor", _player.transform, null, SamuraiLook.Visor, SamuraiLook.VisorOrder);
+            _arm = SpriteFactory.Create("ArmStrips", _player.transform, null, SamuraiLook.Arm, SamuraiLook.ArmOrder);
+            _playerLight = Lights2D.Point(_root, "PlayerRimLight", Vector3.zero, Color.white,
+                AtmosphereConfig.PlayerLightIntensity, AtmosphereConfig.PlayerLightRadius,
+                AtmosphereConfig.PlayerLightInner, 360f, 360f, AtmosphereConfig.PlayerLightFalloff);
         }
 
         /// <summary>Squashes (below 1) or stretches (above 1) the player for a moment.</summary>
@@ -96,9 +113,8 @@ namespace Redline.Game
             _stretch = Mathf.Lerp(_stretch, 1f, Mathf.Min(1f, dt * 12f));
             int tier = sim.PlayerTier;
             SyncPlayer(sim, playerFeet, tier, dt);
-            SyncSword(sim, playerFeet, tier, dt);
             SyncRope(sim, playerFeet, tier);
-            SyncEnemies(sim, enemyFeet, tier);
+            SyncEnemies(sim, playerFeet, enemyFeet, tier, dt);
             SyncProjectiles(sim, playerFeet, tier);
         }
 
@@ -139,59 +155,141 @@ namespace Redline.Game
             }
         }
 
+        /// <summary>
+        /// The samurai: picks the animation from sim state, draws the lit body frame and the three
+        /// emissive overlays (blade in the tier colour, visor, arm strips) with the same flip,
+        /// squash/stretch and tilt, a tier glow on the blade, a slash ghost while striking, and the
+        /// tier rim light. Pivot is the feet, 1/ppu world units per texel (no extra scale).
+        /// </summary>
         private void SyncPlayer(RedlineSim sim, Vector2 feet, int tier, float dt)
         {
             var p = sim.Player;
             bool dead = sim.State == SimState.GameOver;
-            _player.enabled = !dead;
-            _playerGlow.enabled = !dead;
-            if (dead) return;
+            if (_lastHp != int.MinValue && p.Hp < _lastHp && !dead) _hurtTimer = _hurt.Duration;
+            else _hurtTimer = Mathf.Max(0f, _hurtTimer - dt);
+            _lastHp = p.Hp;
 
-            var color = RedlineGame.TierColors[tier - 1];
-            if (p.InvulnTimer > 0f && Mathf.Repeat(Time.time * 16f, 2f) < 1f) color.a = 0.3f;
-            _player.color = color;
-            _player.sprite = PlayerPose(p, dt);
-            _player.flipX = p.Facing < 0;
+            var anim = PickAnimation(p, dead, out bool restart);
+            _anim.Play(anim, restart);
+            _anim.Tick(dt, AnimRate(anim, p, sim.Config));
+            int frame = _anim.Frame;
+            // wall_slide is drawn facing the wall; everything else faces the way the player faces.
+            bool flip = anim == _wallSlide ? p.WallDir < 0 : p.Facing < 0;
 
-            float height = p.Height * (p.Sliding ? 1f : _stretch);
-            float k = p.Height / _player.sprite.bounds.size.y;
+            float alpha = !dead && p.InvulnTimer > 0f && Mathf.Repeat(Time.time * SamuraiLook.BlinkRate, 2f) < 1f
+                ? SamuraiLook.BlinkAlpha
+                : 1f;
+            var body = SamuraiLook.BodyTint;
+            body.a *= alpha;
+            _player.sprite = _anim.Current.Frame(frame);
+            _player.flipX = flip;
+            _player.color = body;
+
+            var tierColor = RedlineGame.TierColors[tier - 1];
+            Overlay(_blade, EmissiveChannel.R, frame, flip, Color.Lerp(tierColor, Color.white, SamuraiLook.BladeWhiteMix), alpha);
+            Overlay(_visor, EmissiveChannel.G, frame, flip, SamuraiLook.Visor, alpha);
+            Overlay(_arm, EmissiveChannel.B, frame, flip, SamuraiLook.Arm, alpha);
+
+            // Squash/stretch about the feet; tilt about the body centre.
+            float s = p.Sliding || dead ? 1f : _stretch;
+            float tilt = dead ? 0f : PlayerTilt(p, sim.Map);
+            var rot = Quaternion.Euler(0f, 0f, tilt);
+            var half = new Vector3(0f, p.Height * 0.5f, 0f);
             var t = _player.transform;
-            t.localScale = new Vector3(k / (p.Sliding ? 1f : _stretch), k * (p.Sliding ? 1f : _stretch), 1f);
-            t.localPosition = new Vector3(feet.x, feet.y + height * 0.5f, 0f);
-            t.localRotation = Quaternion.Euler(0f, 0f, PlayerTilt(p, sim.Map));
+            t.localScale = new Vector3(1f / s, s, 1f);
+            t.localRotation = rot;
+            t.localPosition = new Vector3(feet.x, feet.y, 0f) + half - rot * half;
 
-            var glow = RedlineGame.TierColors[tier - 1];
-            glow.a = 0.14f + 0.12f * tier;
-            _playerGlow.color = glow;
-            float gs = 2.2f + 0.7f * (tier - 1) + Mathf.Sin(_time * 10f) * 0.08f * tier;
-            _playerGlow.transform.localPosition = t.localPosition;
-            _playerGlow.transform.localScale = new Vector3(gs, gs, 1f);
+            // Tier glow centred on the blade's lit texels in this frame.
+            bool glowOn = _blade.enabled && !dead;
+            _playerGlow.enabled = glowOn;
+            if (glowOn)
+            {
+                var c = _anim.Current.EmissiveCentroid(EmissiveChannel.R, frame);
+                if (flip) c.x = -c.x;
+                var glow = tierColor;
+                glow.a = (SamuraiLook.BladeGlowAlpha + SamuraiLook.BladeGlowAlphaPerTier * tier
+                          + Mathf.Sin(_time * 10f) * 0.03f * tier) * alpha;
+                _playerGlow.color = glow;
+                _playerGlow.transform.localPosition = t.localPosition + rot * new Vector3(c.x / s, c.y * s, 0f);
+                float gs = SamuraiLook.BladeGlowSize + SamuraiLook.BladeGlowSizePerTier * (tier - 1);
+                _playerGlow.transform.localScale = new Vector3(gs, gs, 1f);
+            }
+
+            if (p.Attacking && _blade.enabled)
+            {
+                var ghost = tierColor;
+                ghost.a = SamuraiLook.SlashGhostAlpha;
+                _effects.Ghost(_blade.sprite, t.localPosition, t.localRotation, t.localScale, flip, ghost, SamuraiLook.SlashGhostLife);
+            }
+
+            // Key/rim light: tier-tinted, behind and above the body centre so it rims the back edge.
+            _playerLight.enabled = true;
+            float back = p.Facing >= 0 ? -AtmosphereConfig.PlayerLightBack : AtmosphereConfig.PlayerLightBack;
+            _playerLight.transform.localPosition = new Vector3(feet.x + back, feet.y + p.Height * 0.5f + AtmosphereConfig.PlayerLightUp, 0f);
+            _playerLight.color = tierColor;
+            _playerLight.intensity = AtmosphereConfig.PlayerLightIntensity * SamuraiLook.RimLightBoost;
         }
 
         /// <summary>
-        /// Picks the player's sprite: swing pose on the rope, slide, jump or fall in the air, a run
-        /// cycle timed by distance travelled, or the standing pose. Only swaps cached sprites.
+        /// State to animation, highest priority first: death, hurt (just took damage), hook swing,
+        /// slide, strike (attack on the ground, air_attack in the air; a new strike restarts it and it
+        /// follows through to its last frame), wall slide, jump (rising) / fall, run, idle.
         /// </summary>
-        private Sprite PlayerPose(Player p, float dt)
+        private SheetAnimation PickAnimation(Player p, bool dead, out bool restart)
         {
-            if (p.Hooked) return PixelArt.PlayerSwing;
-            if (p.Sliding) return PixelArt.PlayerSlide;
+            restart = false;
+            if (dead) return _death;
+            if (_hurtTimer > 0f) return _hurt;
+            if (p.Hooked) return _hookSwing;
+            if (p.Sliding) return _slide;
+            bool swinging = _anim.Current == _attack || _anim.Current == _airAttack;
+            if (p.Attacking)
+            {
+                bool fresh = p.StrikeId != _lastStrike;
+                _lastStrike = p.StrikeId;
+                if (fresh || !swinging)
+                {
+                    restart = true;
+                    return p.Grounded ? _attack : _airAttack;
+                }
+                return _anim.Current;
+            }
+            if (swinging && !_anim.Finished) return _anim.Current;
             if (!p.Grounded)
             {
-                _runPhase = 0f;
-                return p.Vy < -FallPoseSpeed ? PixelArt.PlayerFall : PixelArt.PlayerJump;
+                if (p.WallDir != 0 && p.Vy <= 0f) return _wallSlide;
+                return p.Vy > 0f ? _jump : _fall;
             }
-            float speed = Mathf.Abs(p.Vx);
-            if (speed < RunMinSpeed)
-            {
-                _runPhase = 0f;
-                return PixelArt.Player;
-            }
-            _runPhase = Mathf.Repeat(_runPhase + speed * dt * RunFramesPerTile, PixelArt.PlayerRunFrameCount);
-            return PixelArt.PlayerRunFrame((int)_runPhase);
+            return Mathf.Abs(p.Vx) >= SamuraiLook.RunMinSpeed ? _run : _idle;
         }
 
-        /// <summary>Leans into a run, and hangs along the rope while swinging.</summary>
+        /// <summary>Speed scale on the authored fps: run follows |Vx|; strikes play at SamuraiLook's fps.</summary>
+        private float AnimRate(SheetAnimation anim, Player p, RedlineConfig cfg)
+        {
+            if (anim == _run) return RunRate(p, cfg);
+            if (anim == _attack) return SamuraiLook.AttackFps / _attack.Fps;
+            if (anim == _airAttack) return SamuraiLook.AirAttackFps / _airAttack.Fps;
+            return 1f;
+        }
+
+        /// <summary>Run cycle rate: the authored fps at run speed, scaled with |Vx|.</summary>
+        private static float RunRate(Player p, RedlineConfig cfg) =>
+            Mathf.Clamp(Mathf.Abs(p.Vx) / Mathf.Max(0.01f, cfg.runSpeed), SamuraiLook.RunRateMin, SamuraiLook.RunRateMax);
+
+        /// <summary>Shows one emissive channel of the current frame, or hides it when the frame has none.</summary>
+        private void Overlay(SpriteRenderer r, EmissiveChannel channel, int frame, bool flip, Color color, float alpha)
+        {
+            var sprite = _anim.Current.Emissive(channel, frame);
+            r.enabled = sprite != null;
+            if (sprite == null) return;
+            r.sprite = sprite;
+            r.flipX = flip;
+            color.a *= alpha;
+            r.color = color;
+        }
+
+        /// <summary>Leans slightly into a run (the drawn run already leans), and hangs along the rope while swinging.</summary>
         private static float PlayerTilt(Player p, TileMap map)
         {
             if (p.Hooked)
@@ -199,54 +297,8 @@ namespace Redline.Game
                 var d = map.Near(p.Center, p.HookAnchor) - p.Center;
                 return Mathf.Atan2(d.Y, d.X) * Mathf.Rad2Deg - 90f;
             }
-            if (p.Sliding) return 0f;
-            return Mathf.Clamp(-p.Vx * 0.7f, -12f, 12f);
-        }
-
-        /// <summary>
-        /// The sword rests over the shoulder; a strike swings it from behind the head down in front
-        /// (matching the strike box), leaving a fading trail, then it eases back to rest.
-        /// </summary>
-        private void SyncSword(RedlineSim sim, Vector2 feet, int tier, float dt)
-        {
-            var p = sim.Player;
-            bool show = sim.State != SimState.GameOver;
-            _sword.enabled = show;
-            if (!show) return;
-
-            float target = p.Hooked ? HookedRestAngle : p.Sliding ? -70f : RestAngle;
-            if (p.Attacking)
-            {
-                float t = 1f - Mathf.Clamp01(p.AttackTimer / sim.Config.attackActiveTime);
-                float ease = 1f - (1f - t) * (1f - t) * (1f - t);
-                _swingAngle = Mathf.Lerp(SwingFrom, SwingTo, ease);
-                _swingHold = 0.1f;
-            }
-            else if (_swingHold > 0f)
-            {
-                _swingHold -= dt;
-            }
-            else
-            {
-                _swingAngle = Mathf.Lerp(_swingAngle, target, Mathf.Min(1f, dt * 14f));
-            }
-
-            float side = p.Facing >= 0 ? 1f : -1f;
-            var t2 = _sword.transform;
-            t2.localPosition = new Vector3(feet.x + side * 0.28f, feet.y + p.Height * 0.5f, 0f);
-            t2.localRotation = Quaternion.Euler(0f, 0f, _swingAngle * side);
-            float k = SwordLength / _sword.sprite.bounds.size.y;
-            t2.localScale = new Vector3(k, k, 1f);
-            _sword.flipX = side < 0f;
-            var c = Color.Lerp(Color.white, RedlineGame.TierColors[tier - 1], 0.35f);
-            _sword.color = c;
-
-            if (p.Attacking)
-            {
-                var ghost = RedlineGame.TierColors[tier - 1];
-                ghost.a = 0.5f;
-                _effects.Ghost(_sword.sprite, t2.localPosition, t2.localRotation, t2.localScale, _sword.flipX, ghost, 0.12f);
-            }
+            if (p.Sliding || !p.Grounded) return 0f;
+            return Mathf.Clamp(-p.Vx * SamuraiLook.LeanPerSpeed, -SamuraiLook.MaxLean, SamuraiLook.MaxLean);
         }
 
         private void SyncRope(RedlineSim sim, Vector2 feet, int tier)
@@ -273,90 +325,368 @@ namespace Redline.Game
             _anchor.transform.localScale = new Vector3(0.6f, 0.6f, 1f);
         }
 
-        private void SyncEnemies(RedlineSim sim, IReadOnlyList<Vector2> feet, int tier)
+        // ------------------------------------------------------------------ enemies
+
+        /// <summary>
+        /// One drawn enemy (a live slot or a pooled corpse): the lit body with its normal map, an unlit
+        /// fill/flash copy of the colour frame, the three unlit emissive overlays (R attack glow,
+        /// G eyes, B kind-coloured strips) riding on the body transform, and (live views only) a halo.
+        /// </summary>
+        private sealed class EnemyView
         {
-            var enemies = sim.Enemies;
-            while (_enemies.Count < enemies.Count)
+            public readonly SpriteRenderer Body, Fill, AttackGlow, Eyes, Strips, Halo;
+            public readonly SpriteAnimator Anim = new SpriteAnimator();
+            /// <summary>Live views: the enemy bound to this slot (a new reference re-binds; no corpse).</summary>
+            public Enemy Enemy;
+            public EnemyKind Kind;
+            public bool WasAlive, Flip;
+            public EnemyAct LastAct;
+            public float LastSinceHit = 99f, FireTimer, BlockTimer;
+            /// <summary>Corpses: in use, seconds held after the death animation ended, sim feet.</summary>
+            public bool Active;
+            public float Held, X, Y, Height;
+
+            public EnemyView(Transform root, bool corpse)
             {
-                _enemyGlows.Add(SpriteFactory.Create("EnemyGlow", _root, PixelArt.Glow, Color.clear, 7));
-                _enemies.Add(SpriteFactory.Create("Enemy", _root, PixelArt.Grunt, GruntColor, 8));
+                int body = corpse ? EnemyLook.CorpseBodyOrder : EnemyLook.BodyOrder;
+                int over = corpse ? EnemyLook.CorpseOverlayOrder : EnemyLook.OverlayOrder;
+                if (!corpse) Halo = SpriteFactory.Create("EnemyHalo", root, PixelArt.Glow, Color.clear, EnemyLook.HaloOrder);
+                Body = SpriteFactory.CreateLit(corpse ? "Corpse" : "Enemy", root, null, Color.white, body);
+                Fill = SpriteFactory.Create("Fill", Body.transform, null, Color.white, over);
+                AttackGlow = SpriteFactory.Create("AttackGlow", Body.transform, null, Color.white, over);
+                Eyes = SpriteFactory.Create("Eyes", Body.transform, null, Color.white, over);
+                Strips = SpriteFactory.Create("Strips", Body.transform, null, Color.white, over);
+                // Same sorting order: the emissive masks sit nearer the (orthographic) camera than the fill.
+                var front = new Vector3(0f, 0f, -0.01f);
+                AttackGlow.transform.localPosition = front;
+                Eyes.transform.localPosition = front;
+                Strips.transform.localPosition = front;
+                Hide();
             }
-            for (int i = 0; i < _enemies.Count; i++)
+
+            public void Hide()
             {
-                bool alive = i < enemies.Count && enemies[i].Alive;
-                _enemies[i].enabled = alive;
-                _enemyGlows[i].enabled = alive;
-                if (alive) SyncEnemy(sim, enemies[i], i < feet.Count ? feet[i] : new Vector2(enemies[i].X, enemies[i].Y), tier, i);
+                Body.enabled = Fill.enabled = AttackGlow.enabled = Eyes.enabled = Strips.enabled = false;
+                if (Halo != null) Halo.enabled = false;
+            }
+
+            /// <summary>Draws the animator's current frame with the given tints, all faded by <paramref name="alpha"/>.</summary>
+            public void Draw(Color attack, Color eyes, Color strips, Color fill, float alpha)
+            {
+                var a = Anim.Current;
+                int frame = Anim.Frame;
+                var sprite = a.Frame(frame);
+                Body.enabled = true;
+                Body.sprite = sprite;
+                Body.flipX = Flip;
+                Body.color = new Color(1f, 1f, 1f, alpha);
+                fill.a *= alpha;
+                Fill.enabled = fill.a > 0.001f;
+                Fill.sprite = sprite;
+                Fill.flipX = Flip;
+                Fill.color = fill;
+                Channel(AttackGlow, a, EmissiveChannel.R, frame, attack, alpha);
+                Channel(Eyes, a, EmissiveChannel.G, frame, eyes, alpha);
+                Channel(Strips, a, EmissiveChannel.B, frame, strips, alpha);
+            }
+
+            private void Channel(SpriteRenderer r, SheetAnimation a, EmissiveChannel channel, int frame, Color color, float alpha)
+            {
+                var sprite = a.Emissive(channel, frame);
+                color.a *= alpha;
+                r.enabled = sprite != null && color.a > 0.001f;
+                if (!r.enabled) return;
+                r.sprite = sprite;
+                r.flipX = Flip;
+                r.color = color;
             }
         }
 
-        private void SyncEnemy(RedlineSim sim, Enemy e, Vector2 feet, int tier, int index)
+        /// <summary>
+        /// Live enemies, one pooled view per slot of <see cref="RedlineSim.Enemies"/> (dead enemies stay
+        /// in the list until the next wave). An enemy seen alive and then dead leaves a corpse that plays
+        /// its death animation; a kamikaze that blew up (its fuse was burning and the blast reset it to
+        /// Idle, which a kill does not) leaves none. A different sim (new level) clears the corpses.
+        /// </summary>
+        private void SyncEnemies(RedlineSim sim, Vector2 playerFeet, IReadOnlyList<Vector2> feet, int tier, float dt)
         {
-            var view = _enemies[index];
+            if (sim != _lastSim)
+            {
+                _lastSim = sim;
+                for (int i = 0; i < _corpses.Count; i++)
+                {
+                    _corpses[i].Active = false;
+                    _corpses[i].Hide();
+                }
+            }
+            var enemies = sim.Enemies;
+            while (_enemyViews.Count < enemies.Count) _enemyViews.Add(new EnemyView(_root, false));
+            for (int i = 0; i < _enemyViews.Count; i++)
+            {
+                var v = _enemyViews[i];
+                if (i >= enemies.Count)
+                {
+                    v.Enemy = null;
+                    v.Hide();
+                    continue;
+                }
+                var e = enemies[i];
+                if (v.Enemy != e) Bind(v, e);
+                if (!e.Alive)
+                {
+                    bool exploded = e.Kind == EnemyKind.Kamikaze && v.LastAct == EnemyAct.Fuse && e.Act == EnemyAct.Idle;
+                    if (v.WasAlive && !exploded) SpawnCorpse(v, e);
+                    v.WasAlive = false;
+                    v.Hide();
+                    continue;
+                }
+                SyncEnemy(sim, v, e, i < feet.Count ? feet[i] : new Vector2(e.X, e.Y), tier, i, dt);
+                v.LastAct = e.Act;
+                v.LastSinceHit = e.SinceHit;
+            }
+            SyncCorpses(sim, playerFeet, dt);
+        }
+
+        private void Bind(EnemyView v, Enemy e)
+        {
+            v.Enemy = e;
+            v.Kind = e.Kind;
+            v.WasAlive = e.Alive;
+            v.LastAct = e.Act;
+            v.LastSinceHit = e.SinceHit;
+            v.FireTimer = v.BlockTimer = 0f;
+            v.Flip = (e.Kind == EnemyKind.Shield ? e.ShieldDir : e.Facing) < 0;
+            v.Anim.Play(_enemyAnims[(int)e.Kind].Idle, true);
+        }
+
+        private void SpawnCorpse(EnemyView from, Enemy e)
+        {
+            EnemyView c = null;
+            for (int i = 0; i < _corpses.Count; i++)
+            {
+                if (_corpses[i].Active) continue;
+                c = _corpses[i];
+                break;
+            }
+            if (c == null)
+            {
+                c = new EnemyView(_root, true);
+                _corpses.Add(c);
+            }
+            c.Active = true;
+            c.Kind = e.Kind;
+            c.X = e.X;
+            c.Y = e.Y;
+            c.Height = e.Height;
+            c.Flip = from.Flip;
+            c.Held = 0f;
+            c.Anim.Play(_enemyAnims[(int)e.Kind].Death, true);
+        }
+
+        /// <summary>Death plays once where the enemy fell, holds its last frame, then fades (EnemyLook.CorpseHold/Fade).</summary>
+        private void SyncCorpses(RedlineSim sim, Vector2 playerFeet, float dt)
+        {
+            var p = sim.Player;
+            for (int i = 0; i < _corpses.Count; i++)
+            {
+                var c = _corpses[i];
+                if (!c.Active) continue;
+                c.Anim.Tick(dt);
+                if (c.Anim.Finished) c.Held += dt;
+                if (c.Held >= EnemyLook.CorpseHold + EnemyLook.CorpseFade)
+                {
+                    c.Active = false;
+                    c.Hide();
+                    continue;
+                }
+                float alpha = 1f - Mathf.Clamp01((c.Held - EnemyLook.CorpseHold) / EnemyLook.CorpseFade);
+                float y = c.Y + (EnemyLook.CentrePivot(c.Kind) ? c.Height * 0.5f : 0f);
+                var t = c.Body.transform;
+                t.localPosition = new Vector3(playerFeet.x + sim.Map.Dx(p.X, c.X), y, 0f);
+                t.localScale = Vector3.one;
+                t.localRotation = Quaternion.identity;
+                var fill = Color.white;
+                fill.a = EnemyLook.FillAlpha;
+                c.Draw(EnemyLook.AttackColor(c.Kind), EnemyLook.Eyes, StripColor(EnemyLook.KindColor(c.Kind)), fill, alpha);
+            }
+        }
+
+        /// <summary>
+        /// One live enemy: animation from sim state, flip, the tints (kind strips, brute armor state,
+        /// telegraph flashes on the fill copy), hit pop, fuse swell, shake/sway offsets and the halo
+        /// (which grows to the blast radius while a kamikaze's fuse burns).
+        /// </summary>
+        private void SyncEnemy(RedlineSim sim, EnemyView v, Enemy e, Vector2 feet, int tier, int index, float dt)
+        {
+            var a = _enemyAnims[(int)e.Kind];
+            var cfg = sim.Config;
+            bool newHit = e.SinceHit < v.LastSinceHit;
+            v.FireTimer = Mathf.Max(0f, v.FireTimer - dt);
+            v.BlockTimer = Mathf.Max(0f, v.BlockTimer - dt);
+            // Shooter: a wind-up that ended without a hit is a shot.
+            bool fired = e.Kind == EnemyKind.Shooter && v.LastAct == EnemyAct.Windup && e.Act == EnemyAct.Idle
+                         && e.SinceHit > EnemyLook.HitPopTime;
+            if (fired) v.FireTimer = a.Attack.Duration;
+            bool blocked = e.Kind == EnemyKind.Shield && v.BlockTimer <= 0f && ShieldBlocked(sim, e);
+            if (blocked) v.BlockTimer = a.Special.Duration;
+
+            var anim = PickEnemyAnimation(v, e, a, cfg, out float rate);
+            bool restart = fired || blocked || (anim == a.Hurt && newHit);
+            v.Anim.Play(anim, restart);
+            v.Anim.Tick(dt, rate);
+            v.Flip = EnemyFlip(sim, e);
+
             bool brute = e.Kind == EnemyKind.Brute;
             bool breakable = brute && CombatRules.CanDamage(tier, e.ArmorTier);
-            view.sprite = EnemySprite(e.Kind);
-            // The shield bearer is drawn by where its shield is, not where it walks: a lagging
-            // shield (its back open) reads at a glance.
-            view.flipX = (e.Kind == EnemyKind.Shield ? e.ShieldDir : e.Facing) < 0;
+            var kindColor = brute ? (breakable ? EnemyLook.BruteBreakable : EnemyLook.BruteArmored) : EnemyLook.KindColor(e.Kind);
+            var strips = StripColor(kindColor);
+            if (breakable) strips.a = 0.75f + 0.25f * Mathf.Sin(_time * 14f);
+            bool windup = (brute && e.Mode == BruteMode.Windup)
+                          || (e.Kind == EnemyKind.Drone && e.DroneState == DroneMode.Windup)
+                          || (e.Kind == EnemyKind.Shooter && e.Act == EnemyAct.Windup)
+                          || (e.Kind == EnemyKind.Summoner && e.Act == EnemyAct.Cast);
+            var attack = EnemyLook.AttackColor(e.Kind);
+            if (windup || FuseProgress(e) > 0f) attack = Color.Lerp(attack, Color.white, 0.3f + 0.3f * Mathf.Sin(_time * 24f));
+            v.Draw(attack, EnemyLook.Eyes, strips, FillColor(e), 1f);
 
-            var c = EnemyColor(e, breakable);
-            view.color = c;
-
-            float bob = e.Kind == EnemyKind.Grunt && e.Grounded ? Mathf.Abs(Mathf.Sin(_time * 12f + index)) * 0.08f : 0f;
-            float pop = (e.SinceHit < 0.12f ? 1.15f : 1f) * (brute ? 1.2f : 1.15f) * FuseSwell(e);
-            float k = e.Height / view.sprite.bounds.size.y * pop;
-            var t = view.transform;
-            t.localScale = new Vector3(k * (1f + bob), k * (1f - bob), 1f);
+            float pop = (e.SinceHit < EnemyLook.HitPopTime ? EnemyLook.HitPop : 1f) * FuseSwell(e);
             var offset = EnemyOffset(e, index);
-            t.localPosition = new Vector3(feet.x + offset.x, feet.y + e.Height * pop * (1f - bob) * 0.5f + offset.y, 0f);
-            // A crashed brute wobbles, dazed.
+            float lift = EnemyLook.CentrePivot(e.Kind) ? e.Height * 0.5f : 0f;
+            var t = v.Body.transform;
+            t.localScale = new Vector3(pop, pop, 1f);
+            t.localPosition = new Vector3(feet.x + offset.x, feet.y + lift + offset.y, 0f);
+            // A crashed brute wobbles, dazed (about its feet).
             t.localRotation = brute && e.Mode == BruteMode.Crashed
-                ? Quaternion.Euler(0f, 0f, Mathf.Sin(_time * 9f) * 10f)
+                ? Quaternion.Euler(0f, 0f, Mathf.Sin(_time * 9f) * 6f)
                 : Quaternion.identity;
 
-            var glow = _enemyGlows[index];
-            var gc = c;
-            gc.a = breakable ? 0.3f + 0.15f * Mathf.Sin(_time * 14f) : brute ? 0.1f : 0.14f;
-            float gs = e.Height * (breakable ? 2.4f : 1.8f);
-            if (Telegraphing(e))
+            var halo = v.Halo;
+            halo.enabled = true;
+            var hc = kindColor;
+            hc.a = breakable ? 0.3f + 0.15f * Mathf.Sin(_time * 14f) : brute ? EnemyLook.HaloAlphaArmored : EnemyLook.HaloAlpha;
+            float hs = e.Height * (breakable ? 2.4f : EnemyLook.HaloSize);
+            if (Telegraphing(e) || windup)
             {
-                // Shooter wind-up and summoner cast: the glow swells; a lit fuse shows the blast radius.
+                // Telegraphs swell the halo; a lit fuse shows the blast radius.
                 bool fuse = e.Kind == EnemyKind.Kamikaze;
-                gc = fuse ? KamikazeColor : WindupColor;
-                gc.a = 0.3f + 0.15f * Mathf.Sin(_time * (fuse ? 40f : 20f));
-                gs = fuse ? sim.Config.kamikazeBlastRadius * 2f * 1.4f : e.Height * 2.6f;
+                hc = fuse ? EnemyLook.KamikazeColor : EnemyLook.WindupColor;
+                hc.a = 0.3f + 0.15f * Mathf.Sin(_time * (fuse ? 40f : 20f));
+                hs = fuse ? cfg.kamikazeBlastRadius * 2f * 1.4f : e.Height * 2.6f;
             }
-            glow.color = gc;
-            glow.transform.localPosition = t.localPosition;
-            glow.transform.localScale = new Vector3(gs, gs, 1f);
+            halo.color = hc;
+            halo.transform.localPosition = new Vector3(feet.x + offset.x, feet.y + offset.y + e.Height * 0.5f * pop, 0f);
+            halo.transform.localScale = new Vector3(hs, hs, 1f);
         }
 
-        /// <summary>Base colour per kind and state, with flashes for hits and telegraphs.</summary>
-        private Color EnemyColor(Enemy e, bool breakable)
+        /// <summary>
+        /// State to animation (and a playback rate), highest priority first: the kind's attack and
+        /// telegraph states (non-looping telegraphs are time-scaled to end with their configured
+        /// duration), hurt right after a hit, move when |Vx| is above EnemyLook.WalkMinSpeed, idle.
+        /// </summary>
+        private static SheetAnimation PickEnemyAnimation(EnemyView v, Enemy e, EnemyAnimations a, RedlineConfig cfg, out float rate)
         {
-            if (e.SinceHit < 0.08f) return Color.white;
-            bool blink = Mathf.Repeat(_time * 18f, 2f) < 1f;
+            rate = 1f;
             switch (e.Kind)
             {
-                case EnemyKind.Grunt:
-                    return GruntColor;
+                case EnemyKind.Brute:
+                    if (e.Mode == BruteMode.Windup) { rate = TelegraphRate(a.Telegraph, cfg.bruteWindupTime); return a.Telegraph; }
+                    if (e.Mode == BruteMode.Charge) return a.Attack;
+                    if (e.Mode == BruteMode.Crashed) return a.Special;
+                    break;
                 case EnemyKind.Drone:
-                    return e.DroneState == DroneMode.Windup && blink ? Color.white : DroneColor;
-                case EnemyKind.Shooter:
-                    return e.Act == EnemyAct.Windup && blink ? WindupColor : ShooterColor;
-                case EnemyKind.Shield:
-                    return ShieldColor;
+                    if (e.DroneState == DroneMode.Windup) { rate = TelegraphRate(a.Telegraph, cfg.droneWindupTime); return a.Telegraph; }
+                    if (e.DroneState == DroneMode.Dive) return a.Attack;
+                    break;
                 case EnemyKind.Kamikaze:
-                    // The fuse flashes faster as it burns down.
-                    if (e.Act != EnemyAct.Fuse) return KamikazeColor;
-                    return Mathf.Repeat(_time * (14f + 40f * FuseProgress(e)), 2f) < 1f ? Color.white : KamikazeColor;
+                    if (e.Act == EnemyAct.Fuse) return a.Telegraph;
+                    // ModeTimer > 0 while rushing = mid-lunge (see RedlineSim's kamikaze steering).
+                    if (e.Act == EnemyAct.Rush && e.ModeTimer > 0f && !e.Grounded) return a.Attack;
+                    break;
+                case EnemyKind.Shield:
+                    if (v.BlockTimer > 0f) return a.Special;
+                    if (e.TurnTimer > 0f) { rate = TelegraphRate(a.Telegraph, cfg.shieldTurnTime); return a.Telegraph; }
+                    break;
+                case EnemyKind.Shooter:
+                    if (e.Act == EnemyAct.Windup) { rate = TelegraphRate(a.Telegraph, cfg.shooterWindupTime); return a.Telegraph; }
+                    if (v.FireTimer > 0f) return a.Attack;
+                    break;
                 case EnemyKind.Summoner:
-                    return e.Act == EnemyAct.Cast && blink ? Color.white : SummonerColor;
-                default:
-                    if (e.Mode == BruteMode.Windup) return blink ? WindupColor : BruteArmored;
-                    return breakable ? BruteBreakable : BruteArmored;
+                    if (e.Act == EnemyAct.Cast) { rate = TelegraphRate(a.Telegraph, cfg.summonerCastTime); return a.Telegraph; }
+                    break;
             }
+            if (a.Hurt != null && e.SinceHit < a.Hurt.Duration) return a.Hurt;
+            float speed = Mathf.Abs(e.Vx);
+            if (speed >= EnemyLook.WalkMinSpeed && (e.Grounded || e.Kind == EnemyKind.Drone))
+            {
+                rate = Mathf.Clamp(speed / Mathf.Max(0.01f, e.Speed), EnemyLook.WalkRateMin, EnemyLook.WalkRateMax);
+                return a.Move;
+            }
+            return a.Idle;
+        }
+
+        private static float TelegraphRate(SheetAnimation a, float seconds) =>
+            Mathf.Clamp(a.Duration / Mathf.Max(0.05f, seconds), EnemyLook.TelegraphRateMin, EnemyLook.TelegraphRateMax);
+
+        /// <summary>
+        /// Sheets face right. The shield bearer is drawn by where its shield is, not where it walks
+        /// (a lagging shield, its back open, reads at a glance); drones face their dive, their drift
+        /// or the player.
+        /// </summary>
+        private static bool EnemyFlip(RedlineSim sim, Enemy e)
+        {
+            if (e.Kind == EnemyKind.Shield) return e.ShieldDir < 0;
+            if (e.Kind != EnemyKind.Drone) return e.Facing < 0;
+            if (e.DroneState == DroneMode.Dive) return e.DiveDir.X < 0f;
+            if (Mathf.Abs(e.Vx) > 0.2f) return e.Vx < 0f;
+            return sim.Map.Dx(e.X, sim.Player.X) < 0f;
+        }
+
+        /// <summary>A ShieldBlock event this step near the bearer's centre.</summary>
+        private static bool ShieldBlocked(RedlineSim sim, Enemy e)
+        {
+            var events = sim.Events;
+            var c = e.Center;
+            float r2 = EnemyLook.BlockMatchRadius * EnemyLook.BlockMatchRadius;
+            for (int i = 0; i < events.Count; i++)
+            {
+                if (events[i].Type != SimEventType.ShieldBlock) continue;
+                float dx = sim.Map.Dx(c.X, events[i].Position.X);
+                float dy = events[i].Position.Y - c.Y;
+                if (dx * dx + dy * dy <= r2) return true;
+            }
+            return false;
+        }
+
+        private static Color StripColor(Color kind) => Color.Lerp(kind, Color.white, EnemyLook.StripWhiteMix);
+
+        /// <summary>
+        /// The unlit fill copy: a readability floor (EnemyLook.FillAlpha), raised to a flash for hits
+        /// (white) and telegraphs (blinking; the kamikaze fuse flashes faster as it burns down).
+        /// </summary>
+        private Color FillColor(Enemy e)
+        {
+            if (e.SinceHit < EnemyLook.HitFlashTime) return Color.white;
+            bool blink = Mathf.Repeat(_time * 18f, 2f) < 1f;
+            var flash = new Color(1f, 1f, 1f, 0.85f);
+            switch (e.Kind)
+            {
+                case EnemyKind.Brute:
+                    if (e.Mode == BruteMode.Windup && blink) return new Color(EnemyLook.WindupColor.r, EnemyLook.WindupColor.g, EnemyLook.WindupColor.b, 0.85f);
+                    break;
+                case EnemyKind.Drone:
+                    if (e.DroneState == DroneMode.Windup && blink) return flash;
+                    break;
+                case EnemyKind.Shooter:
+                    if (e.Act == EnemyAct.Windup && blink) return new Color(EnemyLook.WindupColor.r, EnemyLook.WindupColor.g, EnemyLook.WindupColor.b, 0.85f);
+                    break;
+                case EnemyKind.Summoner:
+                    if (e.Act == EnemyAct.Cast && blink) return flash;
+                    break;
+                case EnemyKind.Kamikaze:
+                    if (e.Act == EnemyAct.Fuse && Mathf.Repeat(_time * (14f + 40f * FuseProgress(e)), 2f) < 1f) return Color.white;
+                    break;
+            }
+            return new Color(1f, 1f, 1f, EnemyLook.FillAlpha);
         }
 
         /// <summary>Shake while a brute telegraphs a charge; gentle hover sway for drones.</summary>
@@ -376,20 +706,6 @@ namespace Redline.Game
             if (e.Kind == EnemyKind.Summoner && e.Act == EnemyAct.Cast)
                 return new Vector2(0f, Mathf.Abs(Mathf.Sin(_time * 10f)) * 0.1f);
             return Vector2.zero;
-        }
-
-        private static Sprite EnemySprite(EnemyKind kind)
-        {
-            switch (kind)
-            {
-                case EnemyKind.Grunt: return PixelArt.Grunt;
-                case EnemyKind.Brute: return PixelArt.Brute;
-                case EnemyKind.Shooter: return PixelArt.Shooter;
-                case EnemyKind.Shield: return PixelArt.ShieldBearer;
-                case EnemyKind.Kamikaze: return PixelArt.Kamikaze;
-                case EnemyKind.Summoner: return PixelArt.Summoner;
-                default: return PixelArt.Drone;
-            }
         }
 
         /// <summary>Shooter wind-up, kamikaze fuse or summoner cast in progress.</summary>

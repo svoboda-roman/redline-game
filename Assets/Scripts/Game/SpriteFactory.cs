@@ -3,12 +3,15 @@ using UnityEngine;
 namespace Redline.Game
 {
     /// <summary>
-    /// Generates the few flat shapes the game draws (no art assets needed) and one unlit
-    /// sprite material so the neon colours show at full brightness without 2D lights.
+    /// Generates the few flat shapes the game draws (no art assets needed) and the two sprite
+    /// materials: unlit (glows, effects, rain, sky: full brightness regardless of lights) and lit
+    /// (URP 2D <c>Sprite-Lit-Default</c>: terrain, props and actors react to 2D lights and, when the
+    /// sprite carries a <c>_NormalMap</c> secondary texture, to normal-mapped lights).
     /// </summary>
     /// <example>
     /// <code>
-    /// var sr = SpriteFactory.Create("Tile", parent, SpriteFactory.Square, Color.white, 0);
+    /// var glow = SpriteFactory.Create("Glow", parent, PixelArt.Glow, Color.white, 0);       // unlit
+    /// var tile = SpriteFactory.CreateLit("Tile", parent, AtmoArt.Tile(1, 0), Color.white, 0); // lit
     /// </code>
     /// </example>
     /// <remarks>Main-thread only (creates Unity objects).</remarks>
@@ -18,6 +21,7 @@ namespace Redline.Game
         private static Sprite _square;
         private static Sprite _triangle;
         private static Material _material;
+        private static Material _litMaterial;
 
         /// <summary>
         /// Clears the cached objects before each Play. The project enters Play Mode without a
@@ -29,6 +33,7 @@ namespace Redline.Game
             _square = null;
             _triangle = null;
             _material = null;
+            _litMaterial = null;
         }
 
         /// <summary>A 1×1 world-unit white square, pivot in the centre.</summary>
@@ -49,6 +54,27 @@ namespace Redline.Game
             var material = UnlitMaterial();
             if (material != null) sr.sharedMaterial = material;
             return sr;
+        }
+
+        /// <summary>Creates a child object with a SpriteRenderer using the lit 2D sprite material.</summary>
+        public static SpriteRenderer CreateLit(string name, Transform parent, Sprite sprite, Color color, int sortingOrder)
+        {
+            var sr = Create(name, parent, sprite, color, sortingOrder);
+            var material = LitMaterial();
+            if (material != null) sr.sharedMaterial = material;
+            return sr;
+        }
+
+        /// <summary>
+        /// The URP 2D renderer's lit sprite shader (the shader behind the 2D Renderer's default lit
+        /// material, Sprite-Lit-Default). Included in builds because Renderer2D.asset references it.
+        /// </summary>
+        private static Material LitMaterial()
+        {
+            if (_litMaterial != null) return _litMaterial;
+            var shader = Shader.Find("Universal Render Pipeline/2D/Sprite-Lit-Default");
+            if (shader != null) _litMaterial = new Material(shader) { name = "RedlineLitSprite" };
+            return _litMaterial;
         }
 
         private static Material UnlitMaterial()

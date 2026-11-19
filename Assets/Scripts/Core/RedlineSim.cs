@@ -233,6 +233,7 @@ namespace Redline.Core
             UpdatePlayer(input, dt);
             UpdateEnemies(dt);
             ResolveStrike();
+            ResolveSlideHits();
             UpdateProjectiles(dt);
             ResolveContacts();
 
@@ -252,12 +253,15 @@ namespace Redline.Core
 
         /// <summary>
         /// The player's strike hitbox for the current facing (valid whether or not striking): the
-        /// sword's arc, from the feet to just above the head, reaching forward by attackRange.
+        /// sword's arc, from the feet (strikeDownReach below them while falling) to just above the head,
+        /// reaching forward by attackRange.
         /// </summary>
         public void GetStrikeBox(out float minX, out float minY, out float maxX, out float maxY)
         {
             var p = Player;
-            minY = p.Y + 0.1f;
+            // Falling, the arc reaches below the feet: a dive meets the enemy with the blade before
+            // the body (otherwise contact damage always lands first on anything below).
+            minY = !p.Grounded && p.Vy < 0f ? p.Y - _cfg.strikeDownReach : p.Y + 0.1f;
             maxY = p.MaxY + _cfg.attackReachUp;
             if (p.Facing > 0)
             {
@@ -417,7 +421,11 @@ namespace Redline.Core
             if (input.AttackPressed) p.AttackBufferTimer = c.inputBufferTime;
             if (input.SlidePressed) p.SlideBufferTimer = c.inputBufferTime;
             if (input.HookPressed) p.HookBufferTimer = c.inputBufferTime;
-            if (p.Grounded) p.CoyoteTimer = c.coyoteTime;
+            if (p.Grounded)
+            {
+                p.CoyoteTimer = c.coyoteTime;
+                p.AirSlideUsed = false;
+            }
             if (p.WallImpactTimer <= 0f) p.WallImpactSpeed = 0f;
         }
 
@@ -450,14 +458,22 @@ namespace Redline.Core
         private void TryStartSlide(Player p)
         {
             var c = _cfg;
-            if (p.SlideBufferTimer <= 0f || !p.Grounded || p.Sliding || p.Hooked) return;
-            if (p.SlideCooldownTimer > 0f || MathF.Abs(p.Vx) < c.slideMinSpeed) return;
+            if (p.SlideBufferTimer <= 0f || p.Sliding || p.Hooked || p.SlideCooldownTimer > 0f) return;
+            bool air = !p.Grounded;
+            if (air && p.AirSlideUsed) return;
+            // On the ground a slide needs speed. In the air it dashes along Facing at the minimum
+            // speed instead, so a standing jump plus slide still goes somewhere.
+            bool tooSlow = MathF.Abs(p.Vx) < c.slideMinSpeed;
+            if (tooSlow && !air) return;
             p.SlideBufferTimer = 0f;
             p.Sliding = true;
+            p.AirSlideUsed = air;
             p.SlideTimer = c.slideDuration;
+            p.SlideHitCount = 0;
             // Never slows the player: air overspeed carried into a slide is kept.
-            float speed = MathF.Abs(p.Vx);
-            p.Vx = Sign(p.Vx) * MathF.Max(speed, MathF.Min(speed + c.slideBoost, MaxSpeed(p)));
+            float speed = tooSlow ? c.slideMinSpeed : MathF.Abs(p.Vx);
+            int dir = tooSlow ? p.Facing : Sign(p.Vx);
+            p.Vx = dir * MathF.Max(speed, MathF.Min(speed + c.slideBoost, MaxSpeed(p)));
             p.Height = c.slideHeight;
             Emit(SimEventType.Slide, p.Center);
         }
@@ -473,7 +489,8 @@ namespace Redline.Core
             {
                 p.SlideTimer -= dt;
                 bool slideOver = p.SlideTimer <= 0f;
-                if (slideOver || !p.Grounded) TryEndSlide();
+                // An air slide runs its timer too: only the timer ends it, not being airborne.
+                if (slideOver) TryEndSlide();
                 // Still low after the slide (no head room): crawl with normal ground rules.
                 if (p.Sliding && slideOver && p.Grounded) GroundControl(p, dir, dt);
                 return;
@@ -550,6 +567,8 @@ namespace Redline.Core
             p.WallJumpLockTimer = c.wallJumpLockTime;
             p.WallImpactSpeed = 0f;
             p.JumpCutAvailable = false;
+            p.AirSlideUsed = false;
+            if (p.Sliding) TryEndSlide();
             ConsumeJump(p);
             Emit(SimEventType.WallJump, p.Center);
         }
@@ -610,6 +629,7 @@ namespace Redline.Core
             float range = c.hookRange + (p.HookBuffTimer > 0f ? c.orbHookRangeBonus : 0f);
             if (!_map.Raycast(p.Center, dir, range, out var hit)) return;
             p.Hooked = true;
+            p.AirSlideUsed = false;
             p.HookTime = 0f;
             p.HookAnchor = new Vec2(_map.WrapX(hit.X), hit.Y);
             var toAnchor = hit - p.Center;
@@ -1033,6 +1053,54 @@ namespace Redline.Core
             if (clanged.Kind == EnemyKind.Shield) Emit(SimEventType.ShieldBlock, clanged.Center, tier);
         }
 
+        /// <summary>
+        /// The slide as a weapon (GDD: slide combat). While sliding, the body plus slideHitReach in
+        /// front hits each enemy once per slide, through the sword's path: StrikeEnemy at the current
+        /// tier x slideDamageMultiplier, CanDamage armor, and a shield that blocks from its front. An
+        /// armored or shielded enemy clangs: the slide ends (given head room) and the player bounces.
+        /// Runs before ResolveContacts, so a struck (stunned) enemy cannot also hurt the player.
+        /// </summary>
+        private void ResolveSlideHits()
+        {
+            var p = Player;
+            if (!p.Sliding) return;
+            int tier = PlayerTier;
+            float minX = p.Facing > 0 ? p.MinX : p.MinX - _cfg.slideHitReach;
+            float maxX = p.Facing > 0 ? p.MaxX + _cfg.slideHitReach : p.MaxX;
+            Enemy clanged = null;
+            for (int i = 0; i < _enemies.Count; i++)
+            {
+                var e = _enemies[i];
+                if (!e.Alive || !InStrikeBox(e, minX, p.Y, maxX, p.MaxY) || SlideAlreadyHit(p, e)) continue;
+                if (p.SlideHitCount < Player.MaxSlideHits) p.SlideHits[p.SlideHitCount++] = e;
+                e.SinceHit = 0f;
+                bool shielded = e.Kind == EnemyKind.Shield && ShieldBlocks(e);
+                if (!shielded && CombatRules.CanDamage(tier, e.ArmorTier)) StrikeEnemy(p, e, tier, _cfg.slideDamageMultiplier);
+                else if (clanged == null) clanged = e;
+            }
+            if (clanged == null) return;
+            p.Vx = -p.Facing * _cfg.clangBounceSpeed;
+            TryEndSlide();
+            Emit(SimEventType.Clang, clanged.Center, tier);
+            if (clanged.Kind == EnemyKind.Shield) Emit(SimEventType.ShieldBlock, clanged.Center, tier);
+        }
+
+        private static bool SlideAlreadyHit(Player p, Enemy e)
+        {
+            for (int i = 0; i < p.SlideHitCount; i++)
+                if (p.SlideHits[i] == e) return true;
+            return false;
+        }
+
+        /// <summary>A non-lethal hit on a kamikaze that is not yet fusing lights its fuse at once (kamikazeHitFuseTime).</summary>
+        private void LightHitFuse(Enemy e)
+        {
+            if (e.Kind != EnemyKind.Kamikaze || e.Act == EnemyAct.Fuse) return;
+            e.Act = EnemyAct.Fuse;
+            e.ModeTimer = _cfg.kamikazeHitFuseTime;
+            Emit(SimEventType.KamikazeFuse, e.Center);
+        }
+
         /// <summary>True when a body (an enemy or a projectile; its copy nearest the player, on a ring) overlaps the strike box.</summary>
         public bool InStrikeBox(Body e, float minX, float minY, float maxX, float maxY)
         {
@@ -1041,10 +1109,10 @@ namespace Redline.Core
             return ex + half > minX && ex - half < maxX && e.MaxY > minY && e.Y < maxY;
         }
 
-        private void StrikeEnemy(Player p, Enemy e, int tier)
+        private void StrikeEnemy(Player p, Enemy e, int tier, float damageScale = 1f)
         {
             var c = _cfg;
-            e.Hp -= CombatRules.Damage(tier, c);
+            e.Hp -= CombatRules.Damage(tier, c) * damageScale;
             float kb = CombatRules.Knockback(tier, c) * (e.Kind == EnemyKind.Brute ? c.bruteKnockbackScale : 1f);
             e.Vx = p.Facing * kb;
             e.Vy = MathF.Max(e.Vy, kb * c.knockbackLift);
@@ -1052,6 +1120,7 @@ namespace Redline.Core
             if (e.Alive)
             {
                 Emit(SimEventType.Hit, e.Center, tier);
+                LightHitFuse(e);
                 return;
             }
             p.Chain = p.ChainTimer > 0f ? p.Chain + 1 : 1;
@@ -1084,6 +1153,7 @@ namespace Redline.Core
             if (e.Alive)
             {
                 Emit(SimEventType.Hit, e.Center, tier);
+                LightHitFuse(e);
                 return;
             }
             if (chain)
@@ -1288,7 +1358,10 @@ namespace Redline.Core
                     e.Vx = 0f;
                     return;
                 case EnemyAct.Rush:
-                    if (to.Length < c.kamikazeFuseRange)
+                    // ModeTimer doubles as the lunge state while rushing: 0 ready, > 0 in the air, < 0 spent.
+                    bool landed = e.ModeTimer > 0f && e.Grounded;
+                    if (landed) e.ModeTimer = -1f;
+                    if (landed || to.Length < c.kamikazeFuseRange)
                     {
                         e.Act = EnemyAct.Fuse;
                         e.ModeTimer = c.kamikazeFuseTime;
@@ -1298,6 +1371,14 @@ namespace Redline.Core
                     }
                     int dir = to.X >= 0f ? 1 : -1;
                     e.Facing = dir;
+                    if (e.ModeTimer > 0f) return; // mid-lunge: keep the leap's velocity
+                    if (e.ModeTimer == 0f && e.Grounded && MathF.Abs(to.X) < c.kamikazeLungeRange)
+                    {
+                        e.ModeTimer = 1f;
+                        e.Vx = dir * c.kamikazeLungeSpeedX;
+                        e.Vy = c.kamikazeLungeSpeedY;
+                        return;
+                    }
                     e.Vx = dir * c.kamikazeRushSpeed;
                     if (e.Grounded && (e.WallDir == dir || (to.Y > 2f && MathF.Abs(to.X) < 3f))) e.Vy = e.JumpSpeed;
                     return;
