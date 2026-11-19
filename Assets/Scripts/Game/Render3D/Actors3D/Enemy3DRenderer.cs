@@ -135,6 +135,8 @@ namespace Redline.Game.Render3D.Actors3D
         {
             public readonly Transform Root, Quad;
             public readonly MeshRenderer Body, Overlay, Halo;
+            /// <summary>Health bar over a damaged enemy: dark back and neon fill (null on corpses).</summary>
+            public readonly MeshRenderer HpBack, HpFill;
             public readonly SpriteAnimator Anim = new SpriteAnimator();
             public Enemy Enemy;
             public EnemyKind Kind;
@@ -160,12 +162,18 @@ namespace Redline.Game.Render3D.Actors3D
                 // In front of the body (camera at -z) so the additive layer is not depth-rejected by it.
                 Overlay.transform.localPosition = new Vector3(0f, 0f, -0.02f);
                 if (!corpse) Halo = Actors3DAssets.CreateQuad("halo", parent, Actors3DAssets.FxAdditive, false, false);
+                if (!corpse)
+                {
+                    HpBack = Actors3DAssets.CreateQuad("hpBack", parent, Actors3DAssets.FxSolid, false, false);
+                    HpFill = Actors3DAssets.CreateQuad("hpFill", parent, Actors3DAssets.FxSolid, false, false);
+                }
             }
 
             public void Hide()
             {
                 Body.enabled = Overlay.enabled = false;
                 if (Halo != null) Halo.enabled = false;
+                if (HpBack != null) HpBack.enabled = HpFill.enabled = false;
             }
         }
 
@@ -435,6 +443,37 @@ namespace Redline.Game.Render3D.Actors3D
             _mpb.SetColor(ColorId, new Color(hc.r * HaloHdr, hc.g * HaloHdr, hc.b * HaloHdr, ha));
             _mpb.SetVector(ParamsId, new Vector4(1f, 0.6f, 0f, 0f));
             halo.SetPropertyBlock(_mpb);
+
+            SyncHealthBar(v, e, new Vector2(feet.x + offset.x, feet.y + offset.y));
+        }
+
+        /// <summary>Health bar size (world units), gap over the head, and colours. Shown only once the enemy is hurt.</summary>
+        public static float HpBarWidth = 0.9f, HpBarHeight = 0.09f, HpBarGap = 0.3f;
+        public static Color HpBackColor = new Color(0.05f, 0.03f, 0.06f), HpFillColor = new Color(1f, 0.12f, 0.22f) * 2.2f;
+
+        private void SyncHealthBar(View v, Enemy e, Vector2 feet)
+        {
+            bool show = e.Hp < e.MaxHp - 0.001f && e.Hp > 0f;
+            v.HpBack.enabled = v.HpFill.enabled = show;
+            if (!show) return;
+            float frac = Mathf.Clamp01(e.Hp / e.MaxHp);
+            float y = feet.y + e.Height + HpBarGap;
+            float x0 = feet.x - HpBarWidth * 0.5f;
+            Bar(v.HpBack, new Vector3(feet.x, y, -0.05f), new Vector2(HpBarWidth + 0.06f, HpBarHeight + 0.06f), HpBackColor);
+            float w = HpBarWidth * frac;
+            Bar(v.HpFill, new Vector3(x0 + w * 0.5f, y, -0.07f), new Vector2(w, HpBarHeight), HpFillColor);
+        }
+
+        private void Bar(MeshRenderer r, Vector3 pos, Vector2 size, Color c)
+        {
+            var t = r.transform;
+            t.localPosition = pos;
+            t.localRotation = Quaternion.identity;
+            t.localScale = new Vector3(size.x, size.y, 1f);
+            _mpb.Clear();
+            _mpb.SetColor(ColorId, new Color(c.r, c.g, c.b, 1f));
+            _mpb.SetVector(ParamsId, new Vector4(0f, 0f, 0f, 0f));
+            r.SetPropertyBlock(_mpb);
         }
 
         /// <summary>Sprite texels per world unit; quads snap to this grid so they line up 1:1 with the

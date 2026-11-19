@@ -75,6 +75,27 @@ namespace Redline.Game
             yield return WaitForFight(sim, 1.2f);
             yield return Shot("hud-wave1.png");
 
+            // 1b. Health bars: the wave lined up beside the player, hurt to different amounts.
+            {
+                sim = _game.Sim;   // the run may have replaced the sim since the tour started
+                var pl = sim.Player;
+                pl.InvulnTimer = 5f;
+                int n = 0;
+                foreach (var e in sim.Enemies)
+                {
+                    if (!e.Alive) continue;
+                    e.X = pl.X + 2.2f + 1.6f * n;
+                    e.Y = pl.Y;
+                    e.Vx = e.Vy = 0f;
+                    e.StunTimer = 2f;
+                    e.Hp = e.MaxHp * (n % 2 == 0 ? 0.67f : 0.34f);
+                    e.SinceHit = 0.5f;
+                    n++;
+                }
+                yield return new WaitForSecondsRealtime(0.15f);
+                yield return Shot("hud-enemy-health.png");
+            }
+
 
             // 2. Wave 2: a brute appears, armored while the player is slow (steel colour).
             foreach (var e in sim.Enemies) e.Hp = 0f;
