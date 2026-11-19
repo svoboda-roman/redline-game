@@ -19,6 +19,8 @@ namespace Redline.Game.Render3D.Integration
         void Debris(Vector2 at, Color color, int count, float speed);
         /// <summary>Dust puffs at the feet, pushed along X.</summary>
         void Dust(Vector2 feet, int count, float pushX);
+        /// <summary>Blood from a kill: a spray thrown along <paramref name="dirX"/>, a mist puff, splatters on the floor at <paramref name="floorY"/>.</summary>
+        void Blood(Vector2 at, float dirX, float floorY, float amount);
         /// <summary>A speed line around a point, travelling along X.</summary>
         void SpeedLine(Vector2 around, float travelDirX, Color color);
         /// <summary>A short expanding glow.</summary>
@@ -62,6 +64,8 @@ namespace Redline.Game.Render3D.Integration
         public void Debris(Vector2 at, Color color, int count, float speed) => Renderer.Debris(at, color, count, speed);
         /// <inheritdoc/>
         public void Dust(Vector2 feet, int count, float pushX) => Renderer.Dust(feet, count, pushX);
+        /// <summary>2D view: a dark red debris spray (the classic renderer has no floor decals).</summary>
+        public void Blood(Vector2 at, float dirX, float floorY, float amount) => Renderer.Debris(at, new Color(0.45f, 0.02f, 0.03f), Mathf.RoundToInt(12 * amount), 7f);
         /// <inheritdoc/>
         public void SpeedLine(Vector2 around, float travelDirX, Color color) => Renderer.SpeedLine(around, travelDirX, color);
         /// <inheritdoc/>
@@ -87,6 +91,8 @@ namespace Redline.Game.Render3D.Integration
         public void Debris(Vector2 at, Color color, int count, float speed) => Renderer.Debris(at, color, count, speed);
         /// <inheritdoc/>
         public void Dust(Vector2 feet, int count, float pushX) => Renderer.Dust(feet, count, pushX);
+        /// <inheritdoc/>
+        public void Blood(Vector2 at, float dirX, float floorY, float amount) => Renderer.Blood(at, dirX, floorY, amount);
         /// <inheritdoc/>
         public void SpeedLine(Vector2 around, float travelDirX, Color color) => Renderer.SpeedLine(around, travelDirX, color);
         /// <inheritdoc/>

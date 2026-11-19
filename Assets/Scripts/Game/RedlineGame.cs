@@ -776,7 +776,7 @@ namespace Redline.Game
                     case SimEventType.Hit: OnHit(at, color, ev.Tier); break;
                     case SimEventType.Kill:
                         _run.Kills++;
-                        OnKill(at, color, ev.Tier, (EnemyKind)ev.Detail);
+                        OnKill(at, color, ev.Tier, (EnemyKind)ev.Detail, ev.Position);
                         break;
                     case SimEventType.Clang: OnClang(at); break;
                     case SimEventType.PlayerHurt: OnHurt(at); break;
@@ -828,12 +828,30 @@ namespace Redline.Game
             _shake = Mathf.Max(_shake, 0.05f * tier);
         }
 
-        private void OnKill(Vector2 at, Color color, int tier, EnemyKind kind)
+        /// <summary>
+        /// A kill: the white cut-flash of the blade (no debris pixels) and blood, sprayed away from the player with
+        /// splatters on the floor under the body (drones are machines: sparks and debris as before).
+        /// </summary>
+        private void OnKill(Vector2 at, Color color, int tier, EnemyKind kind, Vec2 simPos)
         {
             bool brute = kind == EnemyKind.Brute;
-            var debris = brute ? BruteDebris : kind == EnemyKind.Drone ? DroneDebris : GruntDebris;
-            _effects.Sparks(at, color, 10 + 6 * tier, 8f + 4f * tier);
-            _effects.Debris(at, debris, brute ? 16 : 9, 7f + 2f * tier);
+            if (kind == EnemyKind.Drone)
+            {
+                _effects.Sparks(at, color, 10 + 6 * tier, 8f + 4f * tier);
+                _effects.Debris(at, DroneDebris, 9, 7f + 2f * tier);
+            }
+            else
+            {
+                _effects.Debris(at, color, 0, 0f);   // the cut-flash line only
+                var map = Sim.Map;
+                int ix = Mathf.FloorToInt(simPos.X);
+                float floorY = 1f;
+                for (int y = Mathf.FloorToInt(simPos.Y); y >= 0; y--)
+                    if (map.IsSolid(((ix % map.Width) + map.Width) % map.Width, y)) { floorY = y + 1f; break; }
+                float dirX = map.Dx(Sim.Player.X, simPos.X);
+                var floorDraw = ToDraw(new Vec2(simPos.X, floorY));
+                _effects.Blood(at, dirX, floorDraw.y, (brute ? 1.8f : 1f) + (tier == 3 ? 0.4f : 0f));
+            }
             _shake = Mathf.Max(_shake, 0.08f * tier + (brute ? 0.2f : 0f));
             _hitStop = Mathf.Max(_hitStop, 0.02f * tier + (brute ? 0.05f : 0f));
             if (tier == 3) _effects.Flash(brute ? 0.22f : 0.1f);
