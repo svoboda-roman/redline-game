@@ -422,7 +422,7 @@ namespace Redline.Core
             HorizontalControl(p, dir, dt);
             HandleJump(p, input);
             ApplyGravity(p, dir, dt);
-            ApplyRope(p, dt);
+            ApplyRope(p, input.MoveY, dt);
 
             LimitSpeed(p, dt);
             float impact = p.Move(_map, dt);
@@ -463,6 +463,13 @@ namespace Redline.Core
                 p.CoyoteTimer = c.coyoteTime;
                 p.AirSlideUsed = false;
             }
+            // Wall coyote: a jump shortly after leaving a wall still wall-jumps off it.
+            if (!p.Grounded && !p.Hooked && p.WallDir != 0)
+            {
+                p.WallCoyoteTimer = c.wallCoyoteTime;
+                p.LastWallDir = p.WallDir;
+            }
+            else p.WallCoyoteTimer = p.Grounded ? 0f : Dec(p.WallCoyoteTimer, dt);
             if (p.WallImpactTimer <= 0f) p.WallImpactSpeed = 0f;
         }
 
@@ -587,7 +594,12 @@ namespace Redline.Core
             var c = _cfg;
             if (p.JumpBufferTimer > 0f)
             {
-                if (p.Hooked)
+                // W / Up while hanging reels the rope in (ReelRope); only Space / the pad's jump lets go.
+                if (p.Hooked && input.JumpPressedByUp)
+                {
+                    ConsumeJump(p);
+                }
+                else if (p.Hooked)
                 {
                     ReleaseHook(voluntary: true);
                     if (p.Vy < c.hookJumpSpeed) p.Vy = c.hookJumpSpeed;
@@ -602,7 +614,7 @@ namespace Redline.Core
                     ConsumeJump(p);
                     Emit(SimEventType.Jump, p.Center);
                 }
-                else if (p.WallDir != 0)
+                else if (p.WallDir != 0 || p.WallCoyoteTimer > 0f)
                 {
                     WallJump(p);
                 }
@@ -618,10 +630,12 @@ namespace Redline.Core
         private void WallJump(Player p)
         {
             var c = _cfg;
+            int wall = p.WallDir != 0 ? p.WallDir : p.LastWallDir;   // touching, or just left (wall coyote)
+            p.WallCoyoteTimer = 0f;
             float speed = MathF.Max(c.wallJumpSpeedX, p.WallImpactSpeed) + c.wallJumpKick;
-            p.Vx = -p.WallDir * MathF.Min(speed, MaxSpeed(p));
+            p.Vx = -wall * MathF.Min(speed, MaxSpeed(p));
             p.Vy = c.wallJumpSpeedY;
-            p.Facing = -p.WallDir;
+            p.Facing = -wall;
             p.WallJumpLockTimer = c.wallJumpLockTime;
             p.WallImpactSpeed = 0f;
             p.JumpCutAvailable = false;
@@ -641,14 +655,23 @@ namespace Redline.Core
         }
 
         /// <summary>Rope constraint: keep the predicted centre within the rope length.</summary>
-        private void ApplyRope(Player p, float dt)
+        private void ApplyRope(Player p, float reel, float dt)
         {
             if (!p.Hooked) return;
+            var c = _cfg;
             var centre = p.Center;
             var anchor = _map.Near(centre, p.HookAnchor);
+            float dist = (centre - anchor).Length;
+            bool reelOut = reel < -ReelDeadZone;
             // The rope reels in while the player moves toward the anchor, so it is always taut and
-            // the swing starts the moment they would move away (no slack "delay").
-            p.HookLength = MathF.Max(_cfg.hookMinLength, MathF.Min(p.HookLength, (centre - anchor).Length));
+            // the swing starts the moment they would move away (no slack "delay"). Not while letting out.
+            if (!reelOut) p.HookLength = MathF.Min(p.HookLength, dist);
+            if (reel > ReelDeadZone)
+                p.HookLength -= reel * c.hookReelSpeed * dt;                  // pull in: the constraint drags the player up
+            else if (reelOut)
+                p.HookLength = MathF.Min(p.HookLength - reel * c.hookReelSpeed * dt,
+                                         MathF.Max(c.hookMaxLength, dist));   // let out: gravity lowers the player
+            p.HookLength = MathF.Max(c.hookMinLength, p.HookLength);
             var predicted = new Vec2(centre.X + p.Vx * dt, centre.Y + p.Vy * dt);
             var d = predicted - anchor;
             float len = d.Length;
@@ -1717,6 +1740,9 @@ namespace Redline.Core
 
         private void Emit(SimEventType type, Vec2 position, int tier, int detail) =>
             _events.Add(new SimEvent(type, position, tier, detail));
+
+        /// <summary>Vertical input below this magnitude does not reel the hook rope.</summary>
+        private const float ReelDeadZone = 0.3f;
 
         private static float Dec(float timer, float dt) => timer > 0f ? timer - dt : 0f;
 

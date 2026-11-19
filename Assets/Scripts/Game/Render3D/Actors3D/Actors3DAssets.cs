@@ -93,6 +93,28 @@ namespace Redline.Game.Render3D.Actors3D
         /// <summary>Additive, ZTest Always, drawn last: the full-view flash quad in front of the camera.</summary>
         public static Material FxAdditiveTop => _fxAddTop != null ? _fxAddTop : (_fxAddTop = FxMaterial("Actors3DFxTop", true, true));
 
+        /// <summary>
+        /// Opaque, depth-writing solid quad on the Fx shader (hook rope core and anchor): it is in the depth
+        /// texture, so depth of field treats it as the play plane and keeps it sharp instead of blurring it like
+        /// the far street behind it.
+        /// </summary>
+        public static Material FxSolid
+        {
+            get
+            {
+                if (_fxSolid != null) return _fxSolid;
+                var m = new Material(Fx) { name = "Actors3DFxSolid", enableInstancing = true };
+                m.SetFloat("_SrcBlend", (float)BlendMode.One);
+                m.SetFloat("_DstBlend", (float)BlendMode.Zero);
+                m.SetFloat("_ZTest", (float)CompareFunction.LessEqual);
+                m.SetFloat("_ZWrite", 1f);
+                m.renderQueue = (int)RenderQueue.AlphaTest + 10;
+                m.SetOverrideTag("RenderType", "Opaque");
+                return _fxSolid = m;
+            }
+        }
+        private static Material _fxSolid;
+
         private static Material FxMaterial(string name, bool additive, bool top)
         {
             var m = new Material(Fx) { name = name, enableInstancing = true };

@@ -5,14 +5,19 @@ public static class MapConvF {
   static int W,H,stride; static byte[] buf;
   static int Cls(int x,int y){ int i=y*stride+x*3; int b=buf[i],g=buf[i+1],r=buf[i+2];
     if (b>150 && r<120 && g<120) return 1; if (r>190 && g<90 && b<90) return 2; if (r<70 && g<70 && b<70) return 3; return 0; }
+  // Shape mask of one colour: its outline pixels plus everything they enclose. "Outside" is the largest
+  // connected open area (the level's air); smaller open pockets are shape interiors, even when an outline
+  // is cut by the frame or the floor line.
   static bool[] Filled(int color, int x0, int y0, int x1, int y1){
-    int w=x1-x0+1, h=y1-y0+1; var wall=new bool[w*h]; var outside=new bool[w*h];
+    int w=x1-x0+1, h=y1-y0+1; var wall=new bool[w*h]; var label=new int[w*h];
     for(int y=0;y<h;y++) for(int x=0;x<w;x++) wall[y*w+x]=Cls(x0+x,y0+y)==color;
-    var st=new Stack<int>();
-    for(int x=0;x<w;x++){ st.Push(x); st.Push((h-1)*w+x); } for(int y=0;y<h;y++){ st.Push(y*w); st.Push(y*w+w-1); }
-    while(st.Count>0){ int p=st.Pop(); if(outside[p]||wall[p]) continue; outside[p]=true; int px=p%w, py=p/w;
-      if(px>0) st.Push(p-1); if(px<w-1) st.Push(p+1); if(py>0) st.Push(p-w); if(py<h-1) st.Push(p+w); }
-    var m=new bool[w*h]; for(int i=0;i<m.Length;i++) m[i]=!outside[i]; return m; }
+    int next=0, best=0, bestSize=0; var st=new Stack<int>();
+    for(int s0=0;s0<w*h;s0++){ if(wall[s0]||label[s0]!=0) continue; next++; int size=0; st.Push(s0); label[s0]=next;
+      while(st.Count>0){ int p=st.Pop(); size++; int px=p%w, py=p/w;
+        if(px>0&&!wall[p-1]&&label[p-1]==0){label[p-1]=next;st.Push(p-1);} if(px<w-1&&!wall[p+1]&&label[p+1]==0){label[p+1]=next;st.Push(p+1);}
+        if(py>0&&!wall[p-w]&&label[p-w]==0){label[p-w]=next;st.Push(p-w);} if(py<h-1&&!wall[p+w]&&label[p+w]==0){label[p+w]=next;st.Push(p+w);} }
+      if(size>bestSize){bestSize=size;best=next;} }
+    var m=new bool[w*h]; for(int i=0;i<m.Length;i++) m[i]=wall[i] || label[i]!=best; return m; }
   public static string Convert(string path, int tilesW, out string info) {
     var bmp = new Bitmap(path); W = bmp.Width; H = bmp.Height;
     var data = bmp.LockBits(new Rectangle(0,0,W,H), ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
@@ -55,7 +60,13 @@ public static class MapConvF {
     for(int c=0;c<tilesW;c++) { grid[tilesH-1,c]='#'; grid[0,c]='.'; }
     for(int r=0;r<tilesH-1;r++) for(int c=0;c<tilesW;c++){ if(cr[r,c]<0.15) continue;
       if(grid[r,c]=='.') { grid[r,c]='^'; continue; } if(r>0 && grid[r-1,c]=='.') grid[r-1,c]='^'; }
-    int sx=-1, sy=-1; for(int y=y0;y<y1-4 && sx<0;y++) for(int x=x0;x<x1;x++) if(Cls(x,y)==3){ sx=x; sy=y; break; }
+    // The 'S' label: the lowest small black blob inside the frame (stray dark pixels are ignored).
+    int sx=-1, sy=-1; { var seenB=new bool[W*H]; var stB=new Stack<int>();
+      for(int y=y0;y<y1-4;y++) for(int x=x0;x<x1;x++){ if(Cls(x,y)!=3||seenB[y*W+x]) continue;
+        int n=0, mnx=x, mxx=x, mny=y, mxy=y; stB.Push(y*W+x); seenB[y*W+x]=true;
+        while(stB.Count>0){ int p=stB.Pop(); n++; int px=p%W, py=p/W; mnx=Math.Min(mnx,px); mxx=Math.Max(mxx,px); mny=Math.Min(mny,py); mxy=Math.Max(mxy,py);
+          for(int d=0;d<8;d++){ int nx=px+(d%3)-1, ny=py+(d/3)-1; if(d==4) continue; if(nx<x0||ny<y0||nx>=x1||ny>=y1) continue; int q=ny*W+nx; if(seenB[q]||Cls(nx,ny)!=3) continue; seenB[q]=true; stB.Push(q);} }
+        if(n>=6 && mxx-mnx<25 && mxy-mny<25 && mxy>sy){ sx=(mnx+mxx)/2; sy=mxy; } } }
     int pc=2, pr=tilesH-2;
     if(sx>=0){ pc=(int)((sx-left)/s); int tyb=Math.Max(1,(int)((bottom-sy)/s)); pr=tilesH-1-tyb; while(pr<tilesH-2 && grid[pr+1,pc]!='#') pr++; }
     grid[pr,pc]='P';
