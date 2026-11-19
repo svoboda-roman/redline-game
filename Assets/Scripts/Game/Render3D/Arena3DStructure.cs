@@ -173,7 +173,7 @@ namespace Redline.Game.Render3D
                 }
 
                 // Ties and X-bracing between neighbouring columns on the same footing.
-                for (int i = 0; i + 1 < cols.Count; i++)
+                for (int i = 0; !_look.NeonStreet && i + 1 < cols.Count; i++)   // no bracing lattice on the neon street
                 {
                     var a = cols[i]; var c = cols[i + 1];
                     if (Mathf.Abs(a.y - c.y) > 0.01f || Mathf.Abs(a.z - c.z) > 0.01f || c.x - a.x < 1.2f) continue;
