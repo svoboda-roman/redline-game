@@ -50,19 +50,22 @@ namespace Redline.Game.Render3D
                 v.Add(a); v.Add(b); v.Add(c); n.Add(nn); n.Add(nn); n.Add(nn);
                 tris[sub].Add(i); tris[sub].Add(i + 1); tris[sub].Add(i + 2);
             }
-            // A frustum band from radius r0 at y0 to r1 at y1 (r1 = 0: a cone tip).
+            // Spike axis frame of the tile being built: D along the spike, U and V across it.
+            Vector3 D = Vector3.up, U = Vector3.right, V = Vector3.forward;
+            // A frustum band from radius r0 at height y0 to r1 at y1 along D (r1 = 0: a cone tip).
             void Band(int sub, Vector3 c, float r0, float y0, float r1, float y1, float rot)
             {
                 const int S = 6;
                 for (int k = 0; k < S; k++)
                 {
                     float a0 = rot + k * Mathf.PI * 2f / S, a1 = rot + (k + 1) * Mathf.PI * 2f / S;
-                    var b0 = c + new Vector3(Mathf.Cos(a0) * r0, y0, Mathf.Sin(a0) * r0);
-                    var b1 = c + new Vector3(Mathf.Cos(a1) * r0, y0, Mathf.Sin(a1) * r0);
-                    var t0 = c + new Vector3(Mathf.Cos(a0) * r1, y1, Mathf.Sin(a0) * r1);
-                    var t1 = c + new Vector3(Mathf.Cos(a1) * r1, y1, Mathf.Sin(a1) * r1);
+                    Vector3 Ring(float a, float r) => U * (Mathf.Cos(a) * r) + V * (Mathf.Sin(a) * r);
+                    var b0 = c + Ring(a0, r0) + D * y0;
+                    var b1 = c + Ring(a1, r0) + D * y0;
+                    var t0 = c + Ring(a0, r1) + D * y1;
+                    var t1 = c + Ring(a1, r1) + D * y1;
                     float am = (a0 + a1) * 0.5f;
-                    var outward = new Vector3(Mathf.Cos(am), 0.3f, Mathf.Sin(am));
+                    var outward = Ring(am, 1f) + D * 0.3f;
                     Tri(sub, b0, t1, b1, outward);
                     if (r1 > 0f) Tri(sub, b0, t0, t1, outward);
                 }
@@ -71,10 +74,21 @@ namespace Redline.Game.Render3D
             for (int x = 0; x < _map.Width; x++)
             {
                 if (_map.Get(x, y) != Tile.Spike) continue;
+                // Spikes grow out of what they sit on: the floor below (up), a wall to the left (right) or right
+                // (left), or a ceiling above (down). Free-floating spike tiles point up.
+                bool below = _map.IsSolid(x, y - 1), leftW = _map.IsSolid(x - 1, y), rightW = _map.IsSolid(x + 1, y), above = _map.IsSolid(x, y + 1);
+                int orient = below ? 0 : leftW ? 1 : rightW ? 2 : above ? 3 : 0;
+                D = orient == 0 ? Vector3.up : orient == 1 ? Vector3.right : orient == 2 ? Vector3.left : Vector3.down;
+                U = orient == 0 || orient == 3 ? Vector3.right : Vector3.up;
+                V = Vector3.forward;
                 int count = 6 + rnd.Next(4);
                 for (int s = 0; s < count; s++)
                 {
-                    var c = new Vector3(x + 0.08f + R() * 0.84f, y, -1.4f + R() * 3.8f);
+                    float along = 0.08f + R() * 0.84f, depth = -1.4f + R() * 3.8f;
+                    var c = orient == 0 ? new Vector3(x + along, y, depth)
+                          : orient == 1 ? new Vector3(x, y + along, depth)
+                          : orient == 2 ? new Vector3(x + 1f, y + along, depth)
+                          : new Vector3(x + along, y + 1f, depth);
                     float r = 0.055f + R() * 0.035f, hgt = 0.5f + R() * 0.45f, rot = R() * 6.28f;
                     float collar = hgt * 0.2f;
                     Band(0, c, r * 1.25f, 0f, r * 1.05f, collar, rot);                // silver collar
