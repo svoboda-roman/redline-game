@@ -26,6 +26,7 @@ namespace Redline.Game.Render3D
 
         private void BuildDressing(Transform copy)
         {
+            if (!_look.MidDressing) return;   // open sunset look: no dark truss wall in front of the city
             if (_dressMid == null && _dressFg == null) BuildDressingMeshes();
             if (_dressMid != null) NoShadow(MeshGo("dressMid", copy, _dressMid, _dressMidMats));
             if (_dressFg != null) NoShadow(MeshGo("dressFg", copy, _dressFg, _dressFgMats));

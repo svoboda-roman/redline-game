@@ -141,7 +141,9 @@ namespace Redline.Game.Render3D
             _signalBase = new float[maxLamps];
             foreach (int off in offsets) BuildCopy(off);
 
-            City();
+            if (_look.NeonStreet) NeonStreet(); // Arena3DNeonStreet.cs (variant A)
+            else City();
+            SunsetBackdrop(); // Arena3DSunset.cs
             FloodWater();
             Haze();
             Rain();
@@ -169,6 +171,7 @@ namespace Redline.Game.Render3D
                 _cityRows[i].localPosition = new Vector3(p * Mathf.Floor(camX / p) - camX, 0f, 0f);
             }
             UpdateShadows(camX - _level.localPosition.x);
+            StreetUpdate(_time);
             for (int i = 0; i < _signalCount; i++)
             {
                 float s = Mathf.Repeat(_time * 0.9f + _signalPhase[i], 1f);
@@ -460,8 +463,8 @@ namespace Redline.Game.Render3D
             string[] back = { "water_tank", "ac_unit", "container", "stair_hut", "fan_tower", "vent_stack", "antenna_mast", "neon_sign", "exhaust_elbow", "sat_dish", "crates", "barrels", "cable_posts" }; // no "billboard": its pale panel is off-palette
             string[] onSlab = { "ac_unit", "vent_stack", "crates", "barrels", "sat_dish", "exhaust_elbow", "antenna_mast" };
             int k = (int)(rnd.NextDouble() * back.Length);
-            // Behind the play plane on the deck.
-            for (float x = 1f; x < _map.Width; x += 4.5f + (float)rnd.NextDouble() * 3.5f)
+            // Behind the play plane on the deck (rooftop junk; none on the neon street).
+            for (float x = 1f; !_look.NeonStreet && x < _map.Width; x += 4.5f + (float)rnd.NextDouble() * 3.5f)
             {
                 int ix = Mathf.FloorToInt(x);
                 if (!HasDeck(ix) || _map.IsSolid(ix, 1) || _map.IsSolid(ix - 1, 1) || _map.IsSolid(ix + 1, 1)) continue;
@@ -492,8 +495,8 @@ namespace Redline.Game.Render3D
                     }
                 }, onlyTopEdge: true);
             }
-            // Fence and railing along the parapet.
-            ForEachRun(0, (x0, x1) =>
+            // Fence and railing along the parapet (none on the neon street: the street runs on behind).
+            if (!_look.NeonStreet) ForEachRun(0, (x0, x1) =>
             {
                 for (float x = x0 + 0.5f; x < x1; x += 3.2f)
                 {
@@ -598,6 +601,7 @@ namespace Redline.Game.Render3D
                 _cityPeriod[r] = period;
                 var bld = new List<Mesh>();
                 var glow = new QuadBatch();
+                var signs = new QuadBatch();
                 var beacons = new List<CombineInstance>();
                 float x = 0f;
                 while (x < period - 4f)
@@ -644,6 +648,9 @@ namespace Redline.Game.Render3D
                         beacons.Add(new CombineInstance { mesh = beaconMesh, transform = Matrix4x4.TRS(bp, Quaternion.identity, Vector3.one * bs) });
                         glow.Billboard(bp + Vector3.back * 0.5f, 4f + z * 0.03f, 4f + z * 0.03f, _look.Signal * 0.7f);
                     }
+                    // Neon signs on the nearer rows (sunset look): vertical blades and horizontal boards in the sign palette.
+                    if (_look.Sunset && r < 3 && _look.SignColors != null && _look.SignColors.Length > 0 && _rnd.NextDouble() < _look.SignChance)
+                        CitySign(signs, glow, x, w, top, zz, z);
                     // Street glow below (sodium bleeding up into the fog), only in the nearer rows.
                     if (z < 140f && _rnd.NextDouble() < 0.35)
                     {
@@ -654,6 +661,7 @@ namespace Redline.Game.Render3D
                 }
                 var rowMesh = Own(Proto3DMeshes.MergeTwoSub(bld, "cityRow" + r));
                 var glowMesh = glow.Count > 0 ? Own(glow.Build("cityGlow" + r)) : null;
+                var signMesh = signs.Count > 0 ? Own(signs.Build("citySigns" + r)) : null;
                 Mesh beaconRow = null;
                 if (beacons.Count > 0)
                 {
@@ -672,6 +680,7 @@ namespace Redline.Game.Render3D
                     // The city is not mirrored (cost): the floor reflects the near scene and the haze glow.
                     NoShadow(Hidden(MeshGo("bldg", inst, rowMesh, facade, _roofMat)));
                     if (glowMesh != null) Hidden(MeshGo("glow", inst, glowMesh, _glowMat));
+                    if (signMesh != null) Hidden(MeshGo("signs", inst, signMesh, SignMaterial()));
                     if (beaconRow != null) NoShadow(Hidden(MeshGo("beacons", inst, beaconRow, _beaconMat)));
                 }
             }
