@@ -499,6 +499,7 @@ namespace Redline.Game
             }
             _levelMenu.AddItem("BACK", CloseLevelSelect);
             _levelMenu.Cancelled = CloseLevelSelect;
+            BuildLevelPreview();
             _mainMenu.AddItem("TUTORIAL", StartTraining);
             _mainMenu.AddItem("UPGRADES", OpenUpgradesFromMenu);
             _mainMenu.AddItem("SETTINGS", () => OpenSettings(_mainMenu));
@@ -536,6 +537,42 @@ namespace Redline.Game
             _mainMenu.SetNotice(notice);
             _mainMenu.Show();
             SetFlow(Flow.Menu);
+        }
+
+        private UnityEngine.UIElements.Image _levelPreview;
+        private UnityEngine.UIElements.Label _levelPreviewName;
+        private Texture2D[] _levelThumbs;
+
+        /// <summary>LEVEL SELECT: a picture of the highlighted level on the right (drawn from its map file).</summary>
+        private void BuildLevelPreview()
+        {
+            _levelThumbs = new Texture2D[Levels.Length];
+            var box = new UnityEngine.UIElements.VisualElement { pickingMode = UnityEngine.UIElements.PickingMode.Ignore };
+            box.style.position = UnityEngine.UIElements.Position.Absolute;
+            box.style.right = new UnityEngine.UIElements.Length(5f, UnityEngine.UIElements.LengthUnit.Percent);
+            box.style.top = new UnityEngine.UIElements.Length(24f, UnityEngine.UIElements.LengthUnit.Percent);
+            box.style.width = new UnityEngine.UIElements.Length(46f, UnityEngine.UIElements.LengthUnit.Percent);
+            _levelPreview = new UnityEngine.UIElements.Image { scaleMode = ScaleMode.ScaleToFit, pickingMode = UnityEngine.UIElements.PickingMode.Ignore };
+            _levelPreview.style.width = new UnityEngine.UIElements.Length(100f, UnityEngine.UIElements.LengthUnit.Percent);
+            _levelPreview.style.height = 360f;
+            _levelPreviewName = MenuKit.Text("", MenuKit.Bold, MenuKit.Label, UiTheme.Bone);
+            _levelPreviewName.style.marginTop = 2f * MenuKit.T;
+            box.Add(_levelPreview);
+            box.Add(_levelPreviewName);
+            _levelMenu.Root.Add(box);
+            _levelMenu.SelectionChanged = i =>
+            {
+                bool level = i >= 0 && i < Levels.Length;
+                box.style.display = level ? UnityEngine.UIElements.DisplayStyle.Flex : UnityEngine.UIElements.DisplayStyle.None;
+                if (!level) return;
+                if (_levelThumbs[i] == null)
+                {
+                    var asset = Resources.Load<TextAsset>(Levels[i]);
+                    if (asset != null) _levelThumbs[i] = LevelThumbnail.Build(TileMap.Parse(asset.text));
+                }
+                _levelPreview.image = _levelThumbs[i];
+                _levelPreviewName.text = (i < LevelTitles.Length ? LevelTitles[i] : Levels[i]) + "   -   " + Levels[i].ToUpperInvariant();
+            };
         }
 
         private void OpenLevelSelect()

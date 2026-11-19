@@ -181,10 +181,14 @@ namespace Redline.Game
             Refresh();
         }
 
+        /// <summary>Called with the selected index whenever the selection is drawn (open, move, hover).</summary>
+        public Action<int> SelectionChanged;
+
         private void Refresh()
         {
             for (int i = 0; i < _buttons.Count; i++)
                 MenuKit.StyleButton(_buttons[i], _labels[i], MenuKit.Steel, i == _selected, i == _selected);
+            SelectionChanged?.Invoke(_selected);
         }
 
         private void OnDestroy()
