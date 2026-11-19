@@ -690,7 +690,7 @@ namespace Redline.Game
             if (sim.CurrentWave != _shownWave || sim.State == SimState.Victory)
             {
                 _shownWave = sim.CurrentWave;
-                _waveValue.text = sim.CurrentWave + "/" + sim.WaveCount;
+                _waveValue.text = sim.Endless ? sim.CurrentWave.ToString() : sim.CurrentWave + "/" + sim.WaveCount;
             }
             if (sim.EnemiesAlive != _shownEnemies)
             {
@@ -714,7 +714,7 @@ namespace Redline.Game
                 if (countdown != _shownCountdown)
                 {
                     _shownCountdown = countdown;
-                    _banner.text = (sim.CurrentWave == sim.WaveCount ? "FINAL WAVE - " : "GET READY - ") + countdown;
+                    _banner.text = (!sim.Endless && sim.CurrentWave == sim.WaveCount ? "FINAL WAVE - " : "GET READY - ") + countdown;
                 }
             }
             if (_prompt.text.Length > 0)
@@ -734,7 +734,7 @@ namespace Redline.Game
             {
                 case SimState.WaveBreak:
                     _shownBannerWave = sim.CurrentWave;
-                    SetBanner("", sim.CurrentWave == sim.WaveCount ? "WAVE " + sim.CurrentWave + "/" + sim.WaveCount : "WAVE " + sim.CurrentWave + "/" + sim.WaveCount, "");
+                    SetBanner("", sim.Endless ? "WAVE " + sim.CurrentWave : "WAVE " + sim.CurrentWave + "/" + sim.WaveCount, "");
                     break;
                 case SimState.GameOver:
                     SetBanner("RUN ENDED", "WAVE " + sim.CurrentWave + " - " + sim.Kills + " KILLS",

@@ -101,6 +101,30 @@ namespace Redline.Core
             return keys;
         }
 
+        /// <summary>
+        /// Endless waves for <c>;endless</c> levels: wave n (0-based) has 3 + 2n enemies (capped at 32), grunts
+        /// plus heavier kinds that join as the waves you have beaten pile up (brute from wave 3, drone from 4,
+        /// shooter from 5, shield from 7, kamikaze from 9), each kind growing every few waves.
+        /// </summary>
+        public static List<WaveSpec> Endless(int count)
+        {
+            var list = new List<WaveSpec>(count);
+            for (int n = 0; n < count; n++)
+            {
+                int total = Math.Min(32, 3 + 2 * n);
+                int brute = n >= 2 ? 1 + (n - 2) / 3 : 0;
+                int drone = n >= 3 ? 1 + (n - 3) / 3 : 0;
+                int shooter = n >= 4 ? 1 + (n - 4) / 4 : 0;
+                int shield = n >= 6 ? 1 + (n - 6) / 4 : 0;
+                int kamikaze = n >= 8 ? 1 + (n - 8) / 4 : 0;
+                int others = brute + drone + shooter + shield + kamikaze;
+                if (others > total - 2) { float k = (total - 2) / (float)others; brute = (int)(brute * k); drone = (int)(drone * k); shooter = (int)(shooter * k); shield = (int)(shield * k); kamikaze = (int)(kamikaze * k); others = brute + drone + shooter + shield + kamikaze; }
+                int grunt = Math.Max(2, total - others);
+                list.Add(new WaveSpec(grunt, brute, drone, shooter, shield, kamikaze, 0));
+            }
+            return list;
+        }
+
         /// <summary>The config's global waves (waveGrunts/waveBrutes/waveDrones) as specs.</summary>
         public static List<WaveSpec> FromConfig(RedlineConfig cfg)
         {
