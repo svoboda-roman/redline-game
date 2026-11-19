@@ -177,16 +177,106 @@ namespace Redline.Game
         /// <summary>Recolours the speed-tier palette (player glow, rope, trails, sparks) with the equipped accent.</summary>
         public static void ApplyCosmetic(CosmeticKind kind)
         {
+            var c = CosmeticTierColors(kind);
+            for (int t = 0; t < 3; t++) TierColors[t] = c[t];
+        }
+
+        /// <summary>The three speed-tier colours a cosmetic gives (classic = the art bible palette).</summary>
+        public static Color[] CosmeticTierColors(CosmeticKind kind)
+        {
             int i = (int)kind;
-            if (i <= 0 || i >= Accents.Length)
-            {
-                for (int t = 0; t < 3; t++) TierColors[t] = BaseTierColors[t];
-                return;
-            }
+            if (i <= 0 || i >= Accents.Length) return new[] { BaseTierColors[0], BaseTierColors[1], BaseTierColors[2] };
             var a = Accents[i];
-            TierColors[0] = Color.Lerp(a, new Color(0.6f, 0.65f, 0.75f), 0.45f);
-            TierColors[1] = a;
-            TierColors[2] = Color.Lerp(a, Color.white, 0.6f);
+            return new[] { Color.Lerp(a, new Color(0.6f, 0.65f, 0.75f), 0.45f), a, Color.Lerp(a, Color.white, 0.6f) };
+        }
+
+        // ------------------------------------------------------------------ cosmetic preview
+
+        private UnityEngine.UIElements.VisualElement _cosGlow, _cosRope, _cosRopeTip;
+        private readonly UnityEngine.UIElements.VisualElement[] _cosTrail = new UnityEngine.UIElements.VisualElement[4];
+        private readonly UnityEngine.UIElements.VisualElement[] _cosSparks = new UnityEngine.UIElements.VisualElement[6];
+        private readonly UnityEngine.UIElements.VisualElement[] _cosSwatch = new UnityEngine.UIElements.VisualElement[3];
+        private UnityEngine.UIElements.VisualElement _cosBox;
+
+        /// <summary>COSMETICS: a sprinting ronin with its glow, speed trail, hook rope, sparks and the tier swatches in the highlighted colour.</summary>
+        private void BuildCosmeticPreview()
+        {
+            UnityEngine.UIElements.VisualElement Abs(UnityEngine.UIElements.VisualElement parent, float l, float t, float w, float h)
+            {
+                var e = new UnityEngine.UIElements.VisualElement { pickingMode = UnityEngine.UIElements.PickingMode.Ignore };
+                e.style.position = UnityEngine.UIElements.Position.Absolute;
+                e.style.left = l; e.style.top = t; e.style.width = w; e.style.height = h;
+                parent.Add(e);
+                return e;
+            }
+            var box = new UnityEngine.UIElements.VisualElement { pickingMode = UnityEngine.UIElements.PickingMode.Ignore };
+            box.style.position = UnityEngine.UIElements.Position.Absolute;
+            box.style.right = new UnityEngine.UIElements.Length(6f, UnityEngine.UIElements.LengthUnit.Percent);
+            box.style.top = new UnityEngine.UIElements.Length(26f, UnityEngine.UIElements.LengthUnit.Percent);
+            box.style.width = 640f; box.style.height = 420f;
+            box.style.backgroundColor = new Color(0.05f, 0.03f, 0.08f, 0.92f);
+            box.style.overflow = UnityEngine.UIElements.Overflow.Hidden;
+            MenuKit.Border(box, 3f, UiTheme.Faint);
+            _cosBox = box;
+            // floor line
+            var floor = Abs(box, 0f, 330f, 640f, 4f);
+            floor.style.backgroundColor = new Color(0.25f, 0.27f, 0.33f);
+            // speed trail streaks behind the runner
+            for (int i = 0; i < _cosTrail.Length; i++) _cosTrail[i] = Abs(box, 40f + i * 18f, 190f + i * 26f, 240f - i * 40f, 10f);
+            // glow behind the body
+            _cosGlow = Abs(box, 230f, 110f, 220f, 220f);
+            _cosGlow.style.borderTopLeftRadius = _cosGlow.style.borderTopRightRadius = 110f;
+            _cosGlow.style.borderBottomLeftRadius = _cosGlow.style.borderBottomRightRadius = 110f;
+            // hook rope up to the right and its anchor
+            _cosRope = Abs(box, 380f, 60f, 6f, 210f);
+            _cosRope.style.rotate = new UnityEngine.UIElements.Rotate(new UnityEngine.UIElements.Angle(38f, UnityEngine.UIElements.AngleUnit.Degree));
+            _cosRopeTip = Abs(box, 440f, 52f, 18f, 18f);
+            _cosRopeTip.style.rotate = new UnityEngine.UIElements.Rotate(new UnityEngine.UIElements.Angle(45f, UnityEngine.UIElements.AngleUnit.Degree));
+            // the ronin, sprinting
+            try
+            {
+                var sheet = Redline.Game.Art.CharacterSheet.Load(Redline.Game.Ronin.BakedRoninView.SheetPath);
+                if (sheet.TryGetAnimation("sprint", out var anim) || sheet.TryGetAnimation("run", out anim))
+                {
+                    var img = new UnityEngine.UIElements.Image { sprite = anim.Frame(Mathf.Min(2, anim.FrameCount - 1)), scaleMode = ScaleMode.ScaleToFit, pickingMode = UnityEngine.UIElements.PickingMode.Ignore };
+                    img.style.position = UnityEngine.UIElements.Position.Absolute;
+                    img.style.left = 190f; img.style.top = 70f; img.style.width = 300f; img.style.height = 264f;
+                    box.Add(img);
+                }
+            }
+            catch (Exception ex) { Debug.LogWarning("Redline: cosmetic preview has no ronin sprite: " + ex.Message); }
+            // sparks at the blade
+            float[,] sp = { { 470, 170 }, { 500, 200 }, { 488, 140 }, { 520, 180 }, { 455, 215 }, { 510, 230 } };
+            for (int i = 0; i < _cosSparks.Length; i++) _cosSparks[i] = Abs(box, sp[i, 0], sp[i, 1], 10f, 10f);
+            // tier swatches
+            for (int i = 0; i < 3; i++)
+            {
+                _cosSwatch[i] = Abs(box, 40f + i * 200f, 350f, 150f, 26f);
+                var lbl = MenuKit.Text("SPEED " + (i + 1), null, MenuKit.Label, UiTheme.Bone);
+                lbl.style.position = UnityEngine.UIElements.Position.Absolute;
+                lbl.style.left = 40f + i * 200f; lbl.style.top = 378f;
+                box.Add(lbl);
+            }
+            _cosmeticMenu.Root.Add(box);
+            _cosmeticMenu.SelectionChanged = i =>
+            {
+                bool colour = i >= 0 && i < CosmeticNames.Length;
+                box.style.display = colour ? UnityEngine.UIElements.DisplayStyle.Flex : UnityEngine.UIElements.DisplayStyle.None;
+                if (colour) PaintCosmeticPreview((CosmeticKind)i);
+            };
+        }
+
+        private void PaintCosmeticPreview(CosmeticKind kind)
+        {
+            var c = CosmeticTierColors(kind);
+            Color A(Color col, float a) => new Color(col.r, col.g, col.b, a);
+            for (int i = 0; i < _cosTrail.Length; i++) _cosTrail[i].style.backgroundColor = A(c[i == 0 ? 2 : 1], 0.85f - i * 0.18f);
+            _cosGlow.style.backgroundColor = A(c[1], 0.28f);
+            _cosRope.style.backgroundColor = A(Color.Lerp(c[2], Color.white, 0.3f), 1f);
+            _cosRopeTip.style.backgroundColor = A(c[2], 1f);
+            for (int i = 0; i < _cosSparks.Length; i++) _cosSparks[i].style.backgroundColor = A(c[i % 3], 1f);
+            for (int i = 0; i < 3; i++) _cosSwatch[i].style.backgroundColor = A(c[i], 1f);
+            MenuKit.Border(_cosBox, 3f, A(c[1], 0.9f));
         }
 
         private void BuildExtraMenus()
@@ -209,6 +299,7 @@ namespace Redline.Game
             }
             _cosmeticMenu.AddItem("BACK", CloseCosmetics);
             _cosmeticMenu.Cancelled = CloseCosmetics;
+            BuildCosmeticPreview();
             ApplyCosmetic(_store.State.Equipped);
         }
 
