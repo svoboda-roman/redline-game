@@ -23,7 +23,7 @@ namespace Redline.Game
         /// (levelAdvanceDelay) the next one loads with a fresh, fully healed player; a missing or
         /// invalid level is skipped with a logged warning. After the last one the victory stays.
         /// </summary>
-        private static readonly string[] Levels = { "Loop01", "Loop02", "Loop03" };
+        private static readonly string[] Levels = { "City01", "Loop01", "Loop02", "Loop03" };   // City01 is endless: the run ends only on death
         /// <summary>
         /// Half the view height in tiles: a close camera that follows the player. 6.75 frames the
         /// 40 px-per-tile character art at an exact 2× on a 1080p screen (13.5 tiles × 40 px = 540 px).

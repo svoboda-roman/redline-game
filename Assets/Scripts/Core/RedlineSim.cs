@@ -68,6 +68,12 @@ namespace Redline.Core
         /// <summary>Waves in this level: the map's ';wave' lines, or the config's waves when it has none.</summary>
         public int WaveCount => _waves.Count;
 
+        /// <summary>Waves generated for an ';endless' level (after the last one it repeats; there is no victory).</summary>
+        public const int EndlessWaveCount = 999;
+
+        /// <summary>True on an ';endless' level: waves keep coming, bigger each time; no victory.</summary>
+        public bool Endless => _map.Endless;
+
         /// <summary>The waves this run plays, in order.</summary>
         public IReadOnlyList<WaveSpec> Waves => _waves;
 
@@ -97,7 +103,9 @@ namespace Redline.Core
             _map = map ?? throw new ArgumentNullException(nameof(map));
             var errors = _cfg.Validate();
             if (errors.Count > 0) throw new ArgumentException("Invalid RedlineConfig: " + string.Join("; ", errors));
-            _waves = _map.Training ? Array.Empty<WaveSpec>() : _map.Waves.Count > 0 ? _map.Waves : WaveSpec.FromConfig(_cfg);
+            _waves = _map.Training ? Array.Empty<WaveSpec>()
+                : _map.Endless ? WaveSpec.Endless(EndlessWaveCount)
+                : _map.Waves.Count > 0 ? _map.Waves : WaveSpec.FromConfig(_cfg);
             var waveErrors = _map.Training ? new List<string>() : ValidateWaves(_waves);
             if (waveErrors.Count > 0) throw new ArgumentException("Invalid level waves: " + string.Join("; ", waveErrors));
             _orbs = new List<Orb>(_cfg.orbMaxCount);
@@ -287,7 +295,8 @@ namespace Redline.Core
             if (State != SimState.Fighting || alive > 0) return;
 
             WaveIndex++;
-            if (WaveIndex >= WaveCount)
+            if (WaveIndex >= WaveCount && _map.Endless) WaveIndex = WaveCount - 1;   // endless: the biggest wave repeats
+            else if (WaveIndex >= WaveCount)
             {
                 WaveIndex = WaveCount - 1;
                 State = SimState.Victory;
@@ -350,8 +359,12 @@ namespace Redline.Core
             return errors;
         }
 
+        /// <summary>Minimum horizontal distance between a random spawn and the player (units).</summary>
+        public const float RandomSpawnClearance = 7f;
+
         private Enemy SpawnAtPoint(EnemyKind kind, int k)
         {
+            if (_map.RandomSpawn) return SpawnRandom(kind);
             var points = _map.SpawnPoints;
             var pt = points[k % points.Count];
             int ring = k / points.Count;
@@ -362,6 +375,29 @@ namespace Redline.Core
             if (_map.OverlapsSolid(e.MinX, e.Y, e.MaxX, e.MaxY))
             {
                 e.X = pt.X;
+                e.Y = pt.Y;
+                e.RefreshContacts(_map);
+            }
+            return e;
+        }
+
+        /// <summary>
+        /// ';randomspawn': a random standing spot (sim RNG, so a run is reproducible) at least
+        /// <see cref="RandomSpawnClearance"/> from the player; drones appear above it in the air.
+        /// </summary>
+        private Enemy SpawnRandom(EnemyKind kind)
+        {
+            var spots = _map.StandSpots;
+            Vec2 pt = spots[0];
+            for (int tries = 0; tries < 24; tries++)
+            {
+                pt = spots[Math.Min(spots.Count - 1, (int)(NextRandom() * spots.Count))];
+                if (Math.Abs(_map.Dx(Player.X, pt.X)) >= RandomSpawnClearance) break;
+            }
+            float lift = kind == EnemyKind.Drone ? 2.5f : 0f;
+            var e = SpawnEnemy(kind, new Vec2(pt.X, pt.Y + lift));
+            if (_map.OverlapsSolid(e.MinX, e.Y, e.MaxX, e.MaxY))
+            {
                 e.Y = pt.Y;
                 e.RefreshContacts(_map);
             }
