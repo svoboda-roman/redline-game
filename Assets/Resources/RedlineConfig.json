@@ -24,6 +24,8 @@
     "wallJumpKick": 2.0,
     "wallJumpLockTime": 0.1,
     "wallCoyoteTime": 0.12,
+    "doubleJumpSpeed": 13.0,
+    "doubleJumpMinTier": 2,
     "wallSlideMaxFall": 6.0,
     "wallImpactMemory": 0.25,
 

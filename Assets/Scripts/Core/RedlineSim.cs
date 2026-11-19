@@ -462,6 +462,7 @@ namespace Redline.Core
             {
                 p.CoyoteTimer = c.coyoteTime;
                 p.AirSlideUsed = false;
+                p.AirJumpUsed = false;
             }
             // Wall coyote: a jump shortly after leaving a wall still wall-jumps off it.
             if (!p.Grounded && !p.Hooked && p.WallDir != 0)
@@ -618,6 +619,17 @@ namespace Redline.Core
                 {
                     WallJump(p);
                 }
+                else if (input.JumpPressed && !p.AirJumpUsed && PlayerTier >= c.doubleJumpMinTier)
+                {
+                    // Double jump: one per airtime, only from speed tier 2 up, only on a fresh press
+                    // (a press buffered for the landing does not burn it).
+                    if (p.Sliding) TryEndSlide();
+                    p.AirJumpUsed = true;
+                    p.Vy = MathF.Max(p.Vy, c.doubleJumpSpeed);
+                    p.JumpCutAvailable = true;
+                    ConsumeJump(p);
+                    Emit(SimEventType.Jump, p.Center, PlayerTier, 1);
+                }
             }
             if (!input.JumpHeld && p.JumpCutAvailable && p.Vy > 0f)
             {
@@ -640,6 +652,7 @@ namespace Redline.Core
             p.WallImpactSpeed = 0f;
             p.JumpCutAvailable = false;
             p.AirSlideUsed = false;
+            p.AirJumpUsed = false;
             if (p.Sliding) TryEndSlide();
             ConsumeJump(p);
             Emit(SimEventType.WallJump, p.Center);
@@ -716,6 +729,7 @@ namespace Redline.Core
             if (!_map.Raycast(p.Center, dir, range, out var hit)) return;
             p.Hooked = true;
             p.AirSlideUsed = false;
+            p.AirJumpUsed = false;
             p.HookTime = 0f;
             p.HookReelSpeed = 0f;
             p.HookAnchor = new Vec2(_map.WrapX(hit.X), hit.Y);

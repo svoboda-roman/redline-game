@@ -190,6 +190,7 @@ namespace Redline.Tests
         [Test]
         public void Coyote_JumpTooLongAfterLeavingLedge_DoesNothing()
         {
+            _cfg.doubleJumpMinTier = 99;   // the ground-jump grace only (running speed would allow a double jump)
             var sim = new RedlineSim(_cfg, Ledge());
             Teleport(sim, 11f, 5f);
             sim.Player.Vx = _cfg.runSpeed;

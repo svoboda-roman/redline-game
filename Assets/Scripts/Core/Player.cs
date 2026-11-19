@@ -34,6 +34,8 @@ namespace Redline.Core
         public float SlideCooldownTimer;
         /// <summary>True once this airtime's air slide is spent; cleared on landing, wall jump and hook attach.</summary>
         public bool AirSlideUsed;
+        /// <summary>True once this airtime's double jump is spent; cleared on landing, wall jump and hook attach.</summary>
+        public bool AirJumpUsed;
 
         /// <summary>Capacity of <see cref="SlideHits"/> (more enemies than that cannot be tracked per slide).</summary>
         public const int MaxSlideHits = 32;
