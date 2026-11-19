@@ -140,6 +140,12 @@ namespace Redline.Core
         public float killMomentumRefund = 2.5f;
         /// <summary>Seconds after a kill in which the next kill extends the chain.</summary>
         public float chainWindow = 1.5f;
+        /// <summary>Endless levels: every Nth wave also brings a boss brute with bossHpMultiplier times the HP.</summary>
+        public int bossEveryWaves = 10;
+        public float bossHpMultiplier = 8f;
+        /// <summary>Shock floor ('E' tiles): live for shockOnTime, then dead for shockOffTime (seconds), repeating.</summary>
+        public float shockOnTime = 1.4f;
+        public float shockOffTime = 2.2f;
         /// <summary>Extra refund per chain step beyond the first kill.</summary>
         public float chainBonusPerKill = 0.75f;
         /// <summary>Cap on the extra chain refund.</summary>

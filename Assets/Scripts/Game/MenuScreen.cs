@@ -122,6 +122,14 @@ namespace Redline.Game
         /// <summary>Replaces the 8 T hint line under the list.</summary>
         public void SetHint(string text) => _hint.text = text;
 
+        /// <summary>Changes an item's label (perk offers, prices, lock marks).</summary>
+        public void SetItemLabel(int index, string label)
+        {
+            if (index < 0 || index >= _labels.Count) return;
+            _labels[index] = label;
+            Refresh();
+        }
+
         /// <summary>Sets (or clears, with null/empty) the notice line under the title.</summary>
         public void SetNotice(string text)
         {

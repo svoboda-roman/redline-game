@@ -139,6 +139,7 @@ namespace Redline.Core
             p.RefreshContacts(_map);
             Player = p;
             State = _map.Training ? SimState.Training : SimState.WaveBreak;
+            Elapsed = 0f;
             WaveIndex = 0;
             BreakTimer = _cfg.firstWaveDelay;
             EnemiesAlive = 0;
@@ -223,6 +224,12 @@ namespace Redline.Core
         }
 
         /// <summary>Advances the run by dt seconds.</summary>
+        /// <summary>Seconds the sim has stepped (drives the shock-floor rhythm).</summary>
+        public float Elapsed { get; private set; }
+
+        /// <summary>True while 'E' shock-floor tiles are live (shockOnTime on, shockOffTime off, repeating).</summary>
+        public bool ShockLive => _cfg.shockOnTime > 0f && Elapsed % (_cfg.shockOnTime + MathF.Max(0f, _cfg.shockOffTime)) < _cfg.shockOnTime;
+
         public void Step(InputFrame input, float dt)
         {
             _events.Clear();
@@ -232,6 +239,7 @@ namespace Redline.Core
                 return;
             }
             if (State == SimState.Victory || State == SimState.GameOver) return;
+            Elapsed += dt;
 
             if (State == SimState.WaveBreak)
             {
@@ -317,6 +325,14 @@ namespace Redline.Core
             // Spawn order (and so spawn-point assignment): brutes, grunts, drones, then the rest in
             // WaveEnemy order.
             for (int i = 0; i < wave[WaveEnemy.Brute]; i++) SpawnAtPoint(EnemyKind.Brute, k++).Charges = charging;
+            // Boss wave (endless levels): one more brute, many times tougher, always charging.
+            if (_map.Endless && _cfg.bossEveryWaves > 0 && (WaveIndex + 1) % _cfg.bossEveryWaves == 0)
+            {
+                var boss = SpawnAtPoint(EnemyKind.Brute, k++);
+                boss.Charges = true;
+                boss.MakeBoss(_cfg.bossHpMultiplier);
+                Emit(SimEventType.BossSpawn, boss.Center);
+            }
             for (int i = 0; i < wave[WaveEnemy.Grunt]; i++) SpawnAtPoint(EnemyKind.Grunt, k++);
             for (int i = 0; i < wave[WaveEnemy.Drone]; i++) SpawnAtPoint(EnemyKind.Drone, k++);
             for (int w = (int)WaveEnemy.Drone + 1; w < WaveSpec.KindCount; w++)
@@ -1236,6 +1252,7 @@ namespace Redline.Core
         {
             Kills++;
             Emit(SimEventType.Kill, e.Center, tier, (int)e.Kind);
+            if (e.IsBoss) Emit(SimEventType.BossDown, e.Center, tier);
             RollOrbDrop(e);
         }
 
@@ -1725,6 +1742,7 @@ namespace Redline.Core
                 return;
             }
             if (_map.OverlapsSpike(p.MinX, p.Y, p.MaxX, p.MaxY)) Hurt(_cfg.spikeDamage, 0, true);
+            else if (ShockLive && _map.OverlapsShock(p.MinX, p.Y, p.MaxX, p.MaxY)) Hurt(_cfg.spikeDamage, 0, true);
         }
 
         private void Hurt(int damage, int awayDir, bool spike)
