@@ -88,7 +88,7 @@ namespace Redline.Game.Render3D
                 _structMat = Own(Proto3DMaterials.Lit3D("structure", black, 0.72f, 0.95f));
                 _clutterMat = Own(Proto3DMaterials.Lit3D("clutter", black * 1.3f, 0.6f, 0.85f, grime.Albedo));
                 _slabTopMat = Own(Proto3DMaterials.Lit3D("slabTop", black * 1.4f, 0.75f, 0.9f, top.Albedo, top.Normal, 1f));
-                _spikeMat = Own(Proto3DMaterials.Lit3D("spike", black, 0.85f, 1f, emissionColor: _look.Signal * 0.4f));
+                // (Spike tiles are drawn as electrified puddles on metal platform levels: Arena3DHazards.cs.)
             }
             _palette.Detail = grime.Albedo;
             _palette.DetailMean = grime.MeanLum;

@@ -172,6 +172,7 @@ namespace Redline.Game.Render3D
             }
             UpdateShadows(camX - _level.localPosition.x);
             StreetUpdate(_time);
+            HazardUpdate(_time);
             for (int i = 0; i < _signalCount; i++)
             {
                 float s = Mathf.Repeat(_time * 0.9f + _signalPhase[i], 1f);
@@ -319,14 +320,21 @@ namespace Redline.Game.Render3D
             SplitShadedSides(_levelMesh); // sub-mesh 2: side faces turned away from the key (Arena3DReflections.cs)
             _deckMesh = Own(deck.Count > 0 ? Proto3DMeshes.MergeTwoSub(deck, "deck") : new Mesh());
 
-            var spikes = new List<CombineInstance>();
-            for (int y = 1; y < h; y++)
-            for (int x = 0; x < w; x++)
-                if (_map.Get(x, y) == Tile.Spike)
-                    spikes.Add(new CombineInstance { mesh = Proto3DMeshes.Spikes(x, y, -1.5f, 2.5f, 0.55f), transform = Matrix4x4.identity });
-            _spikeMesh = Own(new Mesh { name = "spikes", indexFormat = IndexFormat.UInt32 });
-            if (spikes.Count > 0) _spikeMesh.CombineMeshes(spikes.ToArray(), true, false);
-            foreach (var c in spikes) Object.Destroy(c.mesh);
+            if (_look.MetalPlatforms)
+            {
+                _spikeMesh = Own(new Mesh { name = "spikes" });   // spike tiles become electrified puddles (Arena3DHazards.cs)
+            }
+            else
+            {
+                var spikes = new List<CombineInstance>();
+                for (int y = 1; y < h; y++)
+                for (int x = 0; x < w; x++)
+                    if (_map.Get(x, y) == Tile.Spike)
+                        spikes.Add(new CombineInstance { mesh = Proto3DMeshes.Spikes(x, y, -1.5f, 2.5f, 0.55f), transform = Matrix4x4.identity });
+                _spikeMesh = Own(new Mesh { name = "spikes", indexFormat = IndexFormat.UInt32 });
+                if (spikes.Count > 0) _spikeMesh.CombineMeshes(spikes.ToArray(), true, false);
+                foreach (var c in spikes) Object.Destroy(c.mesh);
+            }
 
             _cone = Own(Proto3DMeshes.Cone(2.1f, 5f));
             BuildLampMeshes();
@@ -390,6 +398,7 @@ namespace Redline.Game.Render3D
             Filled(MeshGo("level", copy, _levelMesh, _fasciaMat, _slabTopMat, _fasciaSideMat));
             Filled(Hidden(MeshGo("deck", copy, _deckMesh, _wallMat, _deckMat)));
             if (_spikeMesh.vertexCount > 0) Filled(MeshGo("spikes", copy, _spikeMesh, _spikeMat));
+            if (_look.MetalPlatforms) ElectricPuddles(copy);   // Arena3DHazards.cs
             DeckReflection(copy);
             if (_postMesh.vertexCount > 0) MeshGo("posts", copy, _postMesh, _postMat, _postMat);
             if (_headMesh.vertexCount > 0) MeshGo("heads", copy, _headMesh, _headMat, _headMat);
