@@ -103,9 +103,6 @@ if ($Remix -and $Top) {
     Fill 7 22 25
 
     # ---- the pit right of the spiked shaft (cols 35-45, rows 17-33): was an empty dead end
-    # f) stepped way up to the staircase: two-high block, then a four-high pillar (each step 2 tiles, jumpable)
-    for ($r = 32; $r -le 33; $r++) { Fill $r 36 37 }
-    for ($r = 30; $r -le 33; $r++) { Fill $r 38 39 }
     # g) the first stair loses its spikes (it is the way up now); the danger moves to the floor under the stairs
     Wipe 28 40 42; Fill 33 41 45 '^'
     # h) a ledge on the shaft's outer wall: a perch for wall jumps up out of the pit
