@@ -215,11 +215,12 @@ namespace Redline.Game.Render3D
                     var shop = Pick(rnd, 2);
                     bool shut = shop.Tint.r < 0.3f;   // shutter / dark variants carry a dark tint
                     signs.Quad(new Vector3(ux, FloorTop + sh * 0.5f, z - 0.15f), uw - pillar, sh, shop.Uv, Color.white * (shut ? 0.75f : 0.9f));
-                    // Header board above the shop (dead on shut shops).
+                    // Header board above about every other shop (dead on shut shops).
                     var head = Pick(rnd, 1);
                     float hh = 0.62f * scale;
-                    signs.Quad(new Vector3(ux, FloorTop + sh + hh * 0.5f + 0.06f * scale, z - 0.2f), uw - pillar, hh, head.Uv,
-                        shut ? new Color(0.15f, 0.12f, 0.14f) : Color.white * 0.95f);
+                    if (R() < 0.5f)
+                        signs.Quad(new Vector3(ux, FloorTop + sh + hh * 0.5f + 0.06f * scale, z - 0.2f), uw - pillar, hh, head.Uv,
+                            shut ? new Color(0.15f, 0.12f, 0.14f) : Color.white * 0.95f);
                     if (!shut && R() < 0.55f)
                     {
                         var aw = _look.SignColors[rnd.Next(_look.SignColors.Length)] * 0.75f;
@@ -280,7 +281,7 @@ namespace Redline.Game.Render3D
             }
 
             // Signs: blades along the building edges, boards across the floors, stacked from the shops to the roof.
-            int n = Mathf.RoundToInt(detail * (2.5f + R() * 3f) * Mathf.Clamp(w / 7f, 0.6f, 1.6f));   // a few signs per building, not a wall of text
+            int n = Mathf.RoundToInt(detail * (0.8f + R() * 1.6f) * Mathf.Clamp(w / 7f, 0.6f, 1.4f));   // one or two signs per building
             float yMin = FloorTop + 4f * scale, yMax = top - 1.5f * scale;
             for (int i = 0; i < n && yMax > yMin + 2f; i++)
             {
