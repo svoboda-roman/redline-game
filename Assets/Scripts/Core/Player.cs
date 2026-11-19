@@ -21,6 +21,10 @@ namespace Redline.Core
         public float WallImpactSpeed;
         public float WallImpactTimer;
 
+        /// <summary>Wall-jump grace after leaving a wall in the air, and the side that wall was on.</summary>
+        public float WallCoyoteTimer;
+        public int LastWallDir;
+
         public bool Sliding;
         public float SlideTimer;
         /// <summary>Full length of the current slide (SlideTimer's start value).</summary>

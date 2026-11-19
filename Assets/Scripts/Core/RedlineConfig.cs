@@ -43,12 +43,15 @@ namespace Redline.Core
         // --- Wall jump ---
         /// <summary>Minimum horizontal launch speed of a wall jump (the wall-impact speed is used when higher).</summary>
         public float wallJumpSpeedX = 8f;
-        public float wallJumpSpeedY = 14f;
+        public float wallJumpSpeedY = 15f;
         public float wallJumpKick = 2f;
-        public float wallJumpLockTime = 0.15f;
+        public float wallJumpLockTime = 0.1f;
         public float wallSlideMaxFall = 6f;
         /// <summary>How long the speed you hit a wall with is remembered for the wall jump.</summary>
         public float wallImpactMemory = 0.25f;
+
+        /// <summary>Seconds after leaving a wall in the air during which a jump still wall-jumps (forgiving timing).</summary>
+        public float wallCoyoteTime = 0.12f;
 
         // --- Slide ---
         /// <summary>Speed added by a slide. Run + slide must stay below tier3Speed: tier 3 is earned.</summary>
@@ -90,6 +93,10 @@ namespace Redline.Core
         public float hookMinLength = 1.5f;
         public float hookPumpAccel = 10f;
         public float hookCooldown = 0.2f;
+        /// <summary>Rope reel speed while hanging (units/s): up reels in (pulls toward the anchor), down lets out.</summary>
+        public float hookReelSpeed = 8f;
+        /// <summary>Longest the rope can be let out to (units).</summary>
+        public float hookMaxLength = 12f;
         /// <summary>Speed added toward the anchor when the hook attaches from the ground (an instant lift, no dead time).</summary>
         public float hookAttachPull = 7f;
         /// <summary>Upward speed given when jumping off the rope (only if slower than this).</summary>
@@ -370,6 +377,8 @@ namespace Redline.Core
             Positive(nameof(runSpeed), runSpeed);
             Positive(nameof(jumpSpeed), jumpSpeed);
             Positive(nameof(hookRange), hookRange);
+            if (hookReelSpeed < 0f) errors.Add("hookReelSpeed must be >= 0");
+            if (wallCoyoteTime < 0f) errors.Add("wallCoyoteTime must be >= 0");
             Positive(nameof(attackRange), attackRange);
             if (strikeDownReach < 0f) errors.Add("strikeDownReach must be >= 0");
             Positive(nameof(attackCooldown), attackCooldown);

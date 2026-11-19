@@ -29,6 +29,13 @@ namespace Redline.Core
     {
         /// <summary>Horizontal input in [-1, 1].</summary>
         public float MoveX;
+        /// <summary>Vertical input in [-1, 1] (up positive): reels the hook rope in (up) or out (down) while hanging.</summary>
+        public float MoveY;
+        /// <summary>
+        /// The jump press came only from an "up" key (W / Up arrow), not Space or the pad's jump button. While
+        /// hanging, that press reels the rope in instead of letting go.
+        /// </summary>
+        public bool JumpPressedByUp;
         public bool JumpPressed;
         public bool JumpHeld;
         public bool AttackPressed;

@@ -20,9 +20,10 @@
     "inputBufferTime": 0.12,
 
     "wallJumpSpeedX": 8.0,
-    "wallJumpSpeedY": 14.0,
+    "wallJumpSpeedY": 15.0,
     "wallJumpKick": 2.0,
-    "wallJumpLockTime": 0.15,
+    "wallJumpLockTime": 0.1,
+    "wallCoyoteTime": 0.12,
     "wallSlideMaxFall": 6.0,
     "wallImpactMemory": 0.25,
 
@@ -48,6 +49,8 @@
     "hookMinLength": 1.5,
     "hookPumpAccel": 10.0,
     "hookCooldown": 0.2,
+    "hookReelSpeed": 8.0,
+    "hookMaxLength": 12.0,
     "hookAttachPull": 7.0,
     "hookJumpSpeed": 9.0,
     "hookReleaseBoost": 8.0,

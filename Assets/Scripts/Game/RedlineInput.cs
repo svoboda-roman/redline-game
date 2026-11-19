@@ -32,6 +32,9 @@ namespace Redline.Game
     {
         private readonly ControlBindings _bindings;
         private float _moveX;
+        private float _moveY;
+        /// <summary>The latched jump press came only from W / Up (reels the hook in while hanging).</summary>
+        private bool _jumpByUpOnly;
         private bool _jumpHeld;
         private bool _hookHeld;
         private bool _jumpPressed;
@@ -82,6 +85,25 @@ namespace Redline.Game
             }
             _moveX = Mathf.Clamp(move, -1f, 1f);
 
+            // Vertical (hook reel): W / Up arrow up, S / Down arrow down, or the left stick / d-pad.
+            float vy = 0f;
+            if (kb != null)
+            {
+                if (kb.wKey.isPressed || kb.upArrowKey.isPressed) vy += 1f;
+                if (kb.sKey.isPressed || kb.downArrowKey.isPressed) vy -= 1f;
+            }
+            if (pad != null)
+            {
+                float sy = pad.leftStick.ReadValue().y;
+                if (Mathf.Abs(sy) > 0.4f) vy = sy;
+                if (pad.dpad.up.isPressed) vy = 1f;
+                if (pad.dpad.down.isPressed) vy = -1f;
+            }
+            _moveY = Mathf.Clamp(vy, -1f, 1f);
+            bool upDown = kb != null && (kb.wKey.wasPressedThisFrame || kb.upArrowKey.wasPressedThisFrame);
+            bool otherJumpDown = (kb != null && kb.spaceKey.wasPressedThisFrame) || Down(pad?.buttonSouth);
+            if (Down(kb, GameAction.Jump) || Down(pad?.buttonSouth)) _jumpByUpOnly = (_jumpByUpOnly || !_jumpPressed) && upDown && !otherJumpDown;
+
             _jumpHeld = Held(kb, GameAction.Jump) || Held(pad?.buttonSouth);
             _hookHeld = Held(kb, GameAction.Hook) || Held(mouse?.rightButton)
                         || Held(pad?.rightShoulder) || Held(pad?.rightTrigger);
@@ -123,6 +145,8 @@ namespace Redline.Game
             var frame = new InputFrame
             {
                 MoveX = _moveX,
+                MoveY = _moveY,
+                JumpPressedByUp = _jumpPressed && _jumpByUpOnly,
                 JumpHeld = _jumpHeld,
                 HookHeld = _hookHeld || _hookPressed,
                 JumpPressed = _jumpPressed,
@@ -143,6 +167,7 @@ namespace Redline.Game
         public void ClearLatched()
         {
             _jumpPressed = false;
+            _jumpByUpOnly = false;
             _attackPressed = false;
             _slidePressed = false;
             _hookPressed = false;

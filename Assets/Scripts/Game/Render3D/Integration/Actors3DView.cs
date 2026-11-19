@@ -76,7 +76,7 @@ namespace Redline.Game.Render3D.Integration
         private readonly float _roninScale = 1f;
         private readonly List<MeshRenderer> _shots = new List<MeshRenderer>(8);
         private readonly List<MeshRenderer> _shotGlows = new List<MeshRenderer>(8);
-        private readonly MeshRenderer _rope, _ropeGlow, _anchor;
+        private readonly MeshRenderer _rope, _ropeGlow, _anchor, _anchorCore;
         private readonly MaterialPropertyBlock _mpb = new MaterialPropertyBlock();
         private int _tier = -1;
         private int _lastHp = int.MinValue;
@@ -144,7 +144,8 @@ namespace Redline.Game.Render3D.Integration
             }
 
             _ropeGlow = Actors3DAssets.CreateQuad("RopeGlow", _root, Actors3DAssets.FxAdditive, false, false);
-            _rope = Actors3DAssets.CreateQuad("Rope", _root, Actors3DAssets.FxAdditive, false, false);
+            _rope = Actors3DAssets.CreateQuad("Rope", _root, Actors3DAssets.FxSolid, false, false);   // opaque: in the depth texture, so DOF keeps it sharp
+            _anchorCore = Actors3DAssets.CreateQuad("AnchorCore", _root, Actors3DAssets.FxSolid, false, false);
             _anchor = Actors3DAssets.CreateQuad("Anchor", _root, Actors3DAssets.FxAdditive, false, false);
             _playerBlob = Actors3DAssets.CreateQuad("PlayerContactShadow", _root, Actors3DAssets.FxAlpha, false, false);
             _playerBlobCore = Actors3DAssets.CreateQuad("PlayerContactShadowCore", _root, Actors3DAssets.FxAlpha, false, false);
@@ -357,7 +358,7 @@ namespace Redline.Game.Render3D.Integration
         {
             var p = sim.Player;
             bool show = p.Hooked && sim.State != SimState.GameOver;
-            _rope.enabled = _ropeGlow.enabled = _anchor.enabled = show;
+            _rope.enabled = _ropeGlow.enabled = _anchor.enabled = _anchorCore.enabled = show;
             if (!show) return;
             Vector3 from3 = UseBakedRonin && _baked != null
                 ? new Vector3(feet.x + _baked.HandOffset.x, feet.y + _baked.HandOffset.y, 0f)
@@ -368,9 +369,10 @@ namespace Redline.Game.Render3D.Integration
             var mid = (from + to) * 0.5f;
             var rot = Quaternion.Euler(0f, 0f, Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg);
             float z = from3.z * 0.5f;
-            Place(_rope, new Vector3(mid.x, mid.y, z), rot, new Vector2(d.magnitude, 0.05f), RopeCore * RopeHdr, Solid);
+            Place(_rope, new Vector3(mid.x, mid.y, z), rot, new Vector2(d.magnitude, 0.07f), RopeCore * RopeHdr, Solid);
             Place(_ropeGlow, new Vector3(mid.x, mid.y, z), rot, new Vector2(d.magnitude, 0.2f), TierColor(tier) * 0.6f, Glow);
             Place(_anchor, new Vector3(to.x, to.y, 0f), Quaternion.identity, new Vector2(0.6f, 0.6f), RopeCore * RopeHdr, Glow);
+            Place(_anchorCore, new Vector3(to.x, to.y, 0f), Quaternion.Euler(0f, 0f, 45f), new Vector2(0.2f, 0.2f), RopeCore * RopeHdr, Solid);
         }
 
         private void SyncShots(RedlineSim sim, Vector2 playerFeet, int tier)
