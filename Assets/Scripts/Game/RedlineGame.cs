@@ -850,7 +850,7 @@ namespace Redline.Game
                     if (map.IsSolid(((ix % map.Width) + map.Width) % map.Width, y)) { floorY = y + 1f; break; }
                 float dirX = map.Dx(Sim.Player.X, simPos.X);
                 var floorDraw = ToDraw(new Vec2(simPos.X, floorY));
-                _effects.Blood(at, dirX, floorDraw.y, (brute ? 1.8f : 1f) + (tier == 3 ? 0.4f : 0f));
+                _effects.Blood(at, dirX, floorDraw.y, (brute ? 1.6f : 1f) + (tier == 3 ? 0.3f : 0f));
             }
             _shake = Mathf.Max(_shake, 0.08f * tier + (brute ? 0.2f : 0f));
             _hitStop = Mathf.Max(_hitStop, 0.02f * tier + (brute ? 0.05f : 0f));
