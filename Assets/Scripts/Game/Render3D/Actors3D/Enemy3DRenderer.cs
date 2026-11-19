@@ -79,9 +79,12 @@ namespace Redline.Game.Render3D.Actors3D
         private object _lastSim;
         private float _time, _fuseTime;
 
-        /// <summary>Creates the enemy views under <paramref name="parent"/>. <paramref name="effects"/> is kept for API parity (unused).</summary>
+        private readonly Effects3DRenderer _effects;
+
+        /// <summary>Creates the enemy views under <paramref name="parent"/>. <paramref name="effects"/> gets the corpse landing dust (optional).</summary>
         public Enemy3DRenderer(Transform parent, Effects3DRenderer effects = null)
         {
+            _effects = effects;
             _root = new GameObject("Enemies3D").transform;
             _root.SetParent(parent, false);
             for (int k = 0; k < _kinds.Length; k++) _kinds[k] = LoadKind((EnemyKind)k);
@@ -141,6 +144,10 @@ namespace Redline.Game.Render3D.Actors3D
             public bool Active;
             public float Held, X, Y, Height, Vy;
             public bool Landed;
+            /// <summary>Corpse flight: horizontal speed, tilt (degrees) and its rate, bounces left, dust pending.</summary>
+            public float Vx, Tilt, TiltVel;
+            public int Bounces;
+            public bool Thumped;
 
             public View(Transform parent, bool corpse)
             {
@@ -193,7 +200,7 @@ namespace Redline.Game.Render3D.Actors3D
                 if (!e.Alive)
                 {
                     bool exploded = e.Kind == EnemyKind.Kamikaze && v.LastAct == EnemyAct.Fuse && e.Act == EnemyAct.Idle;
-                    if (v.WasAlive && !exploded) SpawnCorpse(v, e);
+                    if (v.WasAlive && !exploded) SpawnCorpse(v, e, map, playerX);
                     v.WasAlive = false;
                     v.Hide();
                     continue;
@@ -218,7 +225,19 @@ namespace Redline.Game.Render3D.Actors3D
             v.Anim.Play(_kinds[(int)e.Kind].Anims.Idle, true);
         }
 
-        private void SpawnCorpse(View from, Enemy e)
+        // Corpse physics (presentation only): the killing blow throws the body away from the player in an arc; it
+        // tumbles a little, the death clip plays slowed while airborne, it lands with a thump of dust, bounces once
+        // if it came down hard, skids to a stop, lies there, then dithers out.
+        /// <summary>Corpse launch: horizontal speed range (u/s) away from the player, upward speed (u/s).</summary>
+        public static float CorpseThrowMin = 3.5f, CorpseThrowMax = 9f, CorpseLift = 6.5f;
+        /// <summary>Corpse gravity (u/s^2), ground friction while skidding (u/s^2), tilt rate in flight (deg/s).</summary>
+        public static float CorpseGravity = 34f, CorpseFriction = 16f, CorpseTiltRate = 140f;
+        /// <summary>Seconds a landed corpse lies before fading, and the fade time.</summary>
+        public static float CorpseLie = 2.2f, CorpseFadeTime = 0.9f;
+        /// <summary>Death clip playback rate while the body is still in the air (lets the fall read).</summary>
+        public static float CorpseAirAnimRate = 0.6f;
+
+        private void SpawnCorpse(View from, Enemy e, TileMap map, float playerX)
         {
             View c = null;
             for (int i = 0; i < _corpses.Count; i++) if (!_corpses[i].Active) { c = _corpses[i]; break; }
@@ -228,10 +247,20 @@ namespace Redline.Game.Render3D.Actors3D
             c.X = e.X;
             c.Y = e.Y;
             c.Height = e.Height;
-            c.Flip = from.Flip;
             c.Held = 0f;
-            c.Vy = 0f;
-            c.Landed = e.Kind != EnemyKind.Drone || e.Grounded;
+            // Thrown away from the player, harder the faster the body was already moving (knockback from the hit).
+            float away = map.Dx(playerX, e.X);
+            int dir = away > 0.01f ? 1 : away < -0.01f ? -1 : (e.Vx >= 0f ? 1 : -1);
+            float speed = Mathf.Clamp(Mathf.Abs(e.Vx) * 0.8f + CorpseThrowMin, CorpseThrowMin, CorpseThrowMax);
+            c.Vx = dir * speed;
+            c.Vy = Mathf.Max(e.Vy, 0f) * 0.5f + CorpseLift * (e.Kind == EnemyKind.Brute ? 0.6f : 1f);
+            // Falls backwards: faces the player (the killer) while flying away from him.
+            c.Flip = dir > 0;
+            c.Tilt = 0f;
+            c.TiltVel = dir * CorpseTiltRate * (e.Kind == EnemyKind.Brute ? 0.5f : 1f);
+            c.Bounces = 1;
+            c.Thumped = false;
+            c.Landed = false;
             c.Anim.Play(_kinds[(int)e.Kind].Anims.Death, true);
         }
 
@@ -241,34 +270,69 @@ namespace Redline.Game.Render3D.Actors3D
             {
                 var c = _corpses[i];
                 if (!c.Active) continue;
-                if (!c.Landed) FallCorpse(c, map, dt);
-                c.Anim.Tick(dt);
-                if (c.Anim.Finished) c.Held += dt;
-                if (c.Held >= EnemyLook.CorpseHold + EnemyLook.CorpseFade) { c.Active = false; c.Hide(); continue; }
-                float alpha = 1f - Mathf.Clamp01((c.Held - EnemyLook.CorpseHold) / EnemyLook.CorpseFade);
+                float drawX = playerFeet.x + map.Dx(playerX, c.X);
+                MoveCorpse(c, map, dt, drawX);
+                c.Anim.Tick(dt, c.Landed ? 1f : CorpseAirAnimRate);
+                if (c.Anim.Finished && c.Landed && Mathf.Abs(c.Vx) < 0.05f) c.Held += dt;
+                if (c.Held >= CorpseLie + CorpseFadeTime) { c.Active = false; c.Hide(); continue; }
+                float alpha = 1f - Mathf.Clamp01((c.Held - CorpseLie) / CorpseFadeTime);
                 float y = c.Y + (EnemyLook.CentrePivot(c.Kind) ? c.Height * 0.5f : 0f);
-                Place(c, new Vector3(playerFeet.x + map.Dx(playerX, c.X), y, 0f), 1f, Quaternion.identity);
+                Place(c, new Vector3(drawX, y, 0f), 1f, Quaternion.Euler(0f, 0f, -c.Tilt));
                 var k = _kinds[(int)c.Kind];
                 Draw(c, k.CorpseLit, k.Overlay, EnemyLook.AttackColor(c.Kind) * AttackHdr, EnemyLook.Eyes * EyesHdr,
                     StripColor(c.Kind, EnemyLook.KindColor(c.Kind)), new Color(1f, 1f, 1f, EnemyLook.FillAlpha), alpha);
             }
         }
 
-        /// <summary>A drone shot down in the air drops (body box bottom at c.Y) until it rests on a solid tile.</summary>
-        private static void FallCorpse(View c, TileMap map, float dt)
+        /// <summary>
+        /// Flight, landing and skid of a corpse (body box bottom at c.Y, centre c.X): gravity, wall stops, one bounce
+        /// when it lands hard, then ground friction; the in-flight tilt settles back to level on the ground.
+        /// </summary>
+        private void MoveCorpse(View c, TileMap map, float dt, float drawX)
         {
-            c.Vy -= EnemyLook.DroneCorpseGravity * dt;
+            const float halfW = 0.3f, h = 0.6f;
+            // Horizontal: stop against walls.
+            if (Mathf.Abs(c.Vx) > 0.001f)
+            {
+                float nx = c.X + c.Vx * dt;
+                if (map.OverlapsSolid(nx - halfW, c.Y + 0.05f, nx + halfW, c.Y + h)) c.Vx = 0f;
+                else c.X = nx;
+            }
+            if (c.Landed)
+            {
+                c.Vx = Mathf.MoveTowards(c.Vx, 0f, CorpseFriction * dt);
+                c.Tilt = Mathf.MoveTowards(c.Tilt, 0f, 220f * dt);
+                // Walked off a ledge while skidding: fall again.
+                if (!map.OverlapsSolid(c.X - halfW, c.Y - 0.08f, c.X + halfW, c.Y - 0.01f) && c.Y > 0.5f) c.Landed = false;
+                return;
+            }
+            c.Vy -= CorpseGravity * dt;
+            c.Tilt = Mathf.Clamp(c.Tilt + c.TiltVel * dt, -35f, 35f);
             float y = c.Y + c.Vy * dt;
-            const float halfW = 0.3f;
-            if (map.OverlapsSolid(c.X - halfW, y, c.X + halfW, c.Y))
+            if (c.Vy < 0f && map.OverlapsSolid(c.X - halfW, y, c.X + halfW, c.Y))
             {
                 c.Y = Mathf.Floor(c.Y + 1e-3f); // tile tops are whole units
+                float impact = -c.Vy;
+                if (!c.Thumped && _effects != null)
+                {
+                    _effects.Dust(new Vector2(drawX, c.Y), impact > 8f ? 7 : 4, c.Vx);
+                    c.Thumped = true;
+                }
+                if (c.Bounces > 0 && impact > 7f)
+                {
+                    c.Bounces--;
+                    c.Vy = impact * 0.28f;
+                    c.Vx *= 0.55f;
+                    c.TiltVel *= -0.5f;
+                    return;
+                }
                 c.Vy = 0f;
+                c.Vx *= 0.7f;
                 c.Landed = true;
                 return;
             }
             c.Y = y;
-            if (c.Y < -2f) c.Landed = true; // fell out of the map: stop simulating
+            if (c.Y < -2f) { c.Landed = true; c.Vx = 0f; } // fell out of the map: stop simulating
         }
 
         /// <summary>Player grounded in the last <see cref="Sync"/> (true for <see cref="SyncRaw"/>-only captures).</summary>
