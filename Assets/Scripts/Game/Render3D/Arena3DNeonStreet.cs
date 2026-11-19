@@ -386,14 +386,18 @@ namespace Redline.Game.Render3D
             }
         }
 
+        /// <summary>
+        /// A uniformly random cell of <paramref name="kind"/>. (The cells are stored in kind blocks, so scanning from a
+        /// random start returned the first cell of the next block almost every time: the same sign over and over.)
+        /// </summary>
         private SignCell Pick(System.Random rnd, int kind)
         {
-            int start = rnd.Next(_signCells.Count);
+            int count = 0;
+            for (int k = 0; k < _signCells.Count; k++) if (_signCells[k].Kind == kind) count++;
+            if (count == 0) return _signCells[0];
+            int want = rnd.Next(count);
             for (int k = 0; k < _signCells.Count; k++)
-            {
-                var c = _signCells[(start + k) % _signCells.Count];
-                if (c.Kind == kind) return c;
-            }
+                if (_signCells[k].Kind == kind && want-- == 0) return _signCells[k];
             return _signCells[0];
         }
 
@@ -563,10 +567,62 @@ namespace Redline.Game.Render3D
                 foreach (var p in pts) Disc(p.x, p.y, rCore, Color.Lerp(c, Color.white, 0.72f)); // hot core
             }
 
+            // Latin words / numbers in neon tube: the 5x7 font cells as a tube skeleton (cell centres joined to their
+            // neighbours), drawn like the glyphs. Horizontal: one line; vertical: letters stacked.
+            string[] words = { "BAR", "HOTEL", "RAMEN", "OPEN", "24H", "CAFE", "SUSHI", "MOTEL", "KTV", "BEER", "SAKE", "PC", "CLUB", "LIVE", "LOVE", "GAME", "SEOUL", "HOT", "NEON", "MART", "7200", "1500", "NOODLE", "GOGO", "DJ", "NO.1" };
+            void TubeText(string s, int x, int y, int sc, Color c, bool stack)
+            {
+                var pts = new List<Vector2>(512);
+                for (int i = 0; i < s.Length; i++)
+                {
+                    if (!Font.TryGetValue(s[i], out var g)) continue;
+                    int cx = stack ? x : x + i * 6 * sc, cy = stack ? y - i * 8 * sc : y;
+                    bool On(int col, int row) => col >= 0 && col < 5 && row >= 0 && row < 7 && g[row * 5 + col] == '1';
+                    for (int row = 0; row < 7; row++)
+                    for (int col = 0; col < 5; col++)
+                    {
+                        if (!On(col, row)) continue;
+                        var p = new Vector2(cx + col * sc + sc * 0.5f, cy + (6 - row) * sc + sc * 0.5f);
+                        pts.Add(p);
+                        bool orth = false;
+                        if (On(col + 1, row)) { orth = true; for (int k = 1; k < 4; k++) pts.Add(p + new Vector2(sc * k / 4f, 0f)); }
+                        if (On(col, row + 1)) { orth = true; for (int k = 1; k < 4; k++) pts.Add(p - new Vector2(0f, sc * k / 4f)); }
+                        if (!orth && On(col + 1, row + 1)) for (int k = 1; k < 4; k++) pts.Add(p + new Vector2(sc * k / 4f, -sc * k / 4f));
+                        if (!orth && On(col - 1, row + 1)) for (int k = 1; k < 4; k++) pts.Add(p + new Vector2(-sc * k / 4f, -sc * k / 4f));
+                    }
+                }
+                float rOut = Mathf.Max(1.2f, sc * 0.42f), rCore = rOut * 0.5f;
+                foreach (var p in pts) Disc(p.x, p.y, rOut + 1.4f, c, 0.25f);
+                foreach (var p in pts) Disc(p.x, p.y, rOut, c * 0.85f);
+                foreach (var p in pts) Disc(p.x, p.y, rCore, Color.Lerp(c, Color.white, 0.72f));
+            }
+
             // Sign panel with neon tube lettering (as in real neon signs): mostly a dark backing with a thin tube
-            // border and letters alternating two tube colours; some a coloured panel with white tubes.
+            // border and letters alternating two tube colours; some a coloured panel with white tubes. A share of
+            // the signs carry Latin words or numbers instead of Hangul, so the street reads varied.
             void Sign(int x0, int y0, int w, int h, bool vertical)
             {
+                if (rnd.NextDouble() < (vertical ? 0.22 : 0.4))
+                {
+                    var lc = PickColor();
+                    Fill(x0, y0, w, h, new Color(0.12f, 0.1f, 0.14f));
+                    Fill(x0 + 1, y0 + 1, w - 2, h - 2, new Color(0.05f, 0.04f, 0.07f));
+                    string word;
+                    do word = words[rnd.Next(words.Length)]; while (vertical && word.Length > 4);
+                    if (vertical)
+                    {
+                        int sc = 4, tw = 5 * sc, th = word.Length * 8 * sc - sc;
+                        TubeText(word, x0 + (w - tw) / 2, y0 + (h + th) / 2 - 7 * sc, sc, lc, true);
+                    }
+                    else
+                    {
+                        int sc = Mathf.Max(1, Mathf.Min((h - 8) / 7, (w - 10) / (word.Length * 6)));
+                        int tw = word.Length * 6 * sc - sc;
+                        TubeText(word, x0 + (w - tw) / 2, y0 + (h - 7 * sc) / 2, sc, lc, false);
+                    }
+                    cells.Add(new SignCell { Uv = new Rect(x0 / (float)N, y0 / (float)N, w / (float)N, h / (float)N), Kind = vertical ? 0 : 1, Tint = lc });
+                    return;
+                }
                 var col = PickColor();
                 var col2 = rnd.NextDouble() < 0.5 ? new Color(1f, 0.97f, 0.92f) : PickColor();
                 bool filled = rnd.NextDouble() < 0.25;
