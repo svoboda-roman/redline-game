@@ -1,7 +1,7 @@
 # Builds Assets/Resources/City01.txt by hand from the player's drawing (tools/level/City01-drawing-v4.png).
 # Every element is a rectangle in drawing pixels; 17 px = 1 tile. Interior: x 120..1450, y 135..680.
 # Usage: powershell -File tools/level/City01-build.ps1 [-Out path] [-Remix]
-param([string]$Out = "$PSScriptRoot\..\..\Assets\Resources\City01.txt", [switch]$Remix)
+param([string]$Out = "$PSScriptRoot\..\..\Assets\Resources\City01.txt", [switch]$Remix, [switch]$Top)
 
 $S = 17.0; $X0 = 120; $Y0 = 135
 $W = 82; $H = 35                       # 2 wall cols each side, 2 ceiling rows, 32 interior rows, 1 floor row
@@ -85,6 +85,22 @@ if ($Remix) {
     Solid 230 290 625 637
     # 4) a hook rail over the empty top-middle, linking the left and right halves through the air
     Solid 790 840 150 160
+}
+
+if ($Remix -and $Top) {
+    # Top pass (grid coords: row, col1, col2). The player is 1.6 tiles tall and jumps ~2.7 tiles.
+    function Wipe($r, $c1, $c2) { for ($c = $c1; $c -le $c2; $c++) { $g[$r, $c] = '.' } }
+    function Fill($r, $c1, $c2, $ch = '#') { for ($c = $c1; $c -le $c2; $c++) { $g[$r, $c] = $ch } }
+    # a) top-left perch sat right under the ceiling (no room to stand): one row lower and a bit wider
+    Wipe 3 7 10;  Fill 4 6 10
+    # b) the top-middle hook rail: two rows lower so you can land on it, a stepping stone across the gap
+    Wipe 3 41 44; Fill 5 41 45
+    # c) a new step between the middle platform and the long right ledge (the widest empty gap up there)
+    Fill 8 56 59
+    # d) the long right ledge one row lower: its spikes get headroom, so you can jump over them on it
+    Wipe 4 68 71; Wipe 5 63 75; Fill 6 63 75; Fill 5 68 71 '^'
+    # e) the small block left of the spiked wall: wider, a landing spot before the wall
+    Fill 7 22 25
 }
 
 $g[($H - 2), 4] = 'P'                                  # start bottom left (the S in the drawing)
