@@ -101,6 +101,7 @@ namespace Redline.RoninEditor
         private static void Cleanup()
         {
             _katana = null;
+            _uprightDeg = float.NaN;
             if (_cam != null)
             {
                 _cam.targetTexture = null;
@@ -142,12 +143,18 @@ namespace Redline.RoninEditor
             float idleHips = HipsHeight(RoninClip.Idle, 0f);
             // v3 (ronin_anims.py): procedural katana clips authored at 30 fps. Loops cover exactly one cycle.
             // Idle: 1.33 s breathing cycle, 16 frames at 12 fps.
+            // Sword held upright in a normal grip (blade up, leaning forward) in every non-attack pose; the slashes,
+            // the slide attack and death keep their own blade (see _uprightDeg / FixKatana).
+            _uprightDeg = 18f;
             list.Add(SampleClip("idle", RoninClip.Idle, 16f / L(RoninClip.Idle), true, Uniform(16, 0f, L(RoninClip.Idle), true), 0f, false, idleHips, hand));
             // Run and sprint: one stride cycle each (10 and 8 frames). The presenter plays them at
             // speed x duration / stride (the stride is measured here from the planted foot), so the cloth is simulated
             // in the real time one cycle takes at the speed each represents (run 9 u/s = the sim's run speed, sprint 18).
+            _uprightDeg = 35f;
             list.Add(Loco("run", RoninClip.Run, 10, 9f, idleHips, hand));
+            _uprightDeg = 55f;
             list.Add(Loco("sprint", RoninClip.Sprint, 8, 18f, idleHips, hand));
+            _uprightDeg = 20f;
             // Jump: take-off -> knee drive -> tuck in 0.4 s; the sim supplies the height, so the hips are pinned.
             list.Add(SampleClip("jump", RoninClip.Jump, 20, false, Uniform(8, 0f, Mathf.Min(0.4f, L(RoninClip.Jump)), false), 0f, true, idleHips, hand));
             list.Add(SampleClip("fall", RoninClip.Fall, 12, true, Uniform(12, 0f, L(RoninClip.Fall), true), 0f, true, idleHips, hand));
@@ -157,6 +164,7 @@ namespace Redline.RoninEditor
             land.Frames.Add(list[0].Frames[0].Clone("land_03"));
             list.Add(land);
             list.Add(Capture("hang", 12, true, Mathf.RoundToInt(L(RoninClip.Hang) * 12), 0f, 0.3f, 0f, t => { var i = idle; i.Grounded = false; i.Hooked = true; return i; }, hand));
+            _uprightDeg = float.NaN;
             list.Add(Capture("slide", 20, false, Mathf.Min(16, Mathf.RoundToInt(L(RoninClip.SlideAttack) * 20)), 0f, 0f, 0f, t => { var i = idle; i.Sliding = true; i.Speed = 8f; return i; }, hand));
             // Slashes: 10 frames at 30 fps sampled 1:1 (frame 0 anticipation, 1 mid-swing, 2 impact = 0.067 s after the
             // press, inside the sim's 0.15 s live strike; 3-4 follow-through; 5-9 recover). The 1-2 fastest frames carry
@@ -170,9 +178,11 @@ namespace Redline.RoninEditor
             list.Add(SampleClip("runattack2", RoninClip.RunAttack2, 30, false, slashTimes, 9f, false, idleHips, hand, 1f, smear));
             // Hurt: time-warped so the recoil snaps (clip 0.12 -> 0.45 s, its deepest lean, in 2 frames) then recovers to
             // the clip's end pose over 6 frames; 8 frames at 20 fps = 0.4 s (the presenter takes HurtDuration from this).
+            _uprightDeg = 30f;
             list.Add(SampleClip("hurt", RoninClip.Hurt, 20, false, new[] { 0.12f, 0.3f, 0.45f, 0.6f, 0.75f, 0.9f, 1.05f, L(RoninClip.Hurt) }, 0f, false, idleHips, hand));
             // Death: the whole 2.4 s clip (stagger, collapse, lying on the ground) in 22 frames at 14 fps (~1.5x speed);
             // the last frame is the clip's final lying pose and is held by the one-shot playback.
+            _uprightDeg = float.NaN;
             list.Add(SampleClip("death", RoninClip.Death, 14, false, Uniform(22, 0f, L(RoninClip.Death), false), 0f, false, idleHips, hand));
 
             int total = 0, fixedTotal = 0, bladePx = 0, eyePx = 0;
@@ -314,6 +324,7 @@ namespace Redline.RoninEditor
 
         private static Fr Snapshot(string name, Transform hand)
         {
+            FixKatana();
             for (int i = 0; i < _skinned.Length; i++) _skinned[i].BakeMesh(_proxyMeshes[i], true);
             var alb = Render(0);
             var nrm = Render(1);
@@ -440,6 +451,7 @@ namespace Redline.RoninEditor
                     float dy = Bone(HumanBodyBones.Hips).position.y - _view.transform.position.y - hipsY;
                     _view.Model.localPosition = new Vector3(0f, -dy / scale, 0f);
                 }
+                FixKatana();
             }
             void Advance(float from, float to, float seconds)
             {
@@ -508,7 +520,34 @@ namespace Redline.RoninEditor
         private static readonly float[] SmearLevels = { 0.15f, 0.25f, 0.4f, 0.6f };   // the blade itself (1.0) is the leading edge
 
         private static Transform _katana;
-        private static Vector3 _guardLocal, _tipLocal;
+        private static Vector3 _guardLocal, _tipLocal, _pommelLocal;
+        private static Vector3 _katanaRestPos;
+        private static Quaternion _katanaRestRot;
+
+        /// <summary>
+        /// Blade angle for the clip being baked, in degrees from straight up toward the facing direction (the sword held
+        /// upright in a normal grip); NaN = the clip's own blade (slashes, slide, death). Applied by <see cref="FixKatana"/>.
+        /// </summary>
+        private static float _uprightDeg = float.NaN;
+
+        /// <summary>
+        /// Puts the katana back on the hand at its rest offset, then, for upright clips, turns it about the grip so the
+        /// blade points <see cref="_uprightDeg"/> from vertical toward the facing side (the hand and arm are untouched).
+        /// Idempotent; call after every pose and before every snapshot.
+        /// </summary>
+        private static void FixKatana()
+        {
+            if (_katana == null && !InitKatana()) return;
+            _katana.localPosition = _katanaRestPos;
+            _katana.localRotation = _katanaRestRot;
+            if (float.IsNaN(_uprightDeg)) return;
+            Vector3 grip = _katana.TransformPoint(Vector3.Lerp(_pommelLocal, _guardLocal, 0.6f));
+            Vector3 cur = _katana.TransformDirection(_tipLocal - _guardLocal).normalized;
+            float a = _uprightDeg * Mathf.Deg2Rad;
+            Vector3 target = new Vector3(Mathf.Sin(a), Mathf.Cos(a), 0f);   // baked facing +x
+            _katana.rotation = Quaternion.FromToRotation(cur, target) * _katana.rotation;
+            _katana.position += grip - _katana.TransformPoint(Vector3.Lerp(_pommelLocal, _guardLocal, 0.6f));
+        }
 
         /// <summary>Guard and tip of the katana in local space (longest mesh-bounds axis; the end nearer the hand is
         /// the pommel, the guard ~29% of the length from it; same rule as <see cref="BladeTrail"/>).</summary>
@@ -525,7 +564,10 @@ namespace Redline.RoninEditor
             Vector3 hand = _katana.parent != null ? _katana.InverseTransformPoint(_katana.parent.position) : Vector3.zero;
             Vector3 pommel = (a - hand).sqrMagnitude < (c - hand).sqrMagnitude ? a : c;
             _tipLocal = pommel == a ? c : a;
+            _pommelLocal = pommel;
             _guardLocal = Vector3.Lerp(pommel, _tipLocal, 0.29f);
+            _katanaRestPos = _katana.localPosition;
+            _katanaRestRot = _katana.localRotation;
             return true;
         }
 
