@@ -44,7 +44,15 @@ namespace Redline.Core
         public int LevelsCleared;
         /// <summary>Highest speed tier (1-3) reached at any moment of the run; 0 counts as none.</summary>
         public int HighestTier;
+        /// <summary>Extra points earned in the run: combo multiplier on kills and completed challenges.</summary>
+        public int BonusPoints;
     }
+
+    /// <summary>How lucky a random upgrade spin was: common +1 level, rare +2, legendary +3.</summary>
+    public enum SpinRarity { Common, Rare, Legendary }
+
+    /// <summary>Neon accent colours the player can buy with points (cosmetic only).</summary>
+    public enum CosmeticKind { Crimson, Cyan, Violet, Toxic, Gold, White }
 
     /// <summary>
     /// Tuning for meta-progression: point rewards, the cost curve and max level of each upgrade, and
@@ -109,6 +117,16 @@ namespace Redline.Core
         public int spinBaseCost = 50;
         public float spinCostGrowth = 1.1f;
 
+        /// <summary>Chance a spin is rare (+2 levels) and legendary (+3 levels); the rest is common (+1).</summary>
+        public float spinRareChance = 0.2f;
+        public float spinLegendaryChance = 0.05f;
+
+        /// <summary>Price of each <see cref="CosmeticKind"/> (index = kind; 0 = free).</summary>
+        public int[] cosmeticCosts = { 0, 150, 200, 250, 300, 400 };
+
+        /// <summary>A level unlocks once the level before it in the list reached this wave.</summary>
+        public int unlockWave = 10;
+
         /// <summary>Price of the next random upgrade after <paramref name="spins"/> spins.</summary>
         public int SpinCost(int spins)
         {
@@ -154,6 +172,7 @@ namespace Redline.Core
                          + (long)Math.Max(0, run.LevelsCleared) * pointsPerLevelCleared;
             int tier = Math.Min(run.HighestTier, pointsForHighestTier == null ? 0 : pointsForHighestTier.Length);
             if (tier >= 1) total += pointsForHighestTier[tier - 1];
+            total += Math.Max(0, run.BonusPoints);
             return total >= int.MaxValue ? int.MaxValue : (int)Math.Max(0, total);
         }
 
@@ -291,19 +310,77 @@ namespace Redline.Core
         /// Pays <see cref="UpgradeConfig.SpinCost"/> and gives a level to a uniformly random upgrade that is not maxed
         /// (<paramref name="roll"/> in [0, 1) picks it). Nothing changes unless the result is Ok.
         /// </summary>
-        public BuyResult TrySpin(UpgradeConfig cfg, double roll, out UpgradeKind won)
+        public BuyResult TrySpin(UpgradeConfig cfg, double roll, out UpgradeKind won) => TrySpin(cfg, roll, 1.0, out won, out _);
+
+        /// <summary>
+        /// As <see cref="TrySpin(UpgradeConfig, double, out UpgradeKind)"/>, with a rarity roll in [0, 1): below
+        /// spinLegendaryChance = legendary (+3 levels), below + spinRareChance = rare (+2), else common (+1);
+        /// levels stop at the upgrade's max.
+        /// </summary>
+        public BuyResult TrySpin(UpgradeConfig cfg, double roll, double rarityRoll, out UpgradeKind won, out SpinRarity rarity)
         {
             won = UpgradeKind.MaxHp;
+            rarity = SpinRarity.Common;
             var result = CanSpin(cfg);
             if (result != BuyResult.Ok) return result;
             var open = new System.Collections.Generic.List<UpgradeKind>();
             foreach (var kind in Kinds) if (LevelOf(kind) < cfg.MaxLevel(kind)) open.Add(kind);
             won = open[Math.Min(open.Count - 1, (int)(Math.Max(0.0, roll) * open.Count))];
+            rarity = rarityRoll < cfg.spinLegendaryChance ? SpinRarity.Legendary
+                   : rarityRoll < cfg.spinLegendaryChance + cfg.spinRareChance ? SpinRarity.Rare : SpinRarity.Common;
             Points -= cfg.SpinCost(Spins);
             Spins++;
-            _levels[(int)won]++;
+            int i = (int)won;
+            _levels[i] = Math.Min(cfg.MaxLevel(won), _levels[i] + 1 + (int)rarity);
             return BuyResult.Ok;
         }
+
+        // --- cosmetics (owned bit mask + the equipped one) and per-level best waves (map unlocks, records) ---
+
+        /// <summary>Bit i set = <see cref="CosmeticKind"/> i is owned (Crimson always is).</summary>
+        public int CosmeticsOwned { get; private set; } = 1;
+        /// <summary>The equipped accent colour.</summary>
+        public CosmeticKind Equipped { get; private set; } = CosmeticKind.Crimson;
+
+        public bool Owns(CosmeticKind kind) => (CosmeticsOwned & (1 << (int)kind)) != 0;
+
+        /// <summary>Equips an owned colour, or buys and equips it when there are enough points.</summary>
+        public BuyResult TryEquipOrBuy(CosmeticKind kind, UpgradeConfig cfg)
+        {
+            if (!Owns(kind))
+            {
+                int i = (int)kind;
+                int cost = cfg.cosmeticCosts != null && i < cfg.cosmeticCosts.Length ? cfg.cosmeticCosts[i] : int.MaxValue;
+                if (Points < cost) return BuyResult.NotEnoughPoints;
+                Points -= cost;
+                CosmeticsOwned |= 1 << i;
+            }
+            Equipped = kind;
+            return BuyResult.Ok;
+        }
+
+        /// <summary>Loading a save.</summary>
+        public void SetCosmetics(int owned, int equipped)
+        {
+            CosmeticsOwned = owned | 1;
+            Equipped = Owns((CosmeticKind)equipped) && equipped >= 0 && equipped <= (int)CosmeticKind.White ? (CosmeticKind)equipped : CosmeticKind.Crimson;
+        }
+
+        private readonly System.Collections.Generic.Dictionary<string, int> _best = new System.Collections.Generic.Dictionary<string, int>();
+
+        /// <summary>Best wave reached on a level (0 = never played).</summary>
+        public int BestWave(string level) => level != null && _best.TryGetValue(level, out int w) ? w : 0;
+
+        /// <summary>Records a wave reached on a level; returns true when it is a new record.</summary>
+        public bool RecordWave(string level, int wave)
+        {
+            if (level == null || wave <= BestWave(level)) return false;
+            _best[level] = wave;
+            return true;
+        }
+
+        /// <summary>Every recorded level and its best wave (saving).</summary>
+        public System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, int>> BestWaves => _best;
 
         /// <summary>Sets the spin count directly (loading a save); negative becomes 0.</summary>
         public void SetSpins(int spins) => Spins = Math.Max(0, spins);
@@ -314,6 +391,9 @@ namespace Redline.Core
             Points = 0;
             Spins = 0;
             Array.Clear(_levels, 0, _levels.Length);
+            CosmeticsOwned = 1;
+            Equipped = CosmeticKind.Crimson;
+            _best.Clear();
         }
 
         /// <summary>Sets a level directly (loading a save), clamped to 0..max level of the config.</summary>

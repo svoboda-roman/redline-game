@@ -416,7 +416,7 @@ namespace Redline.Game.Render3D.Actors3D
                 attackHdr *= 1.6f;
             }
 
-            float pop = (e.SinceHit < EnemyLook.HitPopTime ? EnemyLook.HitPop : 1f) * FuseSwell(e);
+            float pop = (e.SinceHit < EnemyLook.HitPopTime ? EnemyLook.HitPop : 1f) * FuseSwell(e) * (e.IsBoss ? BossScale : 1f);
             var offset = Offset(e, index);
             float lift = EnemyLook.CentrePivot(e.Kind) ? e.Height * 0.5f : 0f;
             var rot = brute && e.Mode == BruteMode.Crashed ? Quaternion.Euler(0f, 0f, Mathf.Sin(_time * 9f) * 6f) : Quaternion.identity;
@@ -449,18 +449,21 @@ namespace Redline.Game.Render3D.Actors3D
 
         /// <summary>Health bar size (world units), gap over the head, and colours. Shown only once the enemy is hurt.</summary>
         public static float HpBarWidth = 0.9f, HpBarHeight = 0.09f, HpBarGap = 0.3f;
+        /// <summary>Wave bosses are drawn this much bigger than their kind.</summary>
+        public static float BossScale = 1.45f;
         public static Color HpBackColor = new Color(0.05f, 0.03f, 0.06f), HpFillColor = new Color(1f, 0.12f, 0.22f) * 2.2f;
 
         private void SyncHealthBar(View v, Enemy e, Vector2 feet)
         {
-            bool show = e.Hp < e.MaxHp - 0.001f && e.Hp > 0f;
+            bool show = (e.Hp < e.MaxHp - 0.001f || e.IsBoss) && e.Hp > 0f;
             v.HpBack.enabled = v.HpFill.enabled = show;
             if (!show) return;
             float frac = Mathf.Clamp01(e.Hp / e.MaxHp);
-            float y = feet.y + e.Height + HpBarGap;
-            float x0 = feet.x - HpBarWidth * 0.5f;
-            Bar(v.HpBack, new Vector3(feet.x, y, -0.05f), new Vector2(HpBarWidth + 0.06f, HpBarHeight + 0.06f), HpBackColor);
-            float w = HpBarWidth * frac;
+            float bw = e.IsBoss ? HpBarWidth * 2.2f : HpBarWidth;
+            float y = feet.y + e.Height * (e.IsBoss ? BossScale : 1f) + HpBarGap;
+            float x0 = feet.x - bw * 0.5f;
+            Bar(v.HpBack, new Vector3(feet.x, y, -0.05f), new Vector2(bw + 0.06f, HpBarHeight + 0.06f), HpBackColor);
+            float w = bw * frac;
             Bar(v.HpFill, new Vector3(x0 + w * 0.5f, y, -0.07f), new Vector2(w, HpBarHeight), HpFillColor);
         }
 

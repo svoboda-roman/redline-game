@@ -36,6 +36,10 @@ namespace Redline.Game
                     Rect(pix, w, tx * px, ty * px, px, px, Steel);
                     if (top) Rect(pix, w, tx * px, ty * px + px - 1, px, 1, SteelEdge);
                 }
+                else if (t == Tile.Shock)
+                {
+                    Rect(pix, w, tx * px, ty * px, px, Mathf.Max(1, px / 3), new Color(0.35f, 0.85f, 1f));
+                }
                 else if (t == Tile.Spike)
                 {
                     // a little triangle pointing away from what it sits on (up by default)

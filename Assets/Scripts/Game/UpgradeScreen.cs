@@ -83,6 +83,9 @@ namespace Redline.Game
         private bool _spinning;
         private float _spinTime;
         private UpgradeKind _won;
+        private SpinRarity _rarity;
+        private int _gained = 1;
+        private static readonly Color RareColor = new Color(0.35f, 0.6f, 1f), LegendColor = new Color(1f, 0.8f, 0.25f);
         private float _flash;
 
         /// <summary>Raised when the player picks continue (the screen hides itself first).</summary>
@@ -178,7 +181,11 @@ namespace Redline.Game
         private void Spin()
         {
             var state = _store.State;
-            if (state.TrySpin(_store.Config, _rng.NextDouble(), out _won) != BuyResult.Ok) return;
+            int before = 0;
+            if (state.TrySpin(_store.Config, _rng.NextDouble(), _rng.NextDouble(), out _won, out _rarity) != BuyResult.Ok) return;
+            _gained = state.LevelOf(_won);
+            before = _gained - 1 - (int)_rarity;
+            _gained -= Mathf.Max(0, before);
             bool saved = _store.Save();
             if (!saved) SetStatus(SaveFailed);
             var kinds = UpgradeState.Kinds;
@@ -195,7 +202,9 @@ namespace Redline.Game
         {
             _spinning = false;
             ShowReel(ReelLength - 2, 0f);
-            _result.text = "UNLOCKED  " + Title(_won) + "  LV " + _store.State.LevelOf(_won);
+            string tag = _rarity == SpinRarity.Legendary ? "LEGENDARY!  " : _rarity == SpinRarity.Rare ? "RARE!  " : "";
+            _result.style.color = _rarity == SpinRarity.Legendary ? LegendColor : _rarity == SpinRarity.Rare ? RareColor : Neon;
+            _result.text = tag + Title(_won) + "  +" + _gained + "  (LV " + _store.State.LevelOf(_won) + ")";
             _flash = 1.4f;
             Refresh();
         }
@@ -322,7 +331,7 @@ namespace Redline.Game
                 var kind = UpgradeState.Kinds[i];
                 int level = state.LevelOf(kind), max = cfg.MaxLevel(kind);
                 bool shownLevel = !(_spinning && kind == _won);   // the won level appears when the reel stops
-                _colLevel[i].text = (level >= max && shownLevel ? "MAX" : "LV " + (shownLevel ? level : level - 1) + "/" + max) + "\n" + EffectText(kind);
+                _colLevel[i].text = (level >= max && shownLevel ? "MAX" : "LV " + (shownLevel ? level : level - _gained) + "/" + max) + "\n" + EffectText(kind);
             }
             RefreshBars();
 
@@ -347,13 +356,13 @@ namespace Redline.Game
             {
                 var kind = UpgradeState.Kinds[i];
                 int level = state.LevelOf(kind);
-                if (_spinning && kind == _won) level--;
+                if (_spinning && kind == _won) level -= _gained;
                 bool wonCol = _flash > 0f && kind == _won;
                 var bars = _bars[i];
                 for (int b = 0; b < bars.Length; b++)
                 {
                     bool on = b < level;
-                    bool fresh = wonCol && b == level - 1;
+                    bool fresh = wonCol && b >= level - _gained && b < level;
                     // owned = solid neon bar, not owned = an empty outline (reads at a glance)
                     var col = fresh ? (pulse ? Color.white : Neon) : Neon;
                     bars[b].style.backgroundColor = on ? col : Color.clear;

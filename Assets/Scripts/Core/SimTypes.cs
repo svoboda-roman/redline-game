@@ -110,7 +110,11 @@ namespace Redline.Core
         /// <summary>A summoner starts its cast (the telegraph before a drone appears).</summary>
         SummonerCast,
         /// <summary>A summoner summoned a drone (Position = the new drone's centre).</summary>
-        Summon
+        Summon,
+        /// <summary>A boss joined the wave (Position = the boss).</summary>
+        BossSpawn,
+        /// <summary>A boss died (sent with its Kill).</summary>
+        BossDown
     }
 
     /// <summary>A feedback event emitted during one simulation step.</summary>

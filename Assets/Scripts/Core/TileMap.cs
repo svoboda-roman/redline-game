@@ -8,7 +8,9 @@ namespace Redline.Core
     {
         Empty,
         Solid,
-        Spike
+        Spike,
+        /// <summary>Shock floor ('E'): passable, hurts like a spike only while the current is live (RedlineSim.ShockLive).</summary>
+        Shock
     }
 
     /// <summary>
@@ -139,6 +141,7 @@ namespace Redline.Core
                     {
                         case '#': t = Tile.Solid; break;
                         case '^': t = Tile.Spike; break;
+                        case 'E': t = Tile.Shock; break;
                         case 'P':
                             if (start.HasValue) throw new FormatException("map has more than one 'P'");
                             start = new Vec2(x + 0.5f, y);
@@ -223,6 +226,15 @@ namespace Redline.Core
             for (int y = y0; y <= y1; y++)
                 for (int x = x0; x <= x1; x++)
                     if (IsSolid(x, y)) return true;
+            return false;
+        }
+
+        /// <summary>True when the box overlaps the lower half of any shock-floor cell.</summary>
+        public bool OverlapsShock(float minX, float minY, float maxX, float maxY)
+        {
+            for (int y = (int)MathF.Floor(minY); y <= (int)MathF.Floor(maxY); y++)
+                for (int x = (int)MathF.Floor(minX); x <= (int)MathF.Floor(maxX); x++)
+                    if (Get(x, y) == Tile.Shock && maxX > x && minX < x + 1 && maxY > y && minY < y + 0.5f) return true;
             return false;
         }
 

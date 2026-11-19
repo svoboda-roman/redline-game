@@ -188,7 +188,7 @@ namespace Redline.Game
             SyncPresentation();
 
             // Pause toggles (bound pause key or gamepad Start); the menus read their own input.
-            bool canToggle = Time.frameCount != _flowFrame && !_settingsScreen.Visible;
+            bool canToggle = Time.frameCount != _flowFrame && !_settingsScreen.Visible && !PerkMenuOpen;
             if (canToggle && _input.PausePressed)
             {
                 if (_flow == Flow.Playing) Pause();
@@ -213,7 +213,7 @@ namespace Redline.Game
                 _accumulator = 0f;
             }
             else if (_hitStop > 0f) _hitStop -= dt;
-            else _accumulator += dt;
+            else _accumulator += dt * ExtrasTimeScale;
             while (_accumulator >= RedlineSim.FixedDt)
             {
                 var frame = _input.Consume();
@@ -241,6 +241,7 @@ namespace Redline.Game
                 _run.HighestTier = Math.Max(_run.HighestTier, Sim.PlayerTier);
                 _accumulator -= RedlineSim.FixedDt;
             }
+            if (Sim != null) ExtrasUpdate(dt);
             _tutorial.Tick(Time.unscaledDeltaTime, paused: !stepping);
             _trainingOverlay.Tick(Time.unscaledDeltaTime, paused: !stepping);
             if (stepping && _training != null) TickTrainingEnd(dt);
@@ -393,6 +394,7 @@ namespace Redline.Game
             _runConfig = Upgrades.Apply(_config, _upgradeCfg, _store.State);
             _run = default;
             _runEnded = false;
+            ExtrasNewRun();
         }
 
         /// <summary>A fresh, not yet started run from the first level with the current upgrades.</summary>
@@ -423,6 +425,7 @@ namespace Redline.Game
         {
             if (_runEnded) return 0;
             _runEnded = true;
+            RecordBestWave();
             _tutorial.Hide();
             SaveTutorialProgress();
             int earned = _store.State.AwardRun(_run, _upgradeCfg);
@@ -495,13 +498,15 @@ namespace Redline.Game
             for (int i = 0; i < Levels.Length; i++)
             {
                 int level = i;
-                _levelMenu.AddItem(i < LevelTitles.Length ? LevelTitles[i] : Levels[i], () => { _levelMenu.Hide(); _startLevel = level; StartRun(); });
+                _levelMenu.AddItem(i < LevelTitles.Length ? LevelTitles[i] : Levels[i], () => PickLevel(level));
             }
             _levelMenu.AddItem("BACK", CloseLevelSelect);
             _levelMenu.Cancelled = CloseLevelSelect;
             BuildLevelPreview();
+            BuildExtraMenus();
             _mainMenu.AddItem("TUTORIAL", StartTraining);
             _mainMenu.AddItem("UPGRADES", OpenUpgradesFromMenu);
+            _mainMenu.AddItem("COSMETICS", OpenCosmetics);
             _mainMenu.AddItem("SETTINGS", () => OpenSettings(_mainMenu));
             _mainMenu.AddItem("QUIT", QuitGame);
 
@@ -571,13 +576,15 @@ namespace Redline.Game
                     if (asset != null) _levelThumbs[i] = LevelThumbnail.Build(TileMap.Parse(asset.text));
                 }
                 _levelPreview.image = _levelThumbs[i];
-                _levelPreviewName.text = (i < LevelTitles.Length ? LevelTitles[i] : Levels[i]) + "   -   " + Levels[i].ToUpperInvariant();
+                int best = _store.State.BestWave(Levels[i]);
+                _levelPreviewName.text = (i < LevelTitles.Length ? LevelTitles[i] : Levels[i]) + (best > 0 ? "   -   BEST WAVE " + best : "") + (LevelUnlocked(i) ? "" : "   -   LOCKED");
             };
         }
 
         private void OpenLevelSelect()
         {
             _mainMenu.Hide();
+            RefreshLevelLabels();
             _levelMenu.Show();
             SetFlow(_flow); // the Enter that opened it must not also pick the first level
         }
@@ -772,6 +779,7 @@ namespace Redline.Game
             _camX = Sim.Player.X;
             _camY = Sim.Player.Y + 2.5f;
             _lookahead = 0f;
+            ExtrasLevelChanged();
         }
 
         /// <summary>(Re)builds the arena view for the current map under its own host object.</summary>
@@ -854,9 +862,12 @@ namespace Redline.Game
                     case SimEventType.Kill:
                         _run.Kills++;
                         OnKill(at, color, ev.Tier, (EnemyKind)ev.Detail, ev.Position);
+                        if (_training == null) ExtrasOnKill(ev.Tier, (EnemyKind)ev.Detail);
                         break;
+                    case SimEventType.BossSpawn: ExtrasOnBossSpawn(); break;
+                    case SimEventType.BossDown: ExtrasOnBossDown(); break;
                     case SimEventType.Clang: OnClang(at); break;
-                    case SimEventType.PlayerHurt: OnHurt(at); break;
+                    case SimEventType.PlayerHurt: OnHurt(at); _hurtThisWave = true; break;
                     case SimEventType.GameOver: OnGameOver(at); break;
                     case SimEventType.Jump: OnJump(); break;
                     case SimEventType.WallJump: OnWallJump(color); break;
@@ -864,7 +875,7 @@ namespace Redline.Game
                     case SimEventType.HookAttach: _effects.Sparks(at, color, 8, 5f); break;
                     case SimEventType.WaveStart:
                         // A wave starting means the previous one of this level was cleared.
-                        if (!_firstWaveOfLevel) _run.WavesCleared++;
+                        if (!_firstWaveOfLevel) { _run.WavesCleared++; if (_training == null) ExtrasOnWaveCleared(); }
                         _firstWaveOfLevel = false;
                         _effects.Flash(0.08f);
                         break;

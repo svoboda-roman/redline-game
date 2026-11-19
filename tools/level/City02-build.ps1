@@ -54,6 +54,10 @@ Fill 18 77 79; Fill 30 77 79           # right wall perches
 Fill 21 66 69                          # step up off the deck toward the hanging-spike block
 Fill 28 68 71                          # a ledge under the deck over the right floor
 
+# ---- shock floor ('E'): live 1.4 s, dead 2.2 s - time the crossing
+Fill 33 29 33 'E'
+Fill 23 66 69 'E'
+
 $g[($H - 2), 4] = 'P'
 $lines = @(';City02 - RAIL YARD: level 2, a reworked take on City01B (tower, open pits, zigzag climb, right deck)', ';endless', ';randomspawn')
 for ($r = 0; $r -lt $H; $r++) { $row = New-Object 'char[]' $W; for ($c = 0; $c -lt $W; $c++) { $row[$c] = $g.GetValue($r, $c) }; $lines += -join $row }

@@ -109,6 +109,8 @@ if ($Remix -and $Top) {
     Fill 24 35 37
     # i) a floating plate above the pit: hook point / stepping stone toward the bar over the shaft
     Fill 20 39 42
+    # k) a shock-floor strip in the pit under the stairs (live 1.4 s, dead 2.2 s)
+    Fill 33 37 41 'E'
 
     # j) no spikes on the left half of the long right ledge (the player asked)
     Wipe 23 64 65

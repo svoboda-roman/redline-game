@@ -64,7 +64,37 @@ namespace Redline.Game
         {
             _game = game;
             System.IO.Directory.CreateDirectory(Directory);
-            StartCoroutine(UiRequested ? UiTour() : Tour());
+            bool extras = Array.IndexOf(Environment.GetCommandLineArgs(), "-redlineCaptureExtras") >= 0;
+            StartCoroutine(extras ? ExtrasTour() : UiRequested ? UiTour() : Tour());
+        }
+
+        /// <summary>-redlineCaptureExtras: level 2's shock floor, a wave boss next to the player, the perk pick.</summary>
+        private IEnumerator ExtrasTour()
+        {
+            Call("StartRun");
+            yield return new WaitForSecondsRealtime(0.3f);
+            Call("TryLoadLevel", new object[] { 1 });
+            Call("OnLevelChanged");
+            var sim = _game.Sim;
+            yield return WaitForFight(sim, 0.5f);
+            sim = _game.Sim;
+            var p = sim.Player;
+            p.InvulnTimer = 30f;
+            p.X = 27f; p.Y = 1f; p.Vx = 0f; p.Vy = 0f;
+            foreach (var e in sim.Enemies) e.Hp = 0f;
+            var boss = sim.SpawnEnemy(EnemyKind.Brute, new Vec2(36f, 1f));
+            boss.MakeBoss(sim.Config.bossHpMultiplier);
+            boss.StunTimer = 3f;
+            boss.Hp = boss.MaxHp * 0.7f;
+            float t = 0f;
+            while (!sim.ShockLive && t < 4f) { t += Time.unscaledDeltaTime; yield return null; }
+            yield return new WaitForSecondsRealtime(0.15f);
+            yield return Shot("extras-shock-boss.png");
+            Call("OfferPerks");
+            yield return new WaitForSecondsRealtime(0.4f);
+            yield return Shot("extras-perks.png");
+            Debug.Log("REDLINE_CAPTURE_DONE " + Directory);
+            Application.Quit();
         }
 
         private IEnumerator Tour()
