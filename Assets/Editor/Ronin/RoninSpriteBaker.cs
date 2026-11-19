@@ -541,12 +541,28 @@ namespace Redline.RoninEditor
             _katana.localPosition = _katanaRestPos;
             _katana.localRotation = _katanaRestRot;
             if (float.IsNaN(_uprightDeg)) return;
-            Vector3 grip = _katana.TransformPoint(Vector3.Lerp(_pommelLocal, _guardLocal, 0.6f));
+            // The grip is the point of the handle (pommel..guard) nearest the right palm; after the turn it is put
+            // back exactly in the palm, so the hand closes round the handle (no floating sword).
+            Vector3 palm = Palm();
+            Vector3 p = _katana.TransformPoint(_pommelLocal), gd = _katana.TransformPoint(_guardLocal);
+            Vector3 ax = gd - p;
+            float t = ax.sqrMagnitude > 1e-8f ? Mathf.Clamp01(Vector3.Dot(palm - p, ax) / ax.sqrMagnitude) : 0.5f;
+            t = Mathf.Clamp(t, 0.25f, 0.75f);   // hold the handle, not the pommel cap or the guard
+            Vector3 gripLocal = Vector3.Lerp(_pommelLocal, _guardLocal, t);
             Vector3 cur = _katana.TransformDirection(_tipLocal - _guardLocal).normalized;
             float a = _uprightDeg * Mathf.Deg2Rad;
             Vector3 target = new Vector3(Mathf.Sin(a), Mathf.Cos(a), 0f);   // baked facing +x
             _katana.rotation = Quaternion.FromToRotation(cur, target) * _katana.rotation;
-            _katana.position += grip - _katana.TransformPoint(Vector3.Lerp(_pommelLocal, _guardLocal, 0.6f));
+            _katana.position += palm - _katana.TransformPoint(gripLocal);
+        }
+
+        /// <summary>Centre of the right (sword) palm: from the wrist toward the middle-finger base when the rig has it.</summary>
+        private static Vector3 Palm()
+        {
+            var hand = Bone(HumanBodyBones.RightHand);
+            if (hand == null) return _katana.parent != null ? _katana.parent.position : _katana.position;
+            var mid = Bone(HumanBodyBones.RightMiddleProximal) ?? Bone(HumanBodyBones.RightIndexProximal);
+            return mid != null ? Vector3.Lerp(hand.position, mid.position, 0.6f) : hand.position;
         }
 
         /// <summary>Guard and tip of the katana in local space (longest mesh-bounds axis; the end nearer the hand is
