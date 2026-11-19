@@ -193,13 +193,18 @@ namespace Redline.Game.Ronin
             _root.localPosition = pos;
             _root.localScale = new Vector3(_flip ? -1f : 1f, 1f, 1f);
 
-            var sprite = _anim.Current.Frame(_anim.Frame);
+            int frame = _anim.Frame;
+            float squash = 1f;
+            if (a == BakedAnim.Slide) frame = SlideFrame(frame, input.SlideTier, sheetAnim.FrameCount, out squash);
+            var sprite = _anim.Current.Frame(frame);
             var tex = sprite.texture;
             var r = sprite.rect;
             float ppu = sprite.pixelsPerUnit;
             var piv = sprite.pivot;
-            _quad.localPosition = new Vector3((r.width * 0.5f - piv.x) / ppu, (r.height * 0.5f - piv.y) / ppu, 0f);
-            _quad.localScale = new Vector3(r.width / ppu, r.height / ppu, 1f);
+            // squash < 1 presses the body toward the floor about the feet (tier 3 full slide), slightly stretched.
+            float stretch = squash < 1f ? 1f + (1f - squash) * 0.5f : 1f;
+            _quad.localPosition = new Vector3((r.width * 0.5f - piv.x) / ppu * stretch, (r.height * 0.5f - piv.y) / ppu * squash, 0f);
+            _quad.localScale = new Vector3(r.width / ppu * stretch, r.height / ppu * squash, 1f);
             var st = new Vector4(r.width / tex.width, r.height / tex.height, r.x / tex.width, r.y / tex.height);
             _body.enabled = _overlay.enabled = true;
             _mpb.Clear();
@@ -224,6 +229,29 @@ namespace Redline.Game.Ronin
                 _handRaw = _hands.TryGetValue(sprite.name, out var h) ? h : new Vector2(0f, 0.9f);
             }
             _hand = new Vector2(_flip ? -_handRaw.x : _handRaw.x, _handRaw.y);
+        }
+
+        /// <summary>First slide frame used: frames 0-2 of the baked clip are still standing, so the slide drops in from 3.</summary>
+        public static int SlideEntryFrame = 3;
+        /// <summary>Frame held for a tier 1 slide (half crouch).</summary>
+        public static int SlideHoldTier1 = 4;
+        /// <summary>Frame held for a tier 2 slide (low lunge).</summary>
+        public static int SlideHoldTier2 = 7;
+        /// <summary>Frame held for a tier 3 slide (lowest lunge, then pressed down by <see cref="SlideTier3Squash"/>).</summary>
+        public static int SlideHoldTier3 = 8;
+        /// <summary>Vertical scale of the tier 3 slide pose (body near the ground).</summary>
+        public static float SlideTier3Squash = 0.6f;
+
+        /// <summary>
+        /// Maps the playing slide clip frame to the shown one: drops in from <see cref="SlideEntryFrame"/> and holds the
+        /// tier's pose for as long as the slide lasts (the baked clip would otherwise stand back up mid-slide).
+        /// </summary>
+        private static int SlideFrame(int playing, int slideTier, int frameCount, out float squash)
+        {
+            int hold = slideTier == 1 ? SlideHoldTier1 : slideTier == 3 ? SlideHoldTier3 : SlideHoldTier2;
+            squash = slideTier == 3 ? SlideTier3Squash : 1f;
+            int frame = Math.Min(SlideEntryFrame + playing, hold);
+            return Math.Max(0, Math.Min(frame, frameCount - 1));
         }
 
 #pragma warning disable 0649

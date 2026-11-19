@@ -157,6 +157,7 @@ namespace Redline.Core
             var p = Player;
             p.Hooked = false;
             p.Sliding = false;
+            p.SlideTier = 0;
             p.Height = _cfg.playerHeight;
             p.X = _map.WrapX(position.X);
             p.Y = position.Y;
@@ -468,13 +469,23 @@ namespace Redline.Core
             p.SlideBufferTimer = 0f;
             p.Sliding = true;
             p.AirSlideUsed = air;
-            p.SlideTimer = c.slideDuration;
             p.SlideHitCount = 0;
             // Never slows the player: air overspeed carried into a slide is kept.
             float speed = tooSlow ? c.slideMinSpeed : MathF.Abs(p.Vx);
             int dir = tooSlow ? p.Facing : Sign(p.Vx);
-            p.Vx = dir * MathF.Max(speed, MathF.Min(speed + c.slideBoost, MaxSpeed(p)));
-            p.Height = c.slideHeight;
+            // A ground slide takes its shape from the speed it starts at: tier 1 a half crouch,
+            // tier 2 the normal slide, tier 3 a full slide near the ground (lower, faster, longer).
+            // An air slide is always the normal (tier 2) shape, as a short dash.
+            int slideTier = air ? 2 : CombatRules.TierFor(speed, c);
+            float boost = slideTier == 1 ? c.slideTier1Boost : slideTier == 3 ? c.slideTier3Boost : c.slideBoost;
+            float height = slideTier == 1 ? c.slideTier1Height : slideTier == 3 ? c.slideTier3Height : c.slideHeight;
+            float length = air ? c.airSlideDuration
+                : slideTier == 1 ? c.slideTier1Duration : slideTier == 3 ? c.slideTier3Duration : c.slideDuration;
+            p.SlideTier = slideTier;
+            p.SlideLength = length;
+            p.SlideTimer = length;
+            p.Vx = dir * MathF.Max(speed, MathF.Min(speed + boost, MaxSpeed(p)));
+            p.Height = height;
             Emit(SimEventType.Slide, p.Center);
         }
 
@@ -487,13 +498,24 @@ namespace Redline.Core
             }
             if (p.Sliding)
             {
+                // A ground slide holds its full speed for slideFrictionDelay, then starts to bleed it.
+                bool holding = p.SlideLength - p.SlideTimer < _cfg.slideFrictionDelay;
                 p.SlideTimer -= dt;
-                bool slideOver = p.SlideTimer <= 0f;
-                // An air slide runs its timer too: only the timer ends it, not being airborne.
-                if (slideOver) TryEndSlide();
-                // Still low after the slide (no head room): crawl with normal ground rules.
-                if (p.Sliding && slideOver && p.Grounded) GroundControl(p, dir, dt);
-                return;
+                // On the ground the slide bleeds speed (slideFriction) rather than stopping dead; it
+                // ends when its timer runs out or it has slowed below slideStopSpeed. An air slide
+                // runs its timer too: being airborne neither slows nor ends it.
+                bool slideOver = p.SlideTimer <= 0f || (p.Grounded && MathF.Abs(p.Vx) < _cfg.slideStopSpeed);
+                // Holding against the slide on the ground cancels it into normal ground control.
+                bool braking = p.Grounded && dir != 0 && dir == -Sign(p.Vx);
+                if (slideOver || braking) TryEndSlide();
+                if (p.Sliding)
+                {
+                    // Still low after the slide (no head room): crawl with normal ground rules.
+                    if (slideOver && p.Grounded) GroundControl(p, dir, dt);
+                    else if (p.Grounded && !holding) p.Vx = MoveToward(p.Vx, 0f, _cfg.slideFriction * dt);
+                    return;
+                }
+                if (!braking) return;
             }
             if (p.Grounded)
             {
@@ -711,6 +733,7 @@ namespace Redline.Core
             if (!p.Sliding) return true;
             if (_map.OverlapsSolid(p.MinX, p.Y, p.MaxX, p.Y + _cfg.playerHeight)) return false;
             p.Sliding = false;
+            p.SlideTier = 0;
             p.Height = _cfg.playerHeight;
             p.SlideCooldownTimer = _cfg.slideCooldown;
             return true;
