@@ -149,7 +149,7 @@ namespace Redline.RoninEditor
             // the slide attack and death keep their own blade (see _uprightDeg / FixKatana).
             // Standing: classic two-handed high guard (hasso-like): both hands on the hilt at shoulder height in front,
             // right hand at the guard above the left, blade up and leaning back over the shoulder.
-            _uprightDeg = -14f;
+            _uprightDeg = 24f;   // blade up and forward: all of it in front of him
             _twoHand = true;
             list.Add(SampleClip("idle", RoninClip.Idle, 16f / L(RoninClip.Idle), true, Uniform(16, 0f, L(RoninClip.Idle), true), 0f, false, idleHips, hand));
             // Run and sprint: one stride cycle each (10 and 8 frames). The presenter plays them at
@@ -583,7 +583,7 @@ namespace Redline.RoninEditor
         private static bool _rightForward;
 
         /// <summary>Handle centre of the two-handed guard relative to the hips (world units, facing +x; -z is toward the camera).</summary>
-        private static readonly Vector3 GuardOffset = new Vector3(0.3f, 0.36f, -0.12f);   // high guard: hands at chest height in front, below the hat brim
+        private static readonly Vector3 GuardOffset = new Vector3(0.36f, 0.2f, -0.12f);   // guard: hands low in front of the belly, elbows down
 
         /// <summary>
         /// Two-handed guard: puts both palms on one handle in front of the belly, right hand near the guard, left near
