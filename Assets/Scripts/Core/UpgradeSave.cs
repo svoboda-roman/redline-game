@@ -44,6 +44,7 @@ namespace Redline.Core
             var sb = new StringBuilder(128);
             sb.Append("{\"version\":").Append(CurrentVersion.ToString(CultureInfo.InvariantCulture));
             sb.Append(",\"points\":").Append(state.Points.ToString(CultureInfo.InvariantCulture));
+            sb.Append(",\"spins\":").Append(state.Spins.ToString(CultureInfo.InvariantCulture));
             sb.Append(",\"levels\":{");
             for (int i = 0; i < UpgradeState.Kinds.Length; i++)
             {
@@ -102,6 +103,9 @@ namespace Redline.Core
                 state.SetPoints(points);
             else
                 repaired = true;
+            // Optional (older saves have no spins: the random upgrade price starts at its base).
+            if (root.TryGetValue("spins", out var sp) && TryInt(sp, out int spins) && spins >= 0)
+                state.SetSpins(spins);
 
             if (root.TryGetValue("levels", out var l) && l is Dictionary<string, object> levels)
             {

@@ -103,6 +103,17 @@ namespace Redline.Core
         /// <summary>Added to the orb buff duration multiplier per level (0.15 = +15% Speed and Hook orb time).</summary>
         public float orbDurationPerLevel = 0.15f;
 
+        // --- Random upgrade (spin): pay, a random not-maxed upgrade gains a level; the price grows per spin ---
+        public int spinBaseCost = 30;
+        public float spinCostGrowth = 1.35f;
+
+        /// <summary>Price of the next random upgrade after <paramref name="spins"/> spins.</summary>
+        public int SpinCost(int spins)
+        {
+            double cost = Math.Round(spinBaseCost * Math.Pow(spinCostGrowth, Math.Max(0, spins)), MidpointRounding.AwayFromZero);
+            return cost >= int.MaxValue ? int.MaxValue : (int)cost;
+        }
+
         /// <summary>Highest level the upgrade can reach.</summary>
         public int MaxLevel(UpgradeKind kind)
         {
@@ -172,6 +183,7 @@ namespace Redline.Core
             Curve("speed", speedMaxLevel, speedBaseCost, speedCostGrowth);
             Curve("hook", hookMaxLevel, hookBaseCost, hookCostGrowth);
             Curve("sword", swordMaxLevel, swordBaseCost, swordCostGrowth);
+            Curve("spin", 1, spinBaseCost, spinCostGrowth);
 
             NonNegative(nameof(maxHpPerLevel), maxHpPerLevel);
             NonNegative(nameof(speedMultiplierPerLevel), speedMultiplierPerLevel);
@@ -260,10 +272,45 @@ namespace Redline.Core
             return BuyResult.Ok;
         }
 
-        /// <summary>Wipes all progress: 0 points and every upgrade back to level 0.</summary>
+        /// <summary>Random upgrades bought so far (sets the next spin's price).</summary>
+        public int Spins { get; private set; }
+
+        /// <summary>Whether a random upgrade can be bought now (MaxLevel = every upgrade is maxed).</summary>
+        public BuyResult CanSpin(UpgradeConfig cfg)
+        {
+            bool any = false;
+            foreach (var kind in Kinds) if (LevelOf(kind) < cfg.MaxLevel(kind)) { any = true; break; }
+            if (!any) return BuyResult.MaxLevel;
+            if (Points < cfg.SpinCost(Spins)) return BuyResult.NotEnoughPoints;
+            return BuyResult.Ok;
+        }
+
+        /// <summary>
+        /// Pays <see cref="UpgradeConfig.SpinCost"/> and gives a level to a uniformly random upgrade that is not maxed
+        /// (<paramref name="roll"/> in [0, 1) picks it). Nothing changes unless the result is Ok.
+        /// </summary>
+        public BuyResult TrySpin(UpgradeConfig cfg, double roll, out UpgradeKind won)
+        {
+            won = UpgradeKind.MaxHp;
+            var result = CanSpin(cfg);
+            if (result != BuyResult.Ok) return result;
+            var open = new System.Collections.Generic.List<UpgradeKind>();
+            foreach (var kind in Kinds) if (LevelOf(kind) < cfg.MaxLevel(kind)) open.Add(kind);
+            won = open[Math.Min(open.Count - 1, (int)(Math.Max(0.0, roll) * open.Count))];
+            Points -= cfg.SpinCost(Spins);
+            Spins++;
+            _levels[(int)won]++;
+            return BuyResult.Ok;
+        }
+
+        /// <summary>Sets the spin count directly (loading a save); negative becomes 0.</summary>
+        public void SetSpins(int spins) => Spins = Math.Max(0, spins);
+
+        /// <summary>Wipes all progress: 0 points, 0 spins and every upgrade back to level 0.</summary>
         public void Reset()
         {
             Points = 0;
+            Spins = 0;
             Array.Clear(_levels, 0, _levels.Length);
         }
 
