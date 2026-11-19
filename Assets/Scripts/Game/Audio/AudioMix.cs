@@ -1,100 +1,76 @@
 namespace Redline.Game.Audio
 {
-    /// <summary>Every synthesised sound effect. <see cref="Count"/> is a sentinel, <see cref="None"/> means "no sound".</summary>
+    /// <summary>
+    /// Every sound effect (production/audio/music-sfx-overhaul/sfx-spec.md). <see cref="Count"/> is a
+    /// sentinel, <see cref="None"/> means "no sound". The clips of each id are in <see cref="AudioCatalog"/>.
+    /// </summary>
     public enum SfxId
     {
         None = -1,
-        Swing,
-        Hit1,
-        Hit2,
-        Hit3,
-        Kill1,
-        Kill2,
-        Kill3,
-        Clang,
-        HookAttach,
-        HookRelease,
-        Jump,
-        WallJump,
-        Land,
-        Slide,
-        Hurt,
-        WaveStart,
-        Victory,
-        GameOver,
-        BruteWindup,
-        BruteCrash,
-        DroneWindup,
-        OrbSpawn,
-        OrbPickup,
-        OrbExpire,
+        Swing1, Swing2, Swing3,
+        Hit1, Hit2, Hit3,
+        Kill1, Kill2, Kill3,
+        Clang, ShieldBlock, Hurt, DeathGrunt,
+        HookFire, HookLatch, HookRelease,
+        Jump, WallJump, SlideStart, SlideLoop,
+        LandSoft, LandMed, LandHard, Footstep,
+        TierUp, TierUpTaiko, TierDown, Heartbeat,
+        BruteWindup, BruteCrash, DroneWindup, DroneDive,
+        ShooterWindup, Shoot, Reflect, ProjectileHit,
+        FuseLoop, Explode, SummonCast, Summon,
+        WaveStart, WaveClear, VictorySting, GameOverSting,
+        OrbSpawnHealth, OrbSpawnSpeed, OrbSpawnHook,
+        OrbPickHealth, OrbPickSpeed, OrbPickHook, OrbExpire,
+        UiMove, UiConfirm, UiBack,
         Count
     }
 
-    /// <summary>Per-sound mix settings: level, polyphony limit and retrigger guard.</summary>
-    public readonly struct SfxSpec
+    /// <summary>The bus an effect plays on (direction.md 3: a code-driven stand-in for the mixer groups).</summary>
+    public enum SfxBus
     {
-        /// <summary>Linear level before the SFX bus and master (0-1).</summary>
-        public readonly float Volume;
-        /// <summary>Most voices of this sound's <see cref="Group"/> that may sound at once; the oldest is stolen beyond it.</summary>
-        public readonly int MaxVoices;
-        /// <summary>Seconds that must pass between two starts of the same group; starts inside it are dropped.</summary>
-        public readonly float MinInterval;
-        /// <summary>Random pitch spread (+/- fraction) so repeats do not sound identical.</summary>
-        public readonly float PitchJitter;
-        /// <summary>Sounds sharing a group share one voice limit (e.g. the three kill tiers).</summary>
-        public readonly SfxId Group;
-
-        public SfxSpec(float volume, int maxVoices, float minInterval, float pitchJitter, SfxId group)
-        {
-            Volume = volume;
-            MaxVoices = maxVoices;
-            MinInterval = minInterval;
-            PitchJitter = pitchJitter;
-            Group = group;
-        }
+        Player,
+        Impact,
+        Enemy,
+        Pickup,
+        Stinger,
+        Ui
     }
 
     /// <summary>
-    /// The one place for Redline's audio levels and audio tuning (design/game-brief.md: driving
-    /// synthwave). Pure C#: shared by the main thread, the audio thread and the offline renderer.
+    /// The one place for Redline's audio levels and audio tuning (direction.md sections 2-3). Tables of
+    /// clips are in <see cref="AudioCatalog"/>; the pure rules are in Redline.Core.Audio.AudioRules.
     /// </summary>
     /// <remarks>
-    /// Gain staging: every SFX clip is normalised to <see cref="ClipPeak"/>, then scaled by its
-    /// <see cref="SfxSpec.Volume"/>, <see cref="SfxBus"/> and <see cref="Master"/>. Music is scaled by
-    /// <see cref="MusicBus"/> and <see cref="Master"/>, so it sits under the effects. A peak limiter on
-    /// the AudioListener (<see cref="LimiterThreshold"/>) catches any pile-up so the output never clips.
+    /// Mixer choice: code-driven (per-bus AudioSources, an AudioLowPassFilter on each music voice, ducks
+    /// computed in code) because an AudioMixer asset cannot be authored and verified reliably from a
+    /// script in batch mode, and the code path is unit-testable.
     /// </remarks>
     public static class AudioMix
     {
         /// <summary>Master level for everything Redline plays.</summary>
         public const float Master = 0.9f;
-        /// <summary>Level of the sound-effect bus.</summary>
-        public const float SfxBus = 0.85f;
-        /// <summary>Level of the music bus (kept well under the SFX bus).</summary>
-        public const float MusicBus = 0.34f;
+        /// <summary>Music bus level at tier 1 (direction.md 3.1: music sits under SFX).</summary>
+        public const float MusicBus = 0.42f;
+        /// <summary>Sound-effect bus level.</summary>
+        public const float SfxBusLevel = 0.9f;
+        /// <summary>Ambience bus level (rain sits well under the music).</summary>
+        public const float AmbienceBus = 0.16f;
 
-        /// <summary>Music level multiplier while the pause menu is open.</summary>
-        public const float PauseDuck = 0.35f;
-        /// <summary>Seconds the player's music volume takes to reach a new setting (avoids zipper noise).</summary>
-        public const float UserVolumeSeconds = 0.05f;
+        // Player volume settings (0-1). Main thread only.
+        private static float _userMaster = 1f;
+        private static float _userMusic = 1f;
+        private static float _userSfx = 1f;
 
-        // Player volume settings (0-1). Written on the main thread, read on the audio thread.
-        private static volatile float _userMaster = 1f;
-        private static volatile float _userMusic = 1f;
-        private static volatile float _userSfx = 1f;
-
-        /// <summary>Player master volume (0-1), on top of <see cref="Master"/>. Safe to read on any thread.</summary>
+        /// <summary>Player master volume (0-1).</summary>
         public static float UserMaster => _userMaster;
-        /// <summary>Player music volume (0-1), on top of <see cref="MusicBus"/>. Safe to read on any thread.</summary>
+        /// <summary>Player music volume (0-1).</summary>
         public static float UserMusic => _userMusic;
-        /// <summary>Player effects volume (0-1), on top of <see cref="SfxBus"/>. Safe to read on any thread.</summary>
+        /// <summary>Player effects volume (0-1); also drives ambience and UI.</summary>
         public static float UserSfx => _userSfx;
 
         /// <summary>
-        /// Main thread: sets the player's volumes (each clamped to 0-1). The music picks them up on
-        /// its next audio buffer (ramped over <see cref="UserVolumeSeconds"/>); effects on their next
-        /// start. Use <see cref="RedlineAudio.SetVolumes"/> to also rescale effects already playing.
+        /// Main thread: sets the player's volumes (each clamped to 0-1). Use
+        /// <see cref="RedlineAudio.SetVolumes"/> to also rescale sounds already playing.
         /// </summary>
         /// <example><code>AudioMix.SetVolumes(1f, 0.6f, 0.8f);</code></example>
         public static void SetVolumes(float master, float music, float sfx)
@@ -106,72 +82,97 @@ namespace Redline.Game.Audio
 
         private static float Clamp01(float v) => v > 1f ? 1f : v > 0f ? v : 0f; // NaN -> 0
 
-        /// <summary>Music level multiplier while the run is over.</summary>
-        public const float GameOverDuck = 0.55f;
-        /// <summary>Seconds for the music to duck or recover.</summary>
-        public const float DuckSeconds = 0.8f;
-
-        /// <summary>Music tempo in beats per minute.</summary>
-        public const float MusicBpm = 112f;
-        /// <summary>Seconds for a music layer to fade in when its tier is reached.</summary>
-        public const float LayerFadeInSeconds = 0.7f;
-        /// <summary>Seconds for a music layer to fade out.</summary>
-        public const float LayerFadeOutSeconds = 2.0f;
-        /// <summary>Seconds the player must stay below a tier before its music layer starts to fade out.</summary>
+        // ------------------------------------------------------------ music (direction.md 2)
+        /// <summary>Seconds a tier-up crossfade takes.</summary>
+        public const float TierUpSeconds = 1.5f;
+        /// <summary>Seconds a tier-down crossfade takes.</summary>
+        public const float TierDownSeconds = 3.0f;
+        /// <summary>Seconds the player must stay below a tier before the music leaves it.</summary>
         public const float LayerHoldSeconds = 2.5f;
-        /// <summary>Seconds the base layer takes to fade in when the game starts.</summary>
-        public const float MusicStartFadeSeconds = 1.0f;
+        /// <summary>Least seconds between two tier-up stings.</summary>
+        public const float TierStingInterval = 4f;
+        /// <summary>Overlap of a track's end and its restart (the tracks are not seamless loops).</summary>
+        public const float LoopOverlapSeconds = 2f;
+        /// <summary>Seconds a level music change crossfades.</summary>
+        public const float LevelChangeSeconds = 2f;
+        /// <summary>Seconds menu music fades out when a run starts.</summary>
+        public const float MenuOutSeconds = 1f;
+        /// <summary>Seconds level music fades in.</summary>
+        public const float LevelInSeconds = 1.5f;
+        /// <summary>Seconds level music fades out on game over.</summary>
+        public const float GameOverOutSeconds = 0.4f;
+        /// <summary>Seconds level music fades out on victory.</summary>
+        public const float VictoryOutSeconds = 0.3f;
+        /// <summary>Wave break: INTENSE muted, CALM at this linear level.</summary>
+        public const float WaveBreakCalm = 0.6f;
+        /// <summary>Wave break low-pass on the level music in Hz.</summary>
+        public const float WaveBreakCutoff = 4000f;
+        /// <summary>Upgrade screen: music cutoff in Hz.</summary>
+        public const float UpgradeCutoff = 2500f;
+        /// <summary>Pause: music drop in dB.</summary>
+        public const float PauseDb = -6f;
+        /// <summary>Pause: music cutoff in Hz.</summary>
+        public const float PauseCutoff = 800f;
+        /// <summary>Training: lift in dB at tier 3 (otherwise flat).</summary>
+        public const float TrainingTier3LiftDb = 1.5f;
+        /// <summary>Seconds a music state change (menu, upgrades, one-shots) fades.</summary>
+        public const float StateFadeSeconds = 1.2f;
+        /// <summary>Cutoff in Hz that counts as "filter open".</summary>
+        public const float OpenCutoff = 22000f;
 
-        /// <summary>Number of pooled AudioSources for effects (Unity's default real-voice budget is 32).</summary>
-        public const int SfxVoices = 14;
-        /// <summary>Sample rate the effect clips are generated at (Unity resamples to the output rate).</summary>
-        public const int ClipSampleRate = 44100;
-        /// <summary>Peak every effect clip is normalised to before its volume is applied.</summary>
-        public const float ClipPeak = 0.9f;
+        // ------------------------------------------------------------ ducks (direction.md 3.2)
+        /// <summary>Deepest total music duck in dB.</summary>
+        public const float MusicDuckFloorDb = -9f;
+        /// <summary>Deepest total rain duck in dB (outside game over).</summary>
+        public const float AmbienceDuckFloorDb = -8f;
+        /// <summary>Low-health heartbeat plays at or below this HP.</summary>
+        public const int HeartbeatHp = 2;
+        /// <summary>Seconds between heartbeats.</summary>
+        public const float HeartbeatInterval = 1.05f;
+
+        // ------------------------------------------------------------ ambience
+        /// <summary>Rain level in menus relative to gameplay.</summary>
+        public const float MenuRain = 0.7f;
+        /// <summary>Rain level on the upgrade screen relative to gameplay.</summary>
+        public const float UpgradeRain = 0.5f;
+        /// <summary>Game over: rain cutoff in Hz.</summary>
+        public const float GameOverRainCutoff = 600f;
+        /// <summary>Game over: rain drop in dB; also applied to the gameplay SFX.</summary>
+        public const float GameOverRainDb = -6f;
+        /// <summary>City hum level relative to the rain.</summary>
+        public const float CityHum = 0.45f;
+        /// <summary>Seconds between far thunder one-shots (min, max).</summary>
+        public const float ThunderMin = 25f, ThunderMax = 60f;
+
+        // ------------------------------------------------------------ effects
+        /// <summary>Pooled AudioSources for one-shot effects (direction.md 5: 32-voice budget).</summary>
+        public const int SfxVoices = 28;
+        /// <summary>Looping effect sources (slide, fuses).</summary>
+        public const int LoopVoices = 5;
+        /// <summary>Fall speed (tiles/s) at or below which a landing is soft.</summary>
+        public const float LandSoftMax = 10f;
+        /// <summary>Fall speed (tiles/s) at or above which a landing is hard.</summary>
+        public const float LandHardMin = 18f;
+        /// <summary>Horizontal speed (tiles/s) above which the grounded player takes steps.</summary>
+        public const float StepMinSpeed = 0.5f;
+        /// <summary>Footstep interval = clamp(StepBase - StepPerSpeed * speed, StepMin, StepBase).</summary>
+        public const float StepBase = 0.42f, StepPerSpeed = 0.025f, StepMinInterval = 0.17f;
+        /// <summary>Fuse loop pitch at the start and at the end of a fuse.</summary>
+        public const float FusePitchStart = 0.9f, FusePitchEnd = 1.4f;
+        /// <summary>Expected fuse length used for the pitch ramp (seconds).</summary>
+        public const float FuseRampSeconds = 1.0f;
+        /// <summary>Seconds a looping effect fades out when it stops.</summary>
+        public const float LoopFadeSeconds = 0.12f;
+        /// <summary>Seconds a trimmed one-shot (e.g. the death grunt) fades at its cut.</summary>
+        public const float TrimFadeSeconds = 0.25f;
+        /// <summary>World sound pan width in tiles from the camera (2D pan; direction.md 4).</summary>
+        public const float PanHalfWidth = 12f;
+        /// <summary>Largest pan magnitude.</summary>
+        public const float PanMax = 0.8f;
 
         /// <summary>Output peak ceiling of the master limiter (about -1 dBFS).</summary>
         public const float LimiterThreshold = 0.89f;
         /// <summary>Limiter release time in seconds.</summary>
         public const float LimiterReleaseSeconds = 0.15f;
-
-        /// <summary>Fall speed (tiles/s) at or below which a landing is quietest.</summary>
-        public const float LandSoftSpeed = 6f;
-        /// <summary>Fall speed (tiles/s) at which a landing is loudest.</summary>
-        public const float LandHardSpeed = 24f;
-        /// <summary>Swing pitch rise per speed tier above 1.</summary>
-        public const float SwingPitchPerTier = 0.07f;
-
-        /// <summary>Mix settings of one sound.</summary>
-        public static SfxSpec Spec(SfxId id)
-        {
-            switch (id)
-            {
-                case SfxId.Swing: return new SfxSpec(0.56f, 2, 0.04f, 0.04f, SfxId.Swing);
-                case SfxId.Hit1: return new SfxSpec(0.50f, 3, 0.03f, 0.05f, SfxId.Hit1);
-                case SfxId.Hit2: return new SfxSpec(0.58f, 3, 0.03f, 0.05f, SfxId.Hit1);
-                case SfxId.Hit3: return new SfxSpec(0.66f, 3, 0.03f, 0.05f, SfxId.Hit1);
-                case SfxId.Kill1: return new SfxSpec(0.60f, 2, 0.05f, 0.04f, SfxId.Kill1);
-                case SfxId.Kill2: return new SfxSpec(0.70f, 2, 0.05f, 0.04f, SfxId.Kill1);
-                case SfxId.Kill3: return new SfxSpec(0.80f, 2, 0.05f, 0.04f, SfxId.Kill1);
-                case SfxId.Clang: return new SfxSpec(0.55f, 2, 0.06f, 0.03f, SfxId.Clang);
-                case SfxId.HookAttach: return new SfxSpec(0.52f, 1, 0.03f, 0.03f, SfxId.HookAttach);
-                case SfxId.HookRelease: return new SfxSpec(0.46f, 1, 0.03f, 0.04f, SfxId.HookRelease);
-                case SfxId.Jump: return new SfxSpec(0.38f, 2, 0.03f, 0.03f, SfxId.Jump);
-                case SfxId.WallJump: return new SfxSpec(0.42f, 1, 0.03f, 0.03f, SfxId.WallJump);
-                case SfxId.Land: return new SfxSpec(0.38f, 1, 0.08f, 0.05f, SfxId.Land);
-                case SfxId.Slide: return new SfxSpec(0.44f, 1, 0.05f, 0.03f, SfxId.Slide);
-                case SfxId.Hurt: return new SfxSpec(0.72f, 1, 0.08f, 0f, SfxId.Hurt);
-                case SfxId.WaveStart: return new SfxSpec(0.48f, 1, 0.2f, 0f, SfxId.WaveStart);
-                case SfxId.Victory: return new SfxSpec(0.62f, 1, 0.5f, 0f, SfxId.Victory);
-                case SfxId.GameOver: return new SfxSpec(0.66f, 1, 0.5f, 0f, SfxId.GameOver);
-                case SfxId.BruteWindup: return new SfxSpec(0.38f, 2, 0.1f, 0.04f, SfxId.BruteWindup);
-                case SfxId.BruteCrash: return new SfxSpec(0.62f, 2, 0.08f, 0.04f, SfxId.BruteCrash);
-                case SfxId.DroneWindup: return new SfxSpec(0.3f, 2, 0.1f, 0.05f, SfxId.DroneWindup);
-                case SfxId.OrbSpawn: return new SfxSpec(0.4f, 2, 0.06f, 0.05f, SfxId.OrbSpawn);
-                case SfxId.OrbPickup: return new SfxSpec(0.48f, 3, 0.03f, 0.03f, SfxId.OrbPickup);
-                case SfxId.OrbExpire: return new SfxSpec(0.22f, 2, 0.06f, 0.05f, SfxId.OrbExpire);
-                default: return new SfxSpec(0f, 1, 1f, 0f, SfxId.None);
-            }
-        }
     }
 }
