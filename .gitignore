@@ -183,3 +183,18 @@ test-results/
 # Unity-generated IDE files
 *.slnx
 .vscode/
+*.blend1
+
+# Audio sourcing staging (raw downloads, ~770 MB); manifest.json is kept
+tools/audio-sources/*
+!tools/audio-sources/manifest.json
+
+# Third-party reference frames (REPLACED, copyrighted): local study only, never pushed
+design/reference/replaced/**/*.jpg
+design/reference/replaced/**/*.png
+
+# Raw Mixamo downloads: licence forbids redistributing the source files
+tools/art/ronin/mixamo/
+
+# Mono crash dumps
+mono_crash.*
