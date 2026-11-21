@@ -1,0 +1,602 @@
+{
+ "name": "drone",
+ "ppu": 48.0,
+ "cell": {
+  "w": 96,
+  "h": 96
+ },
+ "atlas": {
+  "w": 786,
+  "h": 492
+ },
+ "padding": 2,
+ "rect_origin": "bottom-left (Unity sprite rect convention); pivot normalised within the rect",
+ "pivot_note": "flier: pivot = body centre = centre of the 1.0 x 1.0 collision body (cell centre); sprites face right",
+ "bake_note": "3D-lit bake (tools/art/common/bake_char.py): unlit material albedo, area-filtered, hard alpha; no toon bands, rim or outline (same material language as the ronin); folded to albedo trim (no glow): strip",
+ "textures": {
+  "color": "drone_color.png",
+  "normal": "drone_normal.png",
+  "emissive": "drone_emissive.png"
+ },
+ "normal_encoding": "view-space normal: R=+X right, G=+Y up, B=toward camera; transparent texels (128,128,255,0)",
+ "emissive_encoding": "R = attack glow: eye flare in windup/dive, G = red eyes, B = unused; A = 255 where any mask is set; folded, no longer emissive: strip",
+ "animations": [
+  {
+   "name": "hover",
+   "fps": 12,
+   "loop": true,
+   "frames": [
+    "drone_hover_00",
+    "drone_hover_01",
+    "drone_hover_02",
+    "drone_hover_03",
+    "drone_hover_04",
+    "drone_hover_05",
+    "drone_hover_06",
+    "drone_hover_07"
+   ]
+  },
+  {
+   "name": "windup",
+   "fps": 10,
+   "loop": false,
+   "frames": [
+    "drone_windup_00",
+    "drone_windup_01",
+    "drone_windup_02",
+    "drone_windup_03",
+    "drone_windup_04"
+   ]
+  },
+  {
+   "name": "dive",
+   "fps": 12,
+   "loop": true,
+   "frames": [
+    "drone_dive_00",
+    "drone_dive_01",
+    "drone_dive_02"
+   ]
+  },
+  {
+   "name": "hurt",
+   "fps": 16,
+   "loop": false,
+   "frames": [
+    "drone_hurt_00",
+    "drone_hurt_01",
+    "drone_hurt_02",
+    "drone_hurt_03"
+   ]
+  },
+  {
+   "name": "death",
+   "fps": 12,
+   "loop": false,
+   "frames": [
+    "drone_death_00",
+    "drone_death_01",
+    "drone_death_02",
+    "drone_death_03",
+    "drone_death_04",
+    "drone_death_05",
+    "drone_death_06"
+   ]
+  }
+ ],
+ "frames": [
+  {
+   "name": "drone_hover_00",
+   "anim": "hover",
+   "index": 0,
+   "rect": {
+    "x": 2,
+    "y": 394,
+    "w": 96,
+    "h": 96
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5
+   },
+   "pivot_px": {
+    "x": 48,
+    "y": 48
+   }
+  },
+  {
+   "name": "drone_hover_01",
+   "anim": "hover",
+   "index": 1,
+   "rect": {
+    "x": 100,
+    "y": 394,
+    "w": 96,
+    "h": 96
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5
+   },
+   "pivot_px": {
+    "x": 48,
+    "y": 48
+   }
+  },
+  {
+   "name": "drone_hover_02",
+   "anim": "hover",
+   "index": 2,
+   "rect": {
+    "x": 198,
+    "y": 394,
+    "w": 96,
+    "h": 96
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5
+   },
+   "pivot_px": {
+    "x": 48,
+    "y": 48
+   }
+  },
+  {
+   "name": "drone_hover_03",
+   "anim": "hover",
+   "index": 3,
+   "rect": {
+    "x": 296,
+    "y": 394,
+    "w": 96,
+    "h": 96
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5
+   },
+   "pivot_px": {
+    "x": 48,
+    "y": 48
+   }
+  },
+  {
+   "name": "drone_hover_04",
+   "anim": "hover",
+   "index": 4,
+   "rect": {
+    "x": 394,
+    "y": 394,
+    "w": 96,
+    "h": 96
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5
+   },
+   "pivot_px": {
+    "x": 48,
+    "y": 48
+   }
+  },
+  {
+   "name": "drone_hover_05",
+   "anim": "hover",
+   "index": 5,
+   "rect": {
+    "x": 492,
+    "y": 394,
+    "w": 96,
+    "h": 96
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5
+   },
+   "pivot_px": {
+    "x": 48,
+    "y": 48
+   }
+  },
+  {
+   "name": "drone_hover_06",
+   "anim": "hover",
+   "index": 6,
+   "rect": {
+    "x": 590,
+    "y": 394,
+    "w": 96,
+    "h": 96
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5
+   },
+   "pivot_px": {
+    "x": 48,
+    "y": 48
+   }
+  },
+  {
+   "name": "drone_hover_07",
+   "anim": "hover",
+   "index": 7,
+   "rect": {
+    "x": 688,
+    "y": 394,
+    "w": 96,
+    "h": 96
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5
+   },
+   "pivot_px": {
+    "x": 48,
+    "y": 48
+   }
+  },
+  {
+   "name": "drone_windup_00",
+   "anim": "windup",
+   "index": 0,
+   "rect": {
+    "x": 2,
+    "y": 296,
+    "w": 96,
+    "h": 96
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5
+   },
+   "pivot_px": {
+    "x": 48,
+    "y": 48
+   }
+  },
+  {
+   "name": "drone_windup_01",
+   "anim": "windup",
+   "index": 1,
+   "rect": {
+    "x": 100,
+    "y": 296,
+    "w": 96,
+    "h": 96
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5
+   },
+   "pivot_px": {
+    "x": 48,
+    "y": 48
+   }
+  },
+  {
+   "name": "drone_windup_02",
+   "anim": "windup",
+   "index": 2,
+   "rect": {
+    "x": 198,
+    "y": 296,
+    "w": 96,
+    "h": 96
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5
+   },
+   "pivot_px": {
+    "x": 48,
+    "y": 48
+   }
+  },
+  {
+   "name": "drone_windup_03",
+   "anim": "windup",
+   "index": 3,
+   "rect": {
+    "x": 296,
+    "y": 296,
+    "w": 96,
+    "h": 96
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5
+   },
+   "pivot_px": {
+    "x": 48,
+    "y": 48
+   }
+  },
+  {
+   "name": "drone_windup_04",
+   "anim": "windup",
+   "index": 4,
+   "rect": {
+    "x": 394,
+    "y": 296,
+    "w": 96,
+    "h": 96
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5
+   },
+   "pivot_px": {
+    "x": 48,
+    "y": 48
+   }
+  },
+  {
+   "name": "drone_dive_00",
+   "anim": "dive",
+   "index": 0,
+   "rect": {
+    "x": 2,
+    "y": 198,
+    "w": 96,
+    "h": 96
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5
+   },
+   "pivot_px": {
+    "x": 48,
+    "y": 48
+   }
+  },
+  {
+   "name": "drone_dive_01",
+   "anim": "dive",
+   "index": 1,
+   "rect": {
+    "x": 100,
+    "y": 198,
+    "w": 96,
+    "h": 96
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5
+   },
+   "pivot_px": {
+    "x": 48,
+    "y": 48
+   }
+  },
+  {
+   "name": "drone_dive_02",
+   "anim": "dive",
+   "index": 2,
+   "rect": {
+    "x": 198,
+    "y": 198,
+    "w": 96,
+    "h": 96
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5
+   },
+   "pivot_px": {
+    "x": 48,
+    "y": 48
+   }
+  },
+  {
+   "name": "drone_hurt_00",
+   "anim": "hurt",
+   "index": 0,
+   "rect": {
+    "x": 2,
+    "y": 100,
+    "w": 96,
+    "h": 96
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5
+   },
+   "pivot_px": {
+    "x": 48,
+    "y": 48
+   }
+  },
+  {
+   "name": "drone_hurt_01",
+   "anim": "hurt",
+   "index": 1,
+   "rect": {
+    "x": 100,
+    "y": 100,
+    "w": 96,
+    "h": 96
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5
+   },
+   "pivot_px": {
+    "x": 48,
+    "y": 48
+   }
+  },
+  {
+   "name": "drone_hurt_02",
+   "anim": "hurt",
+   "index": 2,
+   "rect": {
+    "x": 198,
+    "y": 100,
+    "w": 96,
+    "h": 96
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5
+   },
+   "pivot_px": {
+    "x": 48,
+    "y": 48
+   }
+  },
+  {
+   "name": "drone_hurt_03",
+   "anim": "hurt",
+   "index": 3,
+   "rect": {
+    "x": 296,
+    "y": 100,
+    "w": 96,
+    "h": 96
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5
+   },
+   "pivot_px": {
+    "x": 48,
+    "y": 48
+   }
+  },
+  {
+   "name": "drone_death_00",
+   "anim": "death",
+   "index": 0,
+   "rect": {
+    "x": 2,
+    "y": 2,
+    "w": 96,
+    "h": 96
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5
+   },
+   "pivot_px": {
+    "x": 48,
+    "y": 48
+   }
+  },
+  {
+   "name": "drone_death_01",
+   "anim": "death",
+   "index": 1,
+   "rect": {
+    "x": 100,
+    "y": 2,
+    "w": 96,
+    "h": 96
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5
+   },
+   "pivot_px": {
+    "x": 48,
+    "y": 48
+   }
+  },
+  {
+   "name": "drone_death_02",
+   "anim": "death",
+   "index": 2,
+   "rect": {
+    "x": 198,
+    "y": 2,
+    "w": 96,
+    "h": 96
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5
+   },
+   "pivot_px": {
+    "x": 48,
+    "y": 48
+   }
+  },
+  {
+   "name": "drone_death_03",
+   "anim": "death",
+   "index": 3,
+   "rect": {
+    "x": 296,
+    "y": 2,
+    "w": 96,
+    "h": 96
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5
+   },
+   "pivot_px": {
+    "x": 48,
+    "y": 48
+   }
+  },
+  {
+   "name": "drone_death_04",
+   "anim": "death",
+   "index": 4,
+   "rect": {
+    "x": 394,
+    "y": 2,
+    "w": 96,
+    "h": 96
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5
+   },
+   "pivot_px": {
+    "x": 48,
+    "y": 48
+   }
+  },
+  {
+   "name": "drone_death_05",
+   "anim": "death",
+   "index": 5,
+   "rect": {
+    "x": 492,
+    "y": 2,
+    "w": 96,
+    "h": 96
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5
+   },
+   "pivot_px": {
+    "x": 48,
+    "y": 48
+   }
+  },
+  {
+   "name": "drone_death_06",
+   "anim": "death",
+   "index": 6,
+   "rect": {
+    "x": 590,
+    "y": 2,
+    "w": 96,
+    "h": 96
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5
+   },
+   "pivot_px": {
+    "x": 48,
+    "y": 48
+   }
+  }
+ ]
+}

@@ -1,0 +1,31 @@
+{
+  "_doc": "Enemy style for the 3D-to-pixel pipeline. Same light, bands, coverage, rim and outline rules as tools/art/samurai/samurai_style.json; ramps reuse the samurai palette wherever they can (helmet, suit=coat, cloth, boots, cyber, steel, red=visor, outlines) and add a small enemy accent set: gunmetal, olive drab, amber eye, orange strip, red-orange attack glow, talisman holo, spark, rotor blur. Material ids are written into the R channel of the id pass (id*10, max 25). Emissive channels: r = weapon/attack glow (tintable), g = eyes/visor, b = tech light strips. Palette values are technical placeholders pending art-director sign-off.",
+  "rig": {"yaw": {"pelvis": -12, "spine": -18, "chest": -25, "head": -15}},
+  "render": {"ao_distance": 0.12, "ao_samples": 16, "cell_pad_bottom": 0.25},
+  "light": {"dir": [-0.35, 0.8, 0.5], "ambient": 0.74, "diffuse": 0.36, "ao_strength": 0.65},
+  "bands": {"2": [0.7], "3": [0.64, 1.0]},
+  "coverage": {"alpha": 0.5, "priority": 0.22},
+  "rim": {"enabled": true, "dirs": [[-1, 0]]},
+  "outlines": {"cool": "#0d0f15", "steel": "#262b35", "crimson": "#2c0a10", "olive": "#0e100b", "amber": "#3a1a06"},
+  "materials": [
+    {"id": 1,  "name": "helmet",   "ramp": ["#14161d", "#242833", "#3a4150"], "outline": "cool"},
+    {"id": 2,  "name": "gunmetal", "ramp": ["#24272b", "#393d42", "#565c63"], "outline": "cool"},
+    {"id": 3,  "name": "olive",    "ramp": ["#262a1e", "#3b4230", "#566045"], "outline": "olive"},
+    {"id": 4,  "name": "eye",      "ramp": ["#ffb02e"], "outline": "amber", "priority": 1, "emissive": "g"},
+    {"id": 5,  "name": "suit",     "ramp": ["#1c1f28", "#2b303c", "#424a5a"], "outline": "cool"},
+    {"id": 6,  "name": "cloth",    "ramp": ["#1c1f28", "#2b303c"], "outline": "cool"},
+    {"id": 7,  "name": "boots",    "ramp": ["#121419", "#1f2229"], "outline": "cool"},
+    {"id": 8,  "name": "cyber",    "ramp": ["#2a2f38", "#4b535f", "#7f8996"], "outline": "cool"},
+    {"id": 9,  "name": "steel",    "ramp": ["#7d8796", "#b9c2cc"], "outline": "cool", "priority": 7},
+    {"id": 10, "name": "strip",    "ramp": ["#ff8c1a"], "outline": "amber", "priority": 4, "emissive": "b"},
+    {"id": 11, "name": "glow",     "ramp": ["#ff4f1f"], "outline": "amber", "priority": 3, "emissive": "r"},
+    {"id": 12, "name": "red",      "ramp": ["#ff3346"], "outline": "crimson", "priority": 1, "emissive": "g"},
+    {"id": 13, "name": "charge",   "ramp": ["#ff3346"], "outline": "crimson", "priority": 2, "emissive": "r"},
+    {"id": 14, "name": "talisman", "ramp": ["#ffc874"], "outline": "amber", "priority": 5, "emissive": "b"},
+    {"id": 15, "name": "spark",    "ramp": ["#ffe2a0"], "outline": "amber", "priority": 0, "emissive": "r"},
+    {"id": 16, "name": "blur",     "ramp": ["#393d42", "#565c63"], "outline": "cool", "flat_band": 0},
+    {"id": 17, "name": "feather",  "ramp": ["#0c0c10", "#18181e", "#2a2a33"], "outline": "cool"},
+    {"id": 18, "name": "plume",    "ramp": ["#1a1a22", "#2c2c38", "#454555"], "outline": "cool"},
+    {"id": 19, "name": "beak",     "ramp": ["#1c1b1a", "#2e2c2a", "#4a4744"], "outline": "cool"}
+  ]
+}

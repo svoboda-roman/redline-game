@@ -1,0 +1,5 @@
+Loop01: lamps=66 shadowed=4 lights=77 msPerWorldFrame=1,70 framerCoverage=0,3 % target=(11.00, 2.00)
+Loop02: lamps=84 shadowed=4 lights=95 msPerWorldFrame=1,51 framerCoverage=0,2 % target=(11.00, 2.00)
+Loop03: lamps=87 shadowed=4 lights=98 msPerWorldFrame=1,51 framerCoverage=0,0 % target=(11.00, 2.00)
+Arena01: lamps=14 shadowed=4 lights=17 msPerWorldFrame=1,51 framerCoverage=0,7 % target=(19.00, 2.00)
+Seam (Loop01, W=96): meanAbsDiff=0,713/255 maxDiff=432/765 across the copy jump (film grain + DOF noise included)

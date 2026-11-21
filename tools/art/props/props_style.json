@@ -1,0 +1,240 @@
+{
+ "_doc": "Rooftop prop style for the 3D-to-pixel pipeline. Same light, bands, coverage, rim and outline rules as tools/art/common/enemy_style.json (one shared reduction: tools/art/samurai/pixelate.py process()). Ramps are darker than the characters' so dressing sits behind the actors at mid-dark value; the gunmetal, steel and cable ramps reuse the enemy palette. Emissive materials: r = red warning lights and sign letters, g = warm sodium door/lamp light, b = cyan/magenta neon and billboard panels. Material ids are written into the R channel of the id pass (id*10, max 25). Palette values are technical placeholders pending art-director sign-off. v2 (final polish): ramps lifted ~1.5x and cooled so props separate from the near-black near city layer under the dim global light; pack_props.py bakes a 1-px cool sky rim on top/left edges ('sky_rim') and scanlines the billboard panel ('panel_fx').",
+ "render": {
+  "ao_distance": 0.35,
+  "ao_samples": 16
+ },
+ "light": {
+  "dir": [
+   -0.35,
+   0.8,
+   0.5
+  ],
+  "ambient": 0.74,
+  "diffuse": 0.36,
+  "ao_strength": 0.7
+ },
+ "bands": {
+  "2": [
+   0.7
+  ],
+  "3": [
+   0.64,
+   1.0
+  ]
+ },
+ "coverage": {
+  "alpha": 0.5,
+  "priority": 0.22
+ },
+ "rim": {
+  "enabled": true,
+  "dirs": [
+   [
+    -1,
+    0
+   ]
+  ]
+ },
+ "outlines": {
+  "cool": "#0a0c11",
+  "rust": "#140b07",
+  "warm": "#2a1406",
+  "neon": "#1c0a1a"
+ },
+ "materials": [
+  {
+   "id": 1,
+   "name": "metal",
+   "ramp": [
+    "#2a3240",
+    "#3c4756",
+    "#56626f"
+   ],
+   "outline": "cool"
+  },
+  {
+   "id": 2,
+   "name": "gunmetal",
+   "ramp": [
+    "#30353d",
+    "#48505a",
+    "#67707b"
+   ],
+   "outline": "cool"
+  },
+  {
+   "id": 3,
+   "name": "dark",
+   "ramp": [
+    "#1a1e26",
+    "#272c35",
+    "#373e49"
+   ],
+   "outline": "cool"
+  },
+  {
+   "id": 4,
+   "name": "rust",
+   "ramp": [
+    "#352219",
+    "#4c3226",
+    "#664532"
+   ],
+   "outline": "rust"
+  },
+  {
+   "id": 5,
+   "name": "hazard",
+   "ramp": [
+    "#433a1f",
+    "#5e522b",
+    "#7c6c38"
+   ],
+   "outline": "rust"
+  },
+  {
+   "id": 6,
+   "name": "paintred",
+   "ramp": [
+    "#3c1d1e",
+    "#552829",
+    "#6e3634"
+   ],
+   "outline": "rust"
+  },
+  {
+   "id": 7,
+   "name": "teal",
+   "ramp": [
+    "#1a2e34",
+    "#264149",
+    "#355a63"
+   ],
+   "outline": "cool"
+  },
+  {
+   "id": 8,
+   "name": "wood",
+   "ramp": [
+    "#2e271f",
+    "#42372b",
+    "#594a39"
+   ],
+   "outline": "rust"
+  },
+  {
+   "id": 9,
+   "name": "concrete",
+   "ramp": [
+    "#2c3038",
+    "#3d424b",
+    "#555b65"
+   ],
+   "outline": "cool"
+  },
+  {
+   "id": 10,
+   "name": "cable",
+   "ramp": [
+    "#14161b",
+    "#22252c"
+   ],
+   "outline": "cool",
+   "priority": 6
+  },
+  {
+   "id": 11,
+   "name": "wire",
+   "ramp": [
+    "#38404b",
+    "#56616f"
+   ],
+   "outline": "cool",
+   "priority": 7
+  },
+  {
+   "id": 12,
+   "name": "water",
+   "ramp": [
+    "#141d27",
+    "#25374a",
+    "#58738c"
+   ],
+   "outline": "cool"
+  },
+  {
+   "id": 13,
+   "name": "steel",
+   "ramp": [
+    "#5a6472",
+    "#8c97a6"
+   ],
+   "outline": "cool",
+   "priority": 8
+  },
+  {
+   "id": 14,
+   "name": "red",
+   "ramp": [
+    "#ff3346"
+   ],
+   "outline": "rust",
+   "priority": 2,
+   "emissive": "r"
+  },
+  {
+   "id": 15,
+   "name": "warm",
+   "ramp": [
+    "#ffb25a"
+   ],
+   "outline": "warm",
+   "priority": 3,
+   "emissive": "g"
+  },
+  {
+   "id": 16,
+   "name": "neon",
+   "ramp": [
+    "#ff4fb0"
+   ],
+   "outline": "neon",
+   "priority": 1,
+   "emissive": "b"
+  },
+  {
+   "id": 17,
+   "name": "panel",
+   "ramp": [
+    "#7fd6e8"
+   ],
+   "outline": "cool",
+   "emissive": "b"
+  },
+  {
+   "id": 18,
+   "name": "glass",
+   "ramp": [
+    "#16232d",
+    "#233544"
+   ],
+   "outline": "cool"
+  }
+ ],
+ "sky_rim": {
+  "color": "#7088a6",
+  "mix": 0.6,
+  "skip": [
+   "puddle"
+  ]
+ },
+ "panel_fx": {
+  "color": "#7fd6e8",
+  "base": 0.5,
+  "scan": 0.3,
+  "seam": 0.32,
+  "seam_every": 14,
+  "text": 0.66
+ }
+}

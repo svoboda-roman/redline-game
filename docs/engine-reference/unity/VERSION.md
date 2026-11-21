@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Engine Version** | Unity 6.3 LTS |
-| **Installed at pin time** | NOT DETERMINED — `/setup-engine` §3 probes the installed editor and records the result here. |
+| **Installed at pin time** | 6000.3.26f1 — installed 2026-11-02 at `~/Unity/Hub/Editor/6000.3.26f1/` (tarball from download.unity3d.com, MD5 verified); `Unity -version` reports 6000.3.26f1. Unity Hub 3.22.5 via Flathub. On Fedora, editor runs need `OPENSSL_CONF=~/Unity/openssl-unity.cnf` (SHA-1 licence signature). |
 | **Release Date** | December 2025 |
 | **Latest editor on the pinned line** | 6000.3.26f1 (Oct 8, 2026) |
 | **Project Pinned** | 2026-02-13 |

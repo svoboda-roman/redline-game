@@ -1,0 +1,39 @@
+{
+  "settings": {
+    "minDisplayTime": 2.5,
+    "cardTime": 5.5,
+    "zoneMaxTime": 8,
+    "sightRangeX": 11,
+    "sightRangeY": 7,
+    "requireLineOfSight": true,
+    "queueCapacity": 3
+  },
+  "hints": [
+    { "id": "l2.rail", "scope": "save", "title": "THE RAIL",
+      "body": "The overpass underside is one long anchor. Swing, let go, {HOOK} again ahead: chain swings, then fling off the end." },
+    { "id": "l3.chandeliers", "scope": "save", "title": "THE GALLERY",
+      "body": "Spikes below, chandeliers above. Hook one, release forward, hook the next: chain the swings, or hop the safe islands." },
+
+    { "id": "enemy.grunt", "title": "GRUNT",
+      "body": "Dies to any hit with {ATTACK}. Each kill gives speed back; kill again quickly to chain for more." },
+    { "id": "enemy.brute", "title": "BRUTE",
+      "body": "Armoured below tier 3: hit it at full speed. When it charges, dodge so it crashes into a wall: dazed, armour down." },
+    { "id": "enemy.drone", "title": "DRONE",
+      "body": "Hovers out of reach, holds still, then dives at you. Dodge the dive and strike it while it is low." },
+    { "id": "enemy.shooter", "title": "SHOOTER",
+      "body": "Fires after a wind-up. {ATTACK} its shot to reflect it back. A hit during the wind-up cancels the shot." },
+    { "id": "enemy.shield", "title": "SHIELD",
+      "body": "Its shield blocks strikes from the front. Hit it from behind or from above; it turns slowly." },
+    { "id": "enemy.kamikaze", "title": "KAMIKAZE",
+      "body": "Rushes you, leaps, and lights a fuse. A weak hit only shortens the fuse: hit it at tier 2 or faster to kill it, or get clear. The blast hurts enemies too." },
+    { "id": "enemy.summoner", "title": "SUMMONER",
+      "body": "Runs away and summons drones until it dies. Chase it down. A hit during its cast stops the summon." },
+
+    { "id": "orb.health", "title": "HEALTH ORB",
+      "body": "Restores health. Enemies sometimes drop orbs when they die; grab them before they fade." },
+    { "id": "orb.speed", "title": "SPEED ORB",
+      "body": "For a while you run faster and your speed cap is higher: tier 3 comes easier." },
+    { "id": "orb.hook", "title": "HOOK ORB",
+      "body": "For a while your hook has no cooldown and more range. Chain swings freely." }
+  ]
+}

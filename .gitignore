@@ -81,6 +81,8 @@ export_presets.cfg
 [Ll]ogs/
 [Uu]ser[Ss]ettings/
 *.csproj
+# ...except the engine-free test runner (dotnet test tools/core-tests)
+!tools/core-tests/*.csproj
 *.unityproj
 *.sln
 *.suo
@@ -175,3 +177,41 @@ $RECYCLE.BIN/
 # the project root. Anchored so a reports/ folder elsewhere stays tracked.
 /reports/
 /test-results/
+
+# Unity test runner output (commands.test)
+test-results/
+# Unity-generated IDE files
+*.slnx
+.vscode/
+*.blend1
+
+# Audio sourcing staging (raw downloads, ~770 MB); manifest.json is kept
+tools/audio-sources/*
+!tools/audio-sources/manifest.json
+
+# Third-party reference frames (REPLACED, copyrighted): local study only, never pushed
+design/reference/replaced/**/*.jpg
+design/reference/replaced/**/*.png
+
+# Raw Mixamo downloads: licence forbids redistributing the source files
+tools/art/ronin/mixamo/
+
+# Mono crash dumps
+mono_crash.*
+
+# === Engine: Unity (Redline) ===
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+*.csproj
+*.sln
+*.pidb.meta
+*.pdb.meta
+# batch-mode test results and logs at the project root
+/tests*.xml
+/*.log

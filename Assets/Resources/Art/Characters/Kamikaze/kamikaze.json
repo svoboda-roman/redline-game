@@ -1,0 +1,582 @@
+{
+ "name": "kamikaze",
+ "ppu": 48.0,
+ "cell": {
+  "w": 124,
+  "h": 86
+ },
+ "atlas": {
+  "w": 1010,
+  "h": 442
+ },
+ "padding": 2,
+ "rect_origin": "bottom-left (Unity sprite rect convention); pivot normalised within the rect",
+ "pivot_note": "feet centre = bottom-centre of the 0.9 x 1.0 collision body; sprites face right",
+ "bake_note": "3D-lit bake (tools/art/common/bake_char.py): unlit material albedo, area-filtered, hard alpha; no toon bands, rim or outline (same material language as the ronin)",
+ "textures": {
+  "color": "kamikaze_color.png",
+  "normal": "kamikaze_normal.png",
+  "emissive": "kamikaze_emissive.png"
+ },
+ "normal_encoding": "view-space normal: R=+X right, G=+Y up, B=toward camera; transparent texels (128,128,255,0)",
+ "emissive_encoding": "R = attack glow: red charges (always) + swollen charge glow (lunge, fuse frames 0 and 2) + sparks (fuse), G = gas-mask eyes, B = amber fuse wire; A = 255 where any mask is set",
+ "animations": [
+  {
+   "name": "idle",
+   "fps": 10,
+   "loop": true,
+   "frames": [
+    "kamikaze_idle_00",
+    "kamikaze_idle_01",
+    "kamikaze_idle_02",
+    "kamikaze_idle_03",
+    "kamikaze_idle_04",
+    "kamikaze_idle_05"
+   ]
+  },
+  {
+   "name": "rush",
+   "fps": 24,
+   "loop": true,
+   "frames": [
+    "kamikaze_rush_00",
+    "kamikaze_rush_01",
+    "kamikaze_rush_02",
+    "kamikaze_rush_03",
+    "kamikaze_rush_04",
+    "kamikaze_rush_05",
+    "kamikaze_rush_06",
+    "kamikaze_rush_07"
+   ]
+  },
+  {
+   "name": "lunge",
+   "fps": 12,
+   "loop": false,
+   "frames": [
+    "kamikaze_lunge_00",
+    "kamikaze_lunge_01",
+    "kamikaze_lunge_02",
+    "kamikaze_lunge_03"
+   ]
+  },
+  {
+   "name": "fuse",
+   "fps": 12,
+   "loop": true,
+   "frames": [
+    "kamikaze_fuse_00",
+    "kamikaze_fuse_01",
+    "kamikaze_fuse_02"
+   ]
+  },
+  {
+   "name": "death",
+   "fps": 12,
+   "loop": false,
+   "frames": [
+    "kamikaze_death_00",
+    "kamikaze_death_01",
+    "kamikaze_death_02",
+    "kamikaze_death_03",
+    "kamikaze_death_04"
+   ]
+  }
+ ],
+ "frames": [
+  {
+   "name": "kamikaze_idle_00",
+   "anim": "idle",
+   "index": 0,
+   "rect": {
+    "x": 2,
+    "y": 354,
+    "w": 124,
+    "h": 86
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.139535
+   },
+   "pivot_px": {
+    "x": 62,
+    "y": 12
+   }
+  },
+  {
+   "name": "kamikaze_idle_01",
+   "anim": "idle",
+   "index": 1,
+   "rect": {
+    "x": 128,
+    "y": 354,
+    "w": 124,
+    "h": 86
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.139535
+   },
+   "pivot_px": {
+    "x": 62,
+    "y": 12
+   }
+  },
+  {
+   "name": "kamikaze_idle_02",
+   "anim": "idle",
+   "index": 2,
+   "rect": {
+    "x": 254,
+    "y": 354,
+    "w": 124,
+    "h": 86
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.139535
+   },
+   "pivot_px": {
+    "x": 62,
+    "y": 12
+   }
+  },
+  {
+   "name": "kamikaze_idle_03",
+   "anim": "idle",
+   "index": 3,
+   "rect": {
+    "x": 380,
+    "y": 354,
+    "w": 124,
+    "h": 86
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.139535
+   },
+   "pivot_px": {
+    "x": 62,
+    "y": 12
+   }
+  },
+  {
+   "name": "kamikaze_idle_04",
+   "anim": "idle",
+   "index": 4,
+   "rect": {
+    "x": 506,
+    "y": 354,
+    "w": 124,
+    "h": 86
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.139535
+   },
+   "pivot_px": {
+    "x": 62,
+    "y": 12
+   }
+  },
+  {
+   "name": "kamikaze_idle_05",
+   "anim": "idle",
+   "index": 5,
+   "rect": {
+    "x": 632,
+    "y": 354,
+    "w": 124,
+    "h": 86
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.139535
+   },
+   "pivot_px": {
+    "x": 62,
+    "y": 12
+   }
+  },
+  {
+   "name": "kamikaze_rush_00",
+   "anim": "rush",
+   "index": 0,
+   "rect": {
+    "x": 2,
+    "y": 266,
+    "w": 124,
+    "h": 86
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.139535
+   },
+   "pivot_px": {
+    "x": 62,
+    "y": 12
+   }
+  },
+  {
+   "name": "kamikaze_rush_01",
+   "anim": "rush",
+   "index": 1,
+   "rect": {
+    "x": 128,
+    "y": 266,
+    "w": 124,
+    "h": 86
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.139535
+   },
+   "pivot_px": {
+    "x": 62,
+    "y": 12
+   }
+  },
+  {
+   "name": "kamikaze_rush_02",
+   "anim": "rush",
+   "index": 2,
+   "rect": {
+    "x": 254,
+    "y": 266,
+    "w": 124,
+    "h": 86
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.139535
+   },
+   "pivot_px": {
+    "x": 62,
+    "y": 12
+   }
+  },
+  {
+   "name": "kamikaze_rush_03",
+   "anim": "rush",
+   "index": 3,
+   "rect": {
+    "x": 380,
+    "y": 266,
+    "w": 124,
+    "h": 86
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.139535
+   },
+   "pivot_px": {
+    "x": 62,
+    "y": 12
+   }
+  },
+  {
+   "name": "kamikaze_rush_04",
+   "anim": "rush",
+   "index": 4,
+   "rect": {
+    "x": 506,
+    "y": 266,
+    "w": 124,
+    "h": 86
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.139535
+   },
+   "pivot_px": {
+    "x": 62,
+    "y": 12
+   }
+  },
+  {
+   "name": "kamikaze_rush_05",
+   "anim": "rush",
+   "index": 5,
+   "rect": {
+    "x": 632,
+    "y": 266,
+    "w": 124,
+    "h": 86
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.139535
+   },
+   "pivot_px": {
+    "x": 62,
+    "y": 12
+   }
+  },
+  {
+   "name": "kamikaze_rush_06",
+   "anim": "rush",
+   "index": 6,
+   "rect": {
+    "x": 758,
+    "y": 266,
+    "w": 124,
+    "h": 86
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.139535
+   },
+   "pivot_px": {
+    "x": 62,
+    "y": 12
+   }
+  },
+  {
+   "name": "kamikaze_rush_07",
+   "anim": "rush",
+   "index": 7,
+   "rect": {
+    "x": 884,
+    "y": 266,
+    "w": 124,
+    "h": 86
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.139535
+   },
+   "pivot_px": {
+    "x": 62,
+    "y": 12
+   }
+  },
+  {
+   "name": "kamikaze_lunge_00",
+   "anim": "lunge",
+   "index": 0,
+   "rect": {
+    "x": 2,
+    "y": 178,
+    "w": 124,
+    "h": 86
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.139535
+   },
+   "pivot_px": {
+    "x": 62,
+    "y": 12
+   }
+  },
+  {
+   "name": "kamikaze_lunge_01",
+   "anim": "lunge",
+   "index": 1,
+   "rect": {
+    "x": 128,
+    "y": 178,
+    "w": 124,
+    "h": 86
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.139535
+   },
+   "pivot_px": {
+    "x": 62,
+    "y": 12
+   }
+  },
+  {
+   "name": "kamikaze_lunge_02",
+   "anim": "lunge",
+   "index": 2,
+   "rect": {
+    "x": 254,
+    "y": 178,
+    "w": 124,
+    "h": 86
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.139535
+   },
+   "pivot_px": {
+    "x": 62,
+    "y": 12
+   }
+  },
+  {
+   "name": "kamikaze_lunge_03",
+   "anim": "lunge",
+   "index": 3,
+   "rect": {
+    "x": 380,
+    "y": 178,
+    "w": 124,
+    "h": 86
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.139535
+   },
+   "pivot_px": {
+    "x": 62,
+    "y": 12
+   }
+  },
+  {
+   "name": "kamikaze_fuse_00",
+   "anim": "fuse",
+   "index": 0,
+   "rect": {
+    "x": 2,
+    "y": 90,
+    "w": 124,
+    "h": 86
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.139535
+   },
+   "pivot_px": {
+    "x": 62,
+    "y": 12
+   }
+  },
+  {
+   "name": "kamikaze_fuse_01",
+   "anim": "fuse",
+   "index": 1,
+   "rect": {
+    "x": 128,
+    "y": 90,
+    "w": 124,
+    "h": 86
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.139535
+   },
+   "pivot_px": {
+    "x": 62,
+    "y": 12
+   }
+  },
+  {
+   "name": "kamikaze_fuse_02",
+   "anim": "fuse",
+   "index": 2,
+   "rect": {
+    "x": 254,
+    "y": 90,
+    "w": 124,
+    "h": 86
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.139535
+   },
+   "pivot_px": {
+    "x": 62,
+    "y": 12
+   }
+  },
+  {
+   "name": "kamikaze_death_00",
+   "anim": "death",
+   "index": 0,
+   "rect": {
+    "x": 2,
+    "y": 2,
+    "w": 124,
+    "h": 86
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.139535
+   },
+   "pivot_px": {
+    "x": 62,
+    "y": 12
+   }
+  },
+  {
+   "name": "kamikaze_death_01",
+   "anim": "death",
+   "index": 1,
+   "rect": {
+    "x": 128,
+    "y": 2,
+    "w": 124,
+    "h": 86
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.139535
+   },
+   "pivot_px": {
+    "x": 62,
+    "y": 12
+   }
+  },
+  {
+   "name": "kamikaze_death_02",
+   "anim": "death",
+   "index": 2,
+   "rect": {
+    "x": 254,
+    "y": 2,
+    "w": 124,
+    "h": 86
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.139535
+   },
+   "pivot_px": {
+    "x": 62,
+    "y": 12
+   }
+  },
+  {
+   "name": "kamikaze_death_03",
+   "anim": "death",
+   "index": 3,
+   "rect": {
+    "x": 380,
+    "y": 2,
+    "w": 124,
+    "h": 86
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.139535
+   },
+   "pivot_px": {
+    "x": 62,
+    "y": 12
+   }
+  },
+  {
+   "name": "kamikaze_death_04",
+   "anim": "death",
+   "index": 4,
+   "rect": {
+    "x": 506,
+    "y": 2,
+    "w": 124,
+    "h": 86
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.139535
+   },
+   "pivot_px": {
+    "x": 62,
+    "y": 12
+   }
+  }
+ ]
+}

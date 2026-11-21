@@ -7,6 +7,9 @@ framework:
   version: 1.2.0
   last_upgraded: 2026-10-19
 
+project:
+  stage: Concept
+
 # NOTE: this template ships with no `modes:` block, and the six knobs below must
 # never be added to one.
 #
@@ -25,3 +28,41 @@ framework:
 # here. `/settings --local <key>=<value>` writes there; `/settings <key>=<value>`
 # edits this file. See `.claude/docs/config-resolution.md` for the full
 # precedence order.
+
+modes:
+  rigor: minimal
+  automation: autonomous
+
+engine:
+  name: "Unity"
+  version: "6.3 LTS"
+  language: "C#"
+  rendering: "URP"
+  # Unity physics is not used: movement and collision are the engine-free tile
+  # collision in Assets/Scripts/Core (unit-tested with dotnet and Unity EditMode).
+  physics: "Custom tile collision (Redline.Core)"
+  path: "/home/roman/Unity/Hub/Editor/6000.3.26f1/Editor/Unity"
+
+specialists:
+  code: "unity-specialist"
+  shader: "unity-shader-specialist"
+  ui: "unity-ui-specialist"
+  additional: ["unity-dots-specialist", "unity-addressables-specialist"]
+
+naming:
+  classes: PascalCase
+  variables: camelCase
+  constants: SCREAMING_SNAKE   # UNVERIFIED — not sourceable from
+                               # docs/engine-reference/unity/; confirm before relying on it
+  signals: on_event_name   # C# events, PascalCase On<Event> (e.g. OnSpeedTierChanged)
+  files: PascalCase
+  scenes: PascalCase
+
+commands:
+  # Every editor command needs OPENSSL_CONF: Fedora's crypto policy rejects the SHA-1
+  # signature in Unity's licence file. ~/Unity/openssl-unity.cnf allows it for these runs only.
+  # All four verified on 2026-11-02 with editor 6000.3.26f1.
+  build: 'OPENSSL_CONF=/home/roman/Unity/openssl-unity.cnf "/home/roman/Unity/Hub/Editor/6000.3.26f1/Editor/Unity" -batchmode -quit -projectPath . -buildTarget Linux64 -buildLinux64Player Builds/Linux64/Redline.x86_64'
+  test: 'OPENSSL_CONF=/home/roman/Unity/openssl-unity.cnf "/home/roman/Unity/Hub/Editor/6000.3.26f1/Editor/Unity" -batchmode -runTests -projectPath . -testPlatform EditMode -testResults test-results/editmode.xml'
+  run: "Builds/Linux64/Redline.x86_64 -screen-width 1280 -screen-height 720 -screen-fullscreen 0"
+  smoke: 'OPENSSL_CONF=/home/roman/Unity/openssl-unity.cnf "/home/roman/Unity/Hub/Editor/6000.3.26f1/Editor/Unity" -batchmode -quit -projectPath . -logFile -'

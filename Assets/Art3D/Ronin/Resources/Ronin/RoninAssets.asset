@@ -1,0 +1,38 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7b347736210c9ffc1be88d2f152badb7, type: 3}
+  m_Name: RoninAssets
+  m_EditorClassIdentifier: Assembly-CSharp::Redline.Game.Ronin.RoninAssets
+  Model: {fileID: 919132149155446097, guid: a4bed255744a4d9358b6158b6f2ec433, type: 3}
+  Clips:
+  - {fileID: -623603649343465320, guid: 4973a8416649d4d108d8f4a8228d0ebf, type: 3}
+  - {fileID: -623603649343465320, guid: 0d55e8e9c2f569f388740f30328747e3, type: 3}
+  - {fileID: -623603649343465320, guid: 8ea88b2dca0ca5f5886011ed988c9334, type: 3}
+  - {fileID: -623603649343465320, guid: d56639ebd4b3c0fc1a88dd930f66104c, type: 3}
+  - {fileID: -623603649343465320, guid: 7b800a6dba5ae7299bd4e15485bafa13, type: 3}
+  - {fileID: -623603649343465320, guid: 3a15581ed88cdff439dd4ba939e1d455, type: 3}
+  - {fileID: -623603649343465320, guid: 4f169b448fed7999bbcd2f58bc76584c, type: 3}
+  - {fileID: -623603649343465320, guid: e680cbb4fff7bfc6f9769ff741ceda09, type: 3}
+  - {fileID: -623603649343465320, guid: 71979fb301dfa4c8992bf3836443d07c, type: 3}
+  - {fileID: -623603649343465320, guid: cc5e0c55870161cd4bc616a81f081970, type: 3}
+  - {fileID: -623603649343465320, guid: 08cca8b7c0f06b9b08f8febe1f219493, type: 3}
+  - {fileID: -623603649343465320, guid: 17cdcc735e505bce09dcfd929636ed78, type: 3}
+  - {fileID: -623603649343465320, guid: a68fc97efca48a086acac67383435db7, type: 3}
+  - {fileID: -623603649343465320, guid: 6ddd8f205c35be4808d45cf5709f2a26, type: 3}
+  - {fileID: -623603649343465320, guid: 709e9e9256fdbffb198cf14a8b609dec, type: 3}
+  - {fileID: -623603649343465320, guid: 5bf6e18a42d8f79ca9f8e739bc7b4959, type: 3}
+  - {fileID: -623603649343465320, guid: b010caec753af8bf3a3e8ec9a1532fca, type: 3}
+  Materials:
+  - {fileID: 2100000, guid: 27ae542e4a5e61add8a0c19d283ed3af, type: 2}
+  - {fileID: 2100000, guid: 88d0073f73deb74acbd2bddb2ba09744, type: 2}
+  - {fileID: 2100000, guid: c481fc1fbbf632310992606e8b8edddd, type: 2}
+  DefaultTier: {r: 0.4, g: 2.5, b: 3, a: 1}

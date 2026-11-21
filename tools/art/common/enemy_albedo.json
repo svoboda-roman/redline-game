@@ -1,0 +1,32 @@
+{
+  "_doc": "Plain-albedo enemy materials for bake_char.py (the 3D-lit path, same material language as the baked Tech Ronin: flat material colour, real normals, emissive masks, no toon bands, rim or outline). Keys are the material names of enemy_style.json (the id pass writes their ids). Values are sRGB albedo, kept in the ronin's muted value range (dark armour, art bible section 5); the scene lamps and the grade do the shading. 'emissive' maps a material to a mask channel (r = attack glow, g = eyes, b = light strips). 'fold' lists, per character, emissive materials whose glow is dropped (kept as a dark albedo trim, like the ronin's hat brim): only intentional glows stay emissive. Values are technical placeholders pending art-director sign-off.",
+  "materials": {
+    "helmet":   {"albedo": "#2c2f37"},
+    "gunmetal": {"albedo": "#454950"},
+    "olive":    {"albedo": "#454a3a"},
+    "eye":      {"albedo": "#5a1418", "emissive": "g"},
+    "suit":     {"albedo": "#343844"},
+    "cloth":    {"albedo": "#383a42"},
+    "boots":    {"albedo": "#25262b"},
+    "cyber":    {"albedo": "#5a616b"},
+    "steel":    {"albedo": "#949ca6"},
+    "strip":    {"albedo": "#5e4026", "emissive": "b"},
+    "glow":     {"albedo": "#7a3420", "emissive": "r"},
+    "red":      {"albedo": "#7a1018", "emissive": "g"},
+    "charge":   {"albedo": "#7a1018", "emissive": "r"},
+    "talisman": {"albedo": "#a88c62", "emissive": "b"},
+    "spark":    {"albedo": "#b89466", "emissive": "r"},
+    "blur":     {"albedo": "#454950"},
+    "feather":  {"albedo": "#17171d"},
+    "plume":    {"albedo": "#2e2e3a"},
+    "beak":     {"albedo": "#34312e"}
+  },
+  "fold": {
+    "grunt": ["strip"],
+    "shooter": ["strip"],
+    "summoner": ["strip"],
+    "kamikaze": ["strip"],
+    "drone": ["strip"]
+  },
+  "coverage": {"opaque": 0.375, "opaque_emissive": 0.125, "r": 0.125, "g": 0.1875, "b": 0.1875}
+}

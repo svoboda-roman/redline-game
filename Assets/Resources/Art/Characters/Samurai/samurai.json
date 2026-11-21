@@ -1,0 +1,1360 @@
+{
+ "name": "samurai",
+ "ppu": 48.0,
+ "cell": {
+  "w": 182,
+  "h": 144
+ },
+ "atlas": {
+  "w": 2210,
+  "h": 1608
+ },
+ "padding": 2,
+ "rect_origin": "bottom-left (Unity sprite rect convention); pivot normalised within the rect",
+ "pivot_note": "feet centre = bottom-centre of the 0.8 x 1.6 collision body; sprites face right",
+ "textures": {
+  "color": "samurai_color.png",
+  "normal": "samurai_normal.png",
+  "emissive": "samurai_emissive.png"
+ },
+ "normal_encoding": "tangent space in the sprite plane: R=+X right, G=+Y up, B=toward camera; transparent texels (128,128,255,0)",
+ "emissive_encoding": "R = katana blade + slash smear (tint by speed tier; smear core 255, smear edge band 136 when shading v2), G = visor slit, B = cyber-arm light strips; A = 255 where any mask is set",
+ "palette": [
+  "#0c0f24",
+  "#0d0f15",
+  "#13172d",
+  "#141722",
+  "#15101a",
+  "#181d2f",
+  "#1d2845",
+  "#1f2229",
+  "#1f2436",
+  "#221d28",
+  "#262b35",
+  "#262b38",
+  "#272e47",
+  "#2b2330",
+  "#2c0a10",
+  "#2c313e",
+  "#2c3851",
+  "#2d2d30",
+  "#322c39",
+  "#352a36",
+  "#373941",
+  "#383f54",
+  "#3a404e",
+  "#3d495a",
+  "#423c43",
+  "#48474a",
+  "#4a525e",
+  "#4b505b",
+  "#535962",
+  "#544c4b",
+  "#616468",
+  "#620019",
+  "#696969",
+  "#6a5b51",
+  "#6cf3ff",
+  "#760024",
+  "#797571",
+  "#838caa",
+  "#8a1d2c",
+  "#8a8582",
+  "#8d98a7",
+  "#9a9293",
+  "#9da6b7",
+  "#9e3734",
+  "#9f988e",
+  "#afa597",
+  "#b14f3c",
+  "#b6ada0",
+  "#bbbfc4",
+  "#d4c8b0",
+  "#ddd8cf",
+  "#f5e3c2",
+  "#ff3346",
+  "#fff7e1",
+  "#ffffff"
+ ],
+ "animations": [
+  {
+   "name": "idle",
+   "fps": 8,
+   "loop": true,
+   "frames": [
+    "samurai_idle_00",
+    "samurai_idle_01",
+    "samurai_idle_02",
+    "samurai_idle_03",
+    "samurai_idle_04",
+    "samurai_idle_05",
+    "samurai_idle_06",
+    "samurai_idle_07"
+   ]
+  },
+  {
+   "name": "run",
+   "fps": 21,
+   "loop": true,
+   "frames": [
+    "samurai_run_00",
+    "samurai_run_01",
+    "samurai_run_02",
+    "samurai_run_03",
+    "samurai_run_04",
+    "samurai_run_05",
+    "samurai_run_06",
+    "samurai_run_07",
+    "samurai_run_08",
+    "samurai_run_09",
+    "samurai_run_10",
+    "samurai_run_11"
+   ]
+  },
+  {
+   "name": "slide",
+   "fps": 12,
+   "loop": false,
+   "frames": [
+    "samurai_slide_00",
+    "samurai_slide_01",
+    "samurai_slide_02",
+    "samurai_slide_03"
+   ]
+  },
+  {
+   "name": "jump",
+   "fps": 10,
+   "loop": false,
+   "frames": [
+    "samurai_jump_00",
+    "samurai_jump_01",
+    "samurai_jump_02"
+   ]
+  },
+  {
+   "name": "fall",
+   "fps": 10,
+   "loop": true,
+   "frames": [
+    "samurai_fall_00",
+    "samurai_fall_01",
+    "samurai_fall_02"
+   ]
+  },
+  {
+   "name": "wall_slide",
+   "fps": 10,
+   "loop": true,
+   "frames": [
+    "samurai_wall_slide_00",
+    "samurai_wall_slide_01",
+    "samurai_wall_slide_02"
+   ]
+  },
+  {
+   "name": "hook_swing",
+   "fps": 8,
+   "loop": true,
+   "frames": [
+    "samurai_hook_swing_00",
+    "samurai_hook_swing_01",
+    "samurai_hook_swing_02",
+    "samurai_hook_swing_03"
+   ]
+  },
+  {
+   "name": "attack",
+   "fps": 18,
+   "loop": false,
+   "frames": [
+    "samurai_attack_00",
+    "samurai_attack_01",
+    "samurai_attack_02",
+    "samurai_attack_03",
+    "samurai_attack_04",
+    "samurai_attack_05",
+    "samurai_attack_06",
+    "samurai_attack_07"
+   ]
+  },
+  {
+   "name": "air_attack",
+   "fps": 18,
+   "loop": false,
+   "frames": [
+    "samurai_air_attack_00",
+    "samurai_air_attack_01",
+    "samurai_air_attack_02",
+    "samurai_air_attack_03",
+    "samurai_air_attack_04"
+   ]
+  },
+  {
+   "name": "hurt",
+   "fps": 10,
+   "loop": false,
+   "frames": [
+    "samurai_hurt_00",
+    "samurai_hurt_01"
+   ]
+  },
+  {
+   "name": "death",
+   "fps": 10,
+   "loop": false,
+   "frames": [
+    "samurai_death_00",
+    "samurai_death_01",
+    "samurai_death_02",
+    "samurai_death_03",
+    "samurai_death_04",
+    "samurai_death_05",
+    "samurai_death_06",
+    "samurai_death_07"
+   ]
+  }
+ ],
+ "frames": [
+  {
+   "name": "samurai_idle_00",
+   "anim": "idle",
+   "index": 0,
+   "rect": {
+    "x": 2,
+    "y": 1462,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_idle_01",
+   "anim": "idle",
+   "index": 1,
+   "rect": {
+    "x": 186,
+    "y": 1462,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_idle_02",
+   "anim": "idle",
+   "index": 2,
+   "rect": {
+    "x": 370,
+    "y": 1462,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_idle_03",
+   "anim": "idle",
+   "index": 3,
+   "rect": {
+    "x": 554,
+    "y": 1462,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_idle_04",
+   "anim": "idle",
+   "index": 4,
+   "rect": {
+    "x": 738,
+    "y": 1462,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_idle_05",
+   "anim": "idle",
+   "index": 5,
+   "rect": {
+    "x": 922,
+    "y": 1462,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_idle_06",
+   "anim": "idle",
+   "index": 6,
+   "rect": {
+    "x": 1106,
+    "y": 1462,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_idle_07",
+   "anim": "idle",
+   "index": 7,
+   "rect": {
+    "x": 1290,
+    "y": 1462,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_run_00",
+   "anim": "run",
+   "index": 0,
+   "rect": {
+    "x": 2,
+    "y": 1316,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_run_01",
+   "anim": "run",
+   "index": 1,
+   "rect": {
+    "x": 186,
+    "y": 1316,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_run_02",
+   "anim": "run",
+   "index": 2,
+   "rect": {
+    "x": 370,
+    "y": 1316,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_run_03",
+   "anim": "run",
+   "index": 3,
+   "rect": {
+    "x": 554,
+    "y": 1316,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_run_04",
+   "anim": "run",
+   "index": 4,
+   "rect": {
+    "x": 738,
+    "y": 1316,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_run_05",
+   "anim": "run",
+   "index": 5,
+   "rect": {
+    "x": 922,
+    "y": 1316,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_run_06",
+   "anim": "run",
+   "index": 6,
+   "rect": {
+    "x": 1106,
+    "y": 1316,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_run_07",
+   "anim": "run",
+   "index": 7,
+   "rect": {
+    "x": 1290,
+    "y": 1316,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_run_08",
+   "anim": "run",
+   "index": 8,
+   "rect": {
+    "x": 1474,
+    "y": 1316,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_run_09",
+   "anim": "run",
+   "index": 9,
+   "rect": {
+    "x": 1658,
+    "y": 1316,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_run_10",
+   "anim": "run",
+   "index": 10,
+   "rect": {
+    "x": 1842,
+    "y": 1316,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_run_11",
+   "anim": "run",
+   "index": 11,
+   "rect": {
+    "x": 2026,
+    "y": 1316,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_slide_00",
+   "anim": "slide",
+   "index": 0,
+   "rect": {
+    "x": 2,
+    "y": 1170,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_slide_01",
+   "anim": "slide",
+   "index": 1,
+   "rect": {
+    "x": 186,
+    "y": 1170,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_slide_02",
+   "anim": "slide",
+   "index": 2,
+   "rect": {
+    "x": 370,
+    "y": 1170,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_slide_03",
+   "anim": "slide",
+   "index": 3,
+   "rect": {
+    "x": 554,
+    "y": 1170,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_jump_00",
+   "anim": "jump",
+   "index": 0,
+   "rect": {
+    "x": 2,
+    "y": 1024,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_jump_01",
+   "anim": "jump",
+   "index": 1,
+   "rect": {
+    "x": 186,
+    "y": 1024,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_jump_02",
+   "anim": "jump",
+   "index": 2,
+   "rect": {
+    "x": 370,
+    "y": 1024,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_fall_00",
+   "anim": "fall",
+   "index": 0,
+   "rect": {
+    "x": 2,
+    "y": 878,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_fall_01",
+   "anim": "fall",
+   "index": 1,
+   "rect": {
+    "x": 186,
+    "y": 878,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_fall_02",
+   "anim": "fall",
+   "index": 2,
+   "rect": {
+    "x": 370,
+    "y": 878,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_wall_slide_00",
+   "anim": "wall_slide",
+   "index": 0,
+   "rect": {
+    "x": 2,
+    "y": 732,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_wall_slide_01",
+   "anim": "wall_slide",
+   "index": 1,
+   "rect": {
+    "x": 186,
+    "y": 732,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_wall_slide_02",
+   "anim": "wall_slide",
+   "index": 2,
+   "rect": {
+    "x": 370,
+    "y": 732,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_hook_swing_00",
+   "anim": "hook_swing",
+   "index": 0,
+   "rect": {
+    "x": 2,
+    "y": 586,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_hook_swing_01",
+   "anim": "hook_swing",
+   "index": 1,
+   "rect": {
+    "x": 186,
+    "y": 586,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_hook_swing_02",
+   "anim": "hook_swing",
+   "index": 2,
+   "rect": {
+    "x": 370,
+    "y": 586,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_hook_swing_03",
+   "anim": "hook_swing",
+   "index": 3,
+   "rect": {
+    "x": 554,
+    "y": 586,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_attack_00",
+   "anim": "attack",
+   "index": 0,
+   "rect": {
+    "x": 2,
+    "y": 440,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_attack_01",
+   "anim": "attack",
+   "index": 1,
+   "rect": {
+    "x": 186,
+    "y": 440,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_attack_02",
+   "anim": "attack",
+   "index": 2,
+   "rect": {
+    "x": 370,
+    "y": 440,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_attack_03",
+   "anim": "attack",
+   "index": 3,
+   "rect": {
+    "x": 554,
+    "y": 440,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_attack_04",
+   "anim": "attack",
+   "index": 4,
+   "rect": {
+    "x": 738,
+    "y": 440,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_attack_05",
+   "anim": "attack",
+   "index": 5,
+   "rect": {
+    "x": 922,
+    "y": 440,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_attack_06",
+   "anim": "attack",
+   "index": 6,
+   "rect": {
+    "x": 1106,
+    "y": 440,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_attack_07",
+   "anim": "attack",
+   "index": 7,
+   "rect": {
+    "x": 1290,
+    "y": 440,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_air_attack_00",
+   "anim": "air_attack",
+   "index": 0,
+   "rect": {
+    "x": 2,
+    "y": 294,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_air_attack_01",
+   "anim": "air_attack",
+   "index": 1,
+   "rect": {
+    "x": 186,
+    "y": 294,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_air_attack_02",
+   "anim": "air_attack",
+   "index": 2,
+   "rect": {
+    "x": 370,
+    "y": 294,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_air_attack_03",
+   "anim": "air_attack",
+   "index": 3,
+   "rect": {
+    "x": 554,
+    "y": 294,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_air_attack_04",
+   "anim": "air_attack",
+   "index": 4,
+   "rect": {
+    "x": 738,
+    "y": 294,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_hurt_00",
+   "anim": "hurt",
+   "index": 0,
+   "rect": {
+    "x": 2,
+    "y": 148,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_hurt_01",
+   "anim": "hurt",
+   "index": 1,
+   "rect": {
+    "x": 186,
+    "y": 148,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_death_00",
+   "anim": "death",
+   "index": 0,
+   "rect": {
+    "x": 2,
+    "y": 2,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_death_01",
+   "anim": "death",
+   "index": 1,
+   "rect": {
+    "x": 186,
+    "y": 2,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_death_02",
+   "anim": "death",
+   "index": 2,
+   "rect": {
+    "x": 370,
+    "y": 2,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_death_03",
+   "anim": "death",
+   "index": 3,
+   "rect": {
+    "x": 554,
+    "y": 2,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_death_04",
+   "anim": "death",
+   "index": 4,
+   "rect": {
+    "x": 738,
+    "y": 2,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_death_05",
+   "anim": "death",
+   "index": 5,
+   "rect": {
+    "x": 922,
+    "y": 2,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_death_06",
+   "anim": "death",
+   "index": 6,
+   "rect": {
+    "x": 1106,
+    "y": 2,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  },
+  {
+   "name": "samurai_death_07",
+   "anim": "death",
+   "index": 7,
+   "rect": {
+    "x": 1290,
+    "y": 2,
+    "w": 182,
+    "h": 144
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.083333
+   },
+   "pivot_px": {
+    "x": 91,
+    "y": 12
+   }
+  }
+ ]
+}

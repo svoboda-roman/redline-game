@@ -1,0 +1,36 @@
+{
+    "pointsPerKill": 1,
+    "pointsPerWaveCleared": 5,
+    "pointsPerLevelCleared": 25,
+    "pointsForHighestTier": [0, 5, 15],
+
+    "maxHpMaxLevel": 10,
+    "maxHpBaseCost": 40,
+    "maxHpCostGrowth": 1.6,
+    "maxHpPerLevel": 17,
+    "maxHpLevelsPerHp": 2,
+
+    "speedMaxLevel": 10,
+    "speedBaseCost": 50,
+    "speedCostGrowth": 1.7,
+    "speedMultiplierPerLevel": 0.012,
+
+    "hookMaxLevel": 10,
+    "hookBaseCost": 35,
+    "hookCostGrowth": 1.6,
+    "hookRangePerLevel": 0.4,
+    "hookReleaseBoostPerLevel": 0.4,
+
+    "swordMaxLevel": 10,
+    "swordBaseCost": 45,
+    "swordCostGrowth": 1.6,
+    "attackRangePerLevel": 0.06,
+    "orbChancePerLevel": 0.012,
+    "orbDurationPerLevel": 0.06,
+    "spinBaseCost": 50,
+    "spinCostGrowth": 1.1,
+    "spinRareChance": 0.2,
+    "spinLegendaryChance": 0.05,
+    "cosmeticCosts": [0, 150, 200, 250, 300, 400],
+    "unlockWave": 10
+}

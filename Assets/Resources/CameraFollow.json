@@ -1,0 +1,21 @@
+{
+    "deadZone": 0.6,
+    "leadFraction": 0.18,
+    "leadFullSpeed": 18.0,
+    "leadMinSpeed": 5.0,
+    "leadSmoothTime": 0.5,
+    "flipTime": 0.45,
+    "flipDistance": 3.5,
+    "smoothTimeX": 0.25,
+    "smoothTimeY": 0.3,
+    "velocityFilterTime": 0.12,
+    "maxSpeed": 45.0,
+    "groundFeetFraction": 0.30,
+    "bandFraction": 0.25,
+    "fallSpeed": 12.0,
+    "fallRamp": 8.0,
+    "fallFeetFraction": 0.5,
+    "safeFraction": 0.12,
+    "teleportDistance": 4.0,
+    "shakeFrequency": 9.0
+}

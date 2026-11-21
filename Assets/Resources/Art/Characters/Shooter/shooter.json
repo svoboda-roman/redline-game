@@ -1,0 +1,829 @@
+{
+ "name": "shooter",
+ "ppu": 48.0,
+ "cell": {
+  "w": 202,
+  "h": 116
+ },
+ "atlas": {
+  "w": 2042,
+  "h": 710
+ },
+ "padding": 2,
+ "rect_origin": "bottom-left (Unity sprite rect convention); pivot normalised within the rect",
+ "pivot_note": "feet centre = bottom-centre of the 0.9 x 1.5 collision body; sprites face right; muzzle at about +0.8 world units from the pivot in aim/fire",
+ "bake_note": "3D-lit bake (tools/art/common/bake_char.py): unlit material albedo, area-filtered, hard alpha; no toon bands, rim or outline (same material language as the ronin)",
+ "textures": {
+  "color": "shooter_color.png",
+  "normal": "shooter_normal.png",
+  "emissive": "shooter_emissive.png"
+ },
+ "normal_encoding": "view-space normal: R=+X right, G=+Y up, B=toward camera; transparent texels (128,128,255,0)",
+ "emissive_encoding": "R = attack glow: barrel charge (aim frames 3-4, fire 0) + muzzle flash (fire 0), G = monocle, B = amber light strips (rail, backpack); A = 255 where any mask is set",
+ "animations": [
+  {
+   "name": "idle",
+   "fps": 8,
+   "loop": true,
+   "frames": [
+    "shooter_idle_00",
+    "shooter_idle_01",
+    "shooter_idle_02",
+    "shooter_idle_03",
+    "shooter_idle_04",
+    "shooter_idle_05",
+    "shooter_idle_06",
+    "shooter_idle_07"
+   ]
+  },
+  {
+   "name": "walk",
+   "fps": 18,
+   "loop": true,
+   "frames": [
+    "shooter_walk_00",
+    "shooter_walk_01",
+    "shooter_walk_02",
+    "shooter_walk_03",
+    "shooter_walk_04",
+    "shooter_walk_05",
+    "shooter_walk_06",
+    "shooter_walk_07",
+    "shooter_walk_08",
+    "shooter_walk_09"
+   ]
+  },
+  {
+   "name": "aim",
+   "fps": 10,
+   "loop": false,
+   "frames": [
+    "shooter_aim_00",
+    "shooter_aim_01",
+    "shooter_aim_02",
+    "shooter_aim_03",
+    "shooter_aim_04"
+   ]
+  },
+  {
+   "name": "fire",
+   "fps": 16,
+   "loop": false,
+   "frames": [
+    "shooter_fire_00",
+    "shooter_fire_01",
+    "shooter_fire_02",
+    "shooter_fire_03"
+   ]
+  },
+  {
+   "name": "hurt",
+   "fps": 16,
+   "loop": false,
+   "frames": [
+    "shooter_hurt_00",
+    "shooter_hurt_01",
+    "shooter_hurt_02",
+    "shooter_hurt_03"
+   ]
+  },
+  {
+   "name": "death",
+   "fps": 12,
+   "loop": false,
+   "frames": [
+    "shooter_death_00",
+    "shooter_death_01",
+    "shooter_death_02",
+    "shooter_death_03",
+    "shooter_death_04",
+    "shooter_death_05",
+    "shooter_death_06"
+   ]
+  }
+ ],
+ "frames": [
+  {
+   "name": "shooter_idle_00",
+   "anim": "idle",
+   "index": 0,
+   "rect": {
+    "x": 2,
+    "y": 592,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_idle_01",
+   "anim": "idle",
+   "index": 1,
+   "rect": {
+    "x": 206,
+    "y": 592,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_idle_02",
+   "anim": "idle",
+   "index": 2,
+   "rect": {
+    "x": 410,
+    "y": 592,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_idle_03",
+   "anim": "idle",
+   "index": 3,
+   "rect": {
+    "x": 614,
+    "y": 592,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_idle_04",
+   "anim": "idle",
+   "index": 4,
+   "rect": {
+    "x": 818,
+    "y": 592,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_idle_05",
+   "anim": "idle",
+   "index": 5,
+   "rect": {
+    "x": 1022,
+    "y": 592,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_idle_06",
+   "anim": "idle",
+   "index": 6,
+   "rect": {
+    "x": 1226,
+    "y": 592,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_idle_07",
+   "anim": "idle",
+   "index": 7,
+   "rect": {
+    "x": 1430,
+    "y": 592,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_walk_00",
+   "anim": "walk",
+   "index": 0,
+   "rect": {
+    "x": 2,
+    "y": 474,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_walk_01",
+   "anim": "walk",
+   "index": 1,
+   "rect": {
+    "x": 206,
+    "y": 474,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_walk_02",
+   "anim": "walk",
+   "index": 2,
+   "rect": {
+    "x": 410,
+    "y": 474,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_walk_03",
+   "anim": "walk",
+   "index": 3,
+   "rect": {
+    "x": 614,
+    "y": 474,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_walk_04",
+   "anim": "walk",
+   "index": 4,
+   "rect": {
+    "x": 818,
+    "y": 474,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_walk_05",
+   "anim": "walk",
+   "index": 5,
+   "rect": {
+    "x": 1022,
+    "y": 474,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_walk_06",
+   "anim": "walk",
+   "index": 6,
+   "rect": {
+    "x": 1226,
+    "y": 474,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_walk_07",
+   "anim": "walk",
+   "index": 7,
+   "rect": {
+    "x": 1430,
+    "y": 474,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_walk_08",
+   "anim": "walk",
+   "index": 8,
+   "rect": {
+    "x": 1634,
+    "y": 474,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_walk_09",
+   "anim": "walk",
+   "index": 9,
+   "rect": {
+    "x": 1838,
+    "y": 474,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_aim_00",
+   "anim": "aim",
+   "index": 0,
+   "rect": {
+    "x": 2,
+    "y": 356,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_aim_01",
+   "anim": "aim",
+   "index": 1,
+   "rect": {
+    "x": 206,
+    "y": 356,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_aim_02",
+   "anim": "aim",
+   "index": 2,
+   "rect": {
+    "x": 410,
+    "y": 356,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_aim_03",
+   "anim": "aim",
+   "index": 3,
+   "rect": {
+    "x": 614,
+    "y": 356,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_aim_04",
+   "anim": "aim",
+   "index": 4,
+   "rect": {
+    "x": 818,
+    "y": 356,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_fire_00",
+   "anim": "fire",
+   "index": 0,
+   "rect": {
+    "x": 2,
+    "y": 238,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_fire_01",
+   "anim": "fire",
+   "index": 1,
+   "rect": {
+    "x": 206,
+    "y": 238,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_fire_02",
+   "anim": "fire",
+   "index": 2,
+   "rect": {
+    "x": 410,
+    "y": 238,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_fire_03",
+   "anim": "fire",
+   "index": 3,
+   "rect": {
+    "x": 614,
+    "y": 238,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_hurt_00",
+   "anim": "hurt",
+   "index": 0,
+   "rect": {
+    "x": 2,
+    "y": 120,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_hurt_01",
+   "anim": "hurt",
+   "index": 1,
+   "rect": {
+    "x": 206,
+    "y": 120,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_hurt_02",
+   "anim": "hurt",
+   "index": 2,
+   "rect": {
+    "x": 410,
+    "y": 120,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_hurt_03",
+   "anim": "hurt",
+   "index": 3,
+   "rect": {
+    "x": 614,
+    "y": 120,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_death_00",
+   "anim": "death",
+   "index": 0,
+   "rect": {
+    "x": 2,
+    "y": 2,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_death_01",
+   "anim": "death",
+   "index": 1,
+   "rect": {
+    "x": 206,
+    "y": 2,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_death_02",
+   "anim": "death",
+   "index": 2,
+   "rect": {
+    "x": 410,
+    "y": 2,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_death_03",
+   "anim": "death",
+   "index": 3,
+   "rect": {
+    "x": 614,
+    "y": 2,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_death_04",
+   "anim": "death",
+   "index": 4,
+   "rect": {
+    "x": 818,
+    "y": 2,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_death_05",
+   "anim": "death",
+   "index": 5,
+   "rect": {
+    "x": 1022,
+    "y": 2,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  },
+  {
+   "name": "shooter_death_06",
+   "anim": "death",
+   "index": 6,
+   "rect": {
+    "x": 1226,
+    "y": 2,
+    "w": 202,
+    "h": 116
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.103448
+   },
+   "pivot_px": {
+    "x": 101,
+    "y": 12
+   }
+  }
+ ]
+}
